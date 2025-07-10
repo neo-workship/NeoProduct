@@ -1,0 +1,49 @@
+{
+  "images": {
+    "logo": {
+      "robot": "static/images/logo/robot.svg",
+      "favicon": "static/images/logo/favicon.ico"
+    },
+    "avatars": {
+      "default": "static/images/avatars/default_avatar.png",
+      "admin": "static/images/avatars/admin_avatar.png",
+      "user": "static/images/avatars/user_avatar.png"
+    },
+    "icons": {
+      "menu": {
+        "home": "static/images/icons/menu-icons/home.svg",
+        "dashboard": "static/images/icons/menu-icons/dashboard.svg",
+        "data": "static/images/icons/menu-icons/data.svg",
+        "analysis": "static/images/icons/menu-icons/analysis.svg",
+        "mcp": "static/images/icons/menu-icons/mcp.svg",
+        "about": "static/images/icons/menu-icons/about.svg"
+      },
+      "header": {
+        "search": "static/images/icons/header-icons/search.svg",
+        "messages": "static/images/icons/header-icons/messages.svg",
+        "notifications": "static/images/icons/header-icons/notifications.svg",
+        "settings": "static/images/icons/header-icons/settings.svg",
+        "profile": "static/images/icons/header-icons/profile.svg"
+      }
+    }
+  },
+  "css": {
+    "main": "static/css/custom.css",
+    "themes": {
+      "light": "static/css/themes/light.css",
+      "dark": "static/css/themes/dark.css"
+    }
+  },
+  "js": {
+    "utils": "static/js/utils.js",
+    "components": {
+      "charts": "static/js/components/charts.js",
+      "forms": "static/js/components/forms.js",
+      "navigation": "static/js/components/navigation.js"
+    }
+  },
+  "fonts": {
+    "inter": "static/fonts/custom-fonts/Inter.woff2",
+    "roboto": "static/fonts/custom-fonts/Roboto.woff2"
+  }
+}

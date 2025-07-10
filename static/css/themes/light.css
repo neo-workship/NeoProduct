@@ -1,0 +1,54 @@
+/* 浅色主题样式 */
+[data-theme="light"] {
+  /* 主要颜色 */
+  --primary-bg: #ffffff;
+  --secondary-bg: #f8fafc;
+  --accent-bg: #e2e8f0;
+
+  /* 文字颜色 */
+  --primary-text: #1f2937;
+  --secondary-text: #6b7280;
+  --accent-text: #3b82f6;
+
+  /* 边框颜色 */
+  --border-light: #e5e7eb;
+  --border-medium: #d1d5db;
+  --border-dark: #9ca3af;
+
+  /* 状态颜色 */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* 浅色主题下的组件样式 */
+[data-theme="light"] .custom-card {
+  background-color: var(--primary-bg);
+  border: 1px solid var(--border-light);
+  color: var(--primary-text);
+}
+
+[data-theme="light"] .custom-button {
+  background-color: var(--accent-text);
+  color: white;
+  border: none;
+}
+
+[data-theme="light"] .custom-button:hover {
+  background-color: #2563eb;
+}
+
+[data-theme="light"] .menu-item-hover {
+  color: var(--primary-text);
+}
+
+[data-theme="light"] .menu-item-hover:hover {
+  background-color: var(--secondary-bg);
+  color: var(--accent-text);
+}
