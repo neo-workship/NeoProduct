@@ -104,19 +104,19 @@ if __name__ in {"__main__", "__mp_main__"}:
         # 创建带认证的简单SPA布局
         @with_simple_spa_layout(
             config=config,
-            # nav_items=[
-            #     {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
-            #     {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard'},
-            #     {'key': 'data', 'label': '智能审计', 'icon': 'policy', 'route': 'data'},
-            #     {'key': 'analysis', 'label': '智能问数', 'icon': 'question_answer', 'route': 'analysis'},
-            #     {'key': 'mcp', 'label': 'MCP服务', 'icon': 'api', 'route': 'mcp'},
-            #     {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'}
-            # ],
-            header_config_items=[
-                {'key': 'search', 'icon': 'search', 'label': '查询', 'route': 'search_page'},
-                {'key': 'messages', 'icon': 'mail', 'label': '消息', 'route': 'messages_page'},
-                {'key': 'contact', 'label': '联系我们', 'icon': 'support', 'route': 'contact_page'},
+            nav_items=[
+                {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
+                {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard'},
+                # {'key': 'data', 'label': '智能审计', 'icon': 'policy', 'route': 'data'},
+                # {'key': 'analysis', 'label': '智能问数', 'icon': 'question_answer', 'route': 'analysis'},
+                # {'key': 'mcp', 'label': 'MCP服务', 'icon': 'api', 'route': 'mcp'},
+                # {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'}
             ],
+            # header_config_items=[
+            #     {'key': 'search', 'icon': 'search', 'label': '查询', 'route': 'search_page'},
+            #     {'key': 'messages', 'icon': 'mail', 'label': '消息', 'route': 'messages_page'},
+            #     {'key': 'contact', 'label': '联系我们', 'icon': 'support', 'route': 'contact_page'},
+            # ],
             route_handlers=protected_handlers
         )
         def simple_spa_layout():

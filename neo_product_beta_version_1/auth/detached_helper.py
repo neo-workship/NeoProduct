@@ -195,6 +195,61 @@ class DetachedRole:
                 is_system=getattr(role, 'is_system', False)
             )
 
+@dataclass
+class DetachedPermission:
+    """分离的权限数据类"""
+    id: int
+    name: str
+    display_name: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    # 关联信息
+    roles: List[str] = field(default_factory=list)  # 关联的角色名称列表
+    roles_count: int = 0  # 关联的角色数量
+    users_count: int = 0  # 间接关联的用户数量
+
+    @classmethod
+    def from_permission(cls, permission: Permission) -> 'DetachedPermission':
+        """从Permission模型创建分离的权限对象"""
+        try:
+            # 提取角色信息
+            roles = []
+            users_count = 0
+            if hasattr(permission, 'roles') and permission.roles:
+                roles = [role.name for role in permission.roles]
+                # 计算间接关联的用户数量（通过角色）
+                users_set = set()
+                for role in permission.roles:
+                    if hasattr(role, 'users') and role.users:
+                        users_set.update(user.id for user in role.users)
+                users_count = len(users_set)
+
+            return cls(
+                id=permission.id,
+                name=permission.name,
+                display_name=permission.display_name,
+                category=permission.category,
+                description=permission.description,
+                created_at=permission.created_at,
+                updated_at=permission.updated_at,
+                roles=roles,
+                roles_count=len(roles),
+                users_count=users_count
+            )
+        except Exception as e:
+            logger.error(f"创建DetachedPermission失败: {e}")
+            return cls(
+                id=permission.id,
+                name=permission.name,
+                display_name=getattr(permission, 'display_name', None),
+                category=getattr(permission, 'category', None),
+                description=getattr(permission, 'description', None)
+            )
+
+
 class DetachedDataManager:
     """分离数据管理器 - 处理SQLAlchemy会话依赖问题，增强锁定状态支持"""
 
@@ -585,6 +640,169 @@ class DetachedDataManager:
             logger.error(f"批量解锁用户失败: {e}")
             return 0
 
+    # -------------------------permission-------------------------------
+    @staticmethod
+    def get_permission_safe(permission_id: int) -> Optional[DetachedPermission]:
+        """安全获取权限数据"""
+        try:
+            from .database import get_db
+            from sqlalchemy.orm import joinedload
+            
+            with get_db() as db:
+                permission = db.query(Permission).options(
+                    joinedload(Permission.roles).joinedload(Role.users)
+                ).filter(Permission.id == permission_id).first()
+                
+                if permission:
+                    return DetachedPermission.from_permission(permission)
+                return None
+                
+        except Exception as e:
+            logger.error(f"获取权限数据失败 (ID: {permission_id}): {e}")
+            return None
+
+    @staticmethod
+    def get_permissions_safe(search_term: str = None, category: str = None, limit: int = None) -> List[DetachedPermission]:
+        """安全获取权限列表"""
+        try:
+            from .database import get_db
+            from sqlalchemy.orm import joinedload
+            
+            with get_db() as db:
+                query = db.query(Permission).options(
+                    joinedload(Permission.roles).joinedload(Role.users)
+                )
+
+                # 搜索过滤
+                if search_term:
+                    query = query.filter(
+                        (Permission.name.contains(search_term)) |
+                        (Permission.display_name.contains(search_term)) |
+                        (Permission.description.contains(search_term))
+                    )
+
+                # 分类过滤
+                if category:
+                    query = query.filter(Permission.category == category)
+
+                # 限制数量
+                if limit:
+                    query = query.limit(limit)
+
+                permissions = query.all()
+                return [DetachedPermission.from_permission(perm) for perm in permissions]
+
+        except Exception as e:
+            logger.error(f"获取权限列表失败: {e}")
+            return []
+
+    @staticmethod
+    def create_permission_safe(name: str, display_name: str = None, category: str = None, description: str = None) -> Optional[int]:
+        """安全创建权限"""
+        try:
+            from .database import get_db
+
+            with get_db() as db:
+                # 检查权限名称是否已存在
+                existing = db.query(Permission).filter(Permission.name == name).first()
+                if existing:
+                    logger.warning(f"权限名称已存在: {name}")
+                    return None
+
+                permission = Permission(
+                    name=name,
+                    display_name=display_name,
+                    category=category,
+                    description=description
+                )
+                
+                db.add(permission)
+                db.commit()
+                
+                logger.info(f"权限创建成功: {name}")
+                return permission.id
+
+        except Exception as e:
+            logger.error(f"创建权限失败: {e}")
+            return None
+
+    @staticmethod
+    def update_permission_safe(permission_id: int, **update_data) -> bool:
+        """安全更新权限数据"""
+        try:
+            from .database import get_db
+
+            with get_db() as db:
+                permission = db.query(Permission).filter(Permission.id == permission_id).first()
+                if not permission:
+                    return False
+
+                # 更新基本字段
+                basic_fields = ['display_name', 'category', 'description']
+                for field in basic_fields:
+                    if field in update_data:
+                        setattr(permission, field, update_data[field])
+
+                db.commit()
+                logger.info(f"权限更新成功: {permission.name}")
+                return True
+
+        except Exception as e:
+            logger.error(f"更新权限失败 (ID: {permission_id}): {e}")
+            return False
+
+    @staticmethod
+    def delete_permission_safe(permission_id: int) -> bool:
+        """安全删除权限"""
+        try:
+            from .database import get_db
+
+            with get_db() as db:
+                permission = db.query(Permission).filter(Permission.id == permission_id).first()
+                if not permission:
+                    return False
+
+                # 检查是否有角色关联
+                if hasattr(permission, 'roles') and permission.roles:
+                    logger.warning(f"无法删除权限，存在角色关联: {permission.name}")
+                    return False
+
+                permission_name = permission.name
+                db.delete(permission)
+                db.commit()
+                logger.info(f"权限删除成功: {permission_name}")
+                return True
+
+        except Exception as e:
+            logger.error(f"删除权限失败 (ID: {permission_id}): {e}")
+            return False
+
+    @staticmethod
+    def get_permission_statistics() -> Dict[str, int]:
+        """获取权限统计数据"""
+        try:
+            from .database import get_db
+            
+            with get_db() as db:
+                total_permissions = db.query(Permission).count()
+                system_permissions = db.query(Permission).filter(Permission.category == '系统').count()
+                content_permissions = db.query(Permission).filter(Permission.category == '内容').count()
+                
+                return {
+                    'total_permissions': total_permissions,
+                    'system_permissions': system_permissions,
+                    'content_permissions': content_permissions,
+                    'other_permissions': total_permissions - system_permissions - content_permissions
+                }
+                
+        except Exception as e:
+            logger.error(f"获取权限统计失败: {e}")
+            return {
+                'total_permissions': 0,
+                'system_permissions': 0,
+                'content_permissions': 0,
+                'other_permissions': 0
+            }
 # 全局实例
 detached_manager = DetachedDataManager()
 
@@ -636,3 +854,23 @@ def unlock_user_safe(user_id: int) -> bool:
 def batch_unlock_users_safe() -> int:
     """便捷函数：批量解锁用户"""
     return detached_manager.batch_unlock_users_safe()
+
+def get_permission_safe(permission_id: int) -> Optional[DetachedPermission]:
+    """便捷函数：安全获取权限"""
+    return detached_manager.get_permission_safe(permission_id)
+
+def get_permissions_safe(search_term: str = None, category: str = None, limit: int = None) -> List[DetachedPermission]:
+    """便捷函数：安全获取权限列表"""
+    return detached_manager.get_permissions_safe(search_term, category, limit)
+
+def create_permission_safe(name: str, display_name: str = None, category: str = None, description: str = None) -> Optional[int]:
+    """便捷函数：安全创建权限"""
+    return detached_manager.create_permission_safe(name, display_name, category, description)
+
+def update_permission_safe(permission_id: int, **update_data) -> bool:
+    """便捷函数：安全更新权限"""
+    return detached_manager.update_permission_safe(permission_id, **update_data)
+
+def delete_permission_safe(permission_id: int) -> bool:
+    """便捷函数：安全删除权限"""
+    return detached_manager.delete_permission_safe(permission_id)

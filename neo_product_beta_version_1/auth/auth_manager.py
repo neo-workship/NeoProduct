@@ -178,17 +178,35 @@ class AuthManager:
         self.current_user = None
     
     def check_session(self) -> Optional[UserSession]:
-        """检查会话状态"""
-        # 首先检查缓存的会话
+        """
+        检查会话状态 - 完整版本
+        解决多浏览器状态不一致问题
+        """
+        import time
+        current_time = time.strftime("%H:%M:%S")
+        print(f"🔍 {current_time} 当前服务器内存用户: {self.current_user.username if self.current_user else 'None'}")
+        
+        # 1. 获取浏览器存储的 session_token
         session_token = app.storage.user.get(self._session_key)
-        if session_token:
-            # 先尝试从内存缓存获取
-            user_session = session_manager.get_session(session_token)
-            if user_session:
-                self.current_user = user_session
-                return user_session
-            
-            # 如果缓存中没有，从数据库查询
+        print(f"🔑 浏览器 session_token: {session_token[:12] + '...' if session_token else 'None'}")
+        
+        # 2. 如果浏览器没有 token，清除可能的服务器状态残留
+        if not session_token:
+            print("❌ 浏览器无 session_token")
+            if self.current_user:
+                print(f"⚠️ 发现服务器状态残留，清除用户: {self.current_user.username}")
+                self.current_user = None
+            return None
+        # 3. 浏览器有 token，检查内存缓存
+        print("✅ 浏览器有 session_token，开始验证...")
+        user_session = session_manager.get_session(session_token)
+        if user_session:
+            print(f"🎯 内存缓存命中: {user_session.username}")
+            self.current_user = user_session
+            return user_session
+        
+        # 4. 内存缓存没有，从数据库验证 token 有效性
+        try:
             with get_db() as db:
                 from sqlalchemy.orm import joinedload
                 user = db.query(User).options(
@@ -200,36 +218,65 @@ class AuthManager:
                 ).first()
                 
                 if user:
-                    # 创建会话
+                    print(f"✅ 数据库验证成功: {user.username}")
+                    # 重新创建内存会话
                     user_session = session_manager.create_session(session_token, user)
                     self.current_user = user_session
                     return user_session
-        
-        # 检查remember token
-        remember_token = app.storage.user.get(self._remember_key)
-        if remember_token:
-            with get_db() as db:
-                from sqlalchemy.orm import joinedload
-                user = db.query(User).options(
-                    joinedload(User.roles).joinedload(Role.permissions),
-                    joinedload(User.permissions)
-                ).filter(
-                    User.remember_token == remember_token,
-                    User.is_active == True
-                ).first()
-                
-                if user:
-                    # 生成新的session token
-                    session_token = user.generate_session_token()
-                    app.storage.user[self._session_key] = session_token
-                    db.commit()
+                else:
+                    print("❌ 数据库验证失败，token 已失效或用户不存在")                 
+                    # token 无效，清除浏览器存储
+                    app.storage.user.pop(self._session_key, None)
+                    app.storage.user.pop(self._remember_key, None)
+                    self.current_user = None
                     
-                    # 创建会话
-                    user_session = session_manager.create_session(session_token, user)
-                    self.current_user = user_session
-                    return user_session
+        except Exception as e:
+            print(f"❌ 数据库查询出错: {e}")
+            self.current_user = None
+            return None
         
+        # 5. 检查 remember_me token（如果主 token 失效）
+        remember_token = app.storage.user.get(self._remember_key)
+        if remember_token and auth_config.allow_remember_me:
+            print(f"🔍 检查记住我 token: {remember_token[:12] + '...'}")
+            
+            try:
+                with get_db() as db:
+                    from sqlalchemy.orm import joinedload
+                    user = db.query(User).options(
+                        joinedload(User.roles).joinedload(Role.permissions),
+                        joinedload(User.permissions)
+                    ).filter(
+                        User.remember_token == remember_token,
+                        User.is_active == True
+                    ).first()
+                    
+                    if user:
+                        print(f"✅ 记住我验证成功: {user.username}")
+                        
+                        # 生成新的 session token
+                        new_session_token = user.generate_session_token()
+                        app.storage.user[self._session_key] = new_session_token
+                        db.commit()
+                        
+                        # 创建新会话
+                        user_session = session_manager.create_session(new_session_token, user)
+                        self.current_user = user_session
+                        
+                        print(f"🔄 通过记住我重新建立会话: {user_session.username}")
+                        return user_session
+                    else:
+                        print("❌ 记住我 token 验证失败")
+                        app.storage.user.pop(self._remember_key, None)
+                        
+            except Exception as e:
+                print(f"❌ 记住我验证出错: {e}")
+        
+        # 6. 所有验证都失败
+        print("❌ 所有验证都失败，用户未登录")
+        self.current_user = None
         return None
+
     
     def change_password(self, user_id: int, old_password: str, new_password: str) -> Dict[str, Any]:
         """修改密码"""

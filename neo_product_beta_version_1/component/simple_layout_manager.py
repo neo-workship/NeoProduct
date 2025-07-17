@@ -264,16 +264,18 @@ class SimpleLayoutManager:
     def create_header(self):
         """创建头部导航栏"""
         with ui.header(elevated=True).classes(f'items-center justify-between px-4 {self.config.header_bg}'):
-            # 左侧：Logo 和 导航项
+            # 左侧：Logo
             with ui.row().classes('items-center gap-2'):
                 # Logo区域
-                with ui.row().classes('items-center gap-4'):
-                    with ui.avatar():
-                        ui.image(self.config.app_icon).classes('w-12 h-12')
-                    ui.label(self.config.app_title).classes('text-xl font-medium text-white dark:text-white')
+                with ui.avatar():
+                    ui.image(self.config.app_icon).classes('w-12 h-12')
+                ui.label(self.config.app_title).classes('text-xl font-medium text-white dark:text-white')
 
-                # 分隔符
-                ui.separator().props('vertical').classes('h-8 mx-4')
+            # 右侧区域：主导航项 + 头部配置项 + 主题切换 + 设置菜单 + 用户菜单
+            # 将所有这些元素放在一个单独的 ui.row 中，它们会作为一个整体靠右对齐
+            with ui.row().classes('items-center gap-2'): # 使用 gap-2 可以在内部元素之间增加一些间距
+                # 分隔符 (可以放在主导航项之前，如果需要的话)
+                # ui.separator().props('vertical').classes('h-8 mx-4') # 如果希望主导航项和logo之间有分隔符，可以保留，但根据图片，可能不需要
 
                 # 主导航项
                 for nav_item in self.nav_items:
@@ -285,9 +287,11 @@ class SimpleLayoutManager:
                     
                     # 保存按钮引用用于状态控制
                     self.nav_buttons[nav_item.key] = nav_btn
+                
+                # 主导航项和右侧配置项之间的分隔符 (根据图片，这里可能需要一个分隔符)
+                if self.nav_items and (self.header_config_items or self.dark_mode or True): # 假设后面的元素总是存在
+                    ui.separator().props('vertical').classes('h-8 mx-4') # 在主导航项和右侧功能区之间添加分隔符
 
-            # 右侧：头部配置项 + 主题切换 + 设置菜单 + 用户菜单
-            with ui.row().classes('items-center gap-2'):
                 # 头部配置项
                 for item in self.header_config_items:
                     if item.icon and item.label:
