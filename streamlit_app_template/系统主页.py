@@ -13,7 +13,6 @@ sys.path.append(project_root)
 from auth_service import AuthManager
 
 # 导入自定义CSS应用函数
-# 假设 utils.py 在项目根目录
 from utils import apply_custom_css
 
 # 全局 AuthManager 实例，确保在整个应用中只初始化一次
