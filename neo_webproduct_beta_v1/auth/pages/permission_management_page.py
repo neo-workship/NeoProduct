@@ -108,7 +108,8 @@ def permission_management_page_content():
             load_permissions()
             
         with ui.row().classes('w-full gap-2 mb-4 items-end'):
-            search_input = ui.input('搜索权限', placeholder='权限名称、标识或描述').classes('flex-1')
+            search_input = ui.input('搜索权限', placeholder='权限名称、标识或描述').classes('flex-1').props('outlined clearable')
+            search_input.props('prepend-icon=search')
             
             ui.button('搜索', icon='search', on_click=lambda: handle_search()).classes('bg-blue-600 text-white px-4 py-2')
             ui.button('重置', icon='refresh', on_click=lambda: reset_search()).classes('bg-gray-500 text-white px-4 py-2')
@@ -123,7 +124,7 @@ def permission_management_page_content():
         log_info("开始更新权限显示")
         
         search_term = search_input.value.strip() if search_input.value else None
-        permissions = safe(
+        all_permissions = safe(
             lambda: get_permissions_safe(search_term=search_term),
             return_value=[],
             error_msg="权限列表加载失败"
@@ -132,7 +133,7 @@ def permission_management_page_content():
         permissions_container.clear()
         
         with permissions_container:
-            if not permissions:
+            if not all_permissions:
                 search_term = search_input.value.strip() if search_input.value else None
                 with ui.card().classes('w-full p-8 text-center bg-gray-50 dark:bg-gray-700'):
                     if search_term:
@@ -145,7 +146,31 @@ def permission_management_page_content():
                 return
 
             MAX_DISPLAY_USERS = 2
-            permissions_to_display = permissions[:MAX_DISPLAY_USERS]        
+            permissions_to_display = all_permissions[:MAX_DISPLAY_USERS]
+            has_more_permissions = len(all_permissions) > MAX_DISPLAY_USERS
+
+            with ui.card().classes('w-full p-4 mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700'):
+                with ui.row().classes('items-center gap-3'):
+                    ui.icon('info').classes('text-blue-600 dark:text-blue-400 text-2xl')
+                    with ui.column().classes('flex-1'):
+                        ui.label('使用提示').classes('text-lg font-semibold text-blue-800 dark:text-blue-200')
+                        if not search_term:
+                            ui.label('权限列表最多显示2个权限。要查看或操作特定用户，请使用上方搜索框输入权限名称搜索').classes('text-blue-700 dark:text-blue-300 text-sm leading-relaxed')
+                        else:
+                            if len(all_permissions) > MAX_DISPLAY_USERS:
+                                ui.label(f'搜索到 {len(all_permissions)} 个权限，当前显示前 {MAX_DISPLAY_USERS} 个。请使用更精确的关键词缩小搜索范围。').classes('text-blue-700 dark:text-blue-300 text-sm leading-relaxed')
+                            else:
+                                ui.label(f'搜索到 {len(all_permissions)} 个匹配权限。').classes('text-blue-700 dark:text-blue-300 text-sm leading-relaxed')
+            
+            with ui.row().classes('w-full items-center justify-between mb-4'):
+                if search_term:
+                    ui.label(f'搜索结果: {len(all_permissions)} 个权限').classes('text-lg font-medium text-gray-700 dark:text-gray-300')
+                else:
+                    ui.label(f'权限总数: {len(all_permissions)} 个').classes('text-lg font-medium text-gray-700 dark:text-gray-300')
+                if has_more_permissions:
+                    ui.chip(f'显示 {len(permissions_to_display)}/{len(all_permissions)}', icon='visibility').classes('bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200')
+
+
             # 权限卡片列表
             for i in range(0, len(permissions_to_display), 2):
                 with ui.row().classes('w-full gap-3'):
@@ -159,6 +184,16 @@ def permission_management_page_content():
                     else:
                         # 如果是奇数个权限，添加占位符保持布局
                         ui.column().classes('flex-1')
+
+            # 如果有更多用户未显示，显示提示
+            if has_more_permissions:
+                with ui.card().classes('w-full p-4 mt-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700'):
+                    with ui.row().classes('items-center gap-3'):
+                        ui.icon('visibility_off').classes('text-orange-600 dark:text-orange-400 text-2xl')
+                        with ui.column().classes('flex-1'):
+                            ui.label(f'还有 {len(all_permissions) - MAX_DISPLAY_USERS} 个权限未显示').classes('text-lg font-semibold text-orange-800 dark:text-orange-200')
+                            ui.label('请使用搜索功能查找特定权限，或者使用更精确的关键词缩小范围。').classes('text-orange-700 dark:text-orange-300 text-sm')
+
 
     def create_permission_card(permission_data: DetachedPermission):
         """创建权限卡片"""
