@@ -88,7 +88,7 @@ def permission_management_page_content():
                     ui.label(str(stats['total_roles'])).classes('text-3xl font-bold')
                 ui.icon('group').classes('text-4xl opacity-80')
 
-    # 搜索和筛选区域
+    # 权限列表容器
     with ui.column().classes('w-full'):
         with ui.row().classes('w-full gap-2 mt-4'):
             ui.button('添加权限', icon='add', on_click=lambda: add_permission_dialog()).classes('bg-blue-500 text-white')
@@ -268,8 +268,6 @@ def permission_management_page_content():
                                  on_click=lambda: edit_permission_dialog(permission_data)).classes('bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2')
                         ui.button('删除权限', icon='delete', 
                                  on_click=lambda: delete_permission_confirm(permission_data)).classes('bg-red-600 hover:bg-red-700 text-white px-4 py-2')
-
-    
 
     # 权限CRUD操作
     def add_permission_dialog():
