@@ -89,8 +89,8 @@ def permission_management_page_content():
                 ui.icon('group').classes('text-4xl opacity-80')
 
     # 搜索和操作栏
-    with ui.row().classes('w-full gap-2 mb-6 items-end'):
-        search_input = ui.input('搜索权限', placeholder='输入权限名称或分类搜索').classes('flex-1')
+    with ui.row().classes('w-full gap-2 mb-4 items-end'):
+        search_input = ui.input('搜索权限', placeholder='输入权限名称或分类搜索').classes('outlined clearable')
         category_filter = ui.select(
             options=['全部', '系统', '内容', '分析', '业务', '个人', '其他'],
             value='全部',
@@ -155,9 +155,9 @@ def permission_management_page_content():
             icon_theme = 'text-blue-600 dark:text-blue-400'
             
         with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
-            with ui.row().classes('w-full gap-6'):
+            with ui.row().classes('w-full p-4 gap-4'):
                 # 左侧：权限基本信息（约占 40%）
-                with ui.column().classes('flex-none w-2/5 gap-3'):
+                with ui.column().classes('flex-none w-72 gap-2'):
                     # 权限标题和分类
                     with ui.row().classes('items-center gap-3 mb-2'):
                         ui.label(permission_data.display_name or permission_data.name).classes('text-xl font-bold text-gray-800 dark:text-gray-200')
@@ -204,14 +204,14 @@ def permission_management_page_content():
                             ui.label(str(permission_data.roles_count)).classes('text-lg font-bold text-green-600 dark:text-green-400')
 
                 # 右侧：关联管理区域（约占 60%）
-                with ui.column().classes('flex-1 gap-4'):
+                with ui.column().classes('flex-1 gap-2'):
                     # 关联角色区域
                     with ui.column().classes('gap-2'):
                         with ui.row().classes('items-center justify-between w-full'):
                             ui.label(f'关联角色 ({permission_data.roles_count})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
 
                         # 角色展示区域
-                        with ui.card().classes('w-full p-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 min-h-[120px]'):
+                        with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
                             if permission_data.roles:
                                 # 角色芯片区域
                                 with ui.column().classes('w-full gap-2'):
@@ -250,7 +250,7 @@ def permission_management_page_content():
                             ui.label(f'关联用户 ({len(permission_users)})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
 
                         # 用户展示区域
-                        with ui.card().classes('w-full p-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 min-h-[120px]'):
+                        with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
                             if permission_users:
                                 # 用户芯片区域
                                 with ui.column().classes('w-full gap-2'):
