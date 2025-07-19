@@ -1,5 +1,6 @@
 """
 权限管理页面 - 卡片模式布局，与用户管理和角色管理页面保持一致
+增加了用户-权限直接关联管理功能
 """
 from nicegui import ui
 from ..decorators import require_role
@@ -9,13 +10,16 @@ from ..detached_helper import (
     get_permissions_safe,
     get_permission_safe,
     get_roles_safe,
+    get_users_safe,
     update_permission_safe,
     delete_permission_safe,
     create_permission_safe,
+    get_permission_direct_users_safe,  # 新增导入
     DetachedPermission,
-    DetachedRole
+    DetachedRole,
+    DetachedUser
 )
-from ..models import Permission, Role
+from ..models import Permission, Role, User
 from ..database import get_db
 from datetime import datetime
 
@@ -31,7 +35,7 @@ def permission_management_page_content():
     # 页面标题
     with ui.column().classes('w-full mb-6'):
         ui.label('权限管理').classes('text-4xl font-bold text-green-800 dark:text-green-200 mb-2')
-        ui.label('管理系统权限和资源访问控制，支持角色关联管理').classes('text-lg text-gray-600 dark:text-gray-400')
+        ui.label('管理系统权限和资源访问控制，支持角色和用户关联管理').classes('text-lg text-gray-600 dark:text-gray-400')
 
     # 权限统计卡片
     def load_permission_statistics():
@@ -39,16 +43,18 @@ def permission_management_page_content():
         log_info("开始加载权限统计数据")
         permission_stats = detached_manager.get_permission_statistics()
         role_stats = detached_manager.get_role_statistics()
+        user_stats = detached_manager.get_user_statistics()
         
         return {
             **permission_stats,
-            'total_roles': role_stats['total_roles']
+            'total_roles': role_stats['total_roles'],
+            'total_users': user_stats['total_users']
         }
 
     # 安全执行统计数据加载
     stats = safe(
         load_permission_statistics,
-        return_value={'total_permissions': 0, 'system_permissions': 0, 'content_permissions': 0, 'total_roles': 0},
+        return_value={'total_permissions': 0, 'system_permissions': 0, 'content_permissions': 0, 'total_roles': 0, 'total_users': 0},
         error_msg="权限统计数据加载失败"
     )
 
@@ -78,8 +84,8 @@ def permission_management_page_content():
         with ui.card().classes('flex-1 p-6 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg'):
             with ui.row().classes('items-center justify-between w-full'):
                 with ui.column().classes('gap-1'):
-                    ui.label('关联角色').classes('text-sm opacity-90 font-medium')
-                    ui.label(str(stats['total_roles'])).classes('text-3xl font-bold')
+                    ui.label('系统用户').classes('text-sm opacity-90 font-medium')
+                    ui.label(str(stats['total_users'])).classes('text-3xl font-bold')
                 ui.icon('group').classes('text-4xl opacity-80')
 
     # 搜索和操作栏
@@ -121,91 +127,60 @@ def permission_management_page_content():
                 with ui.card().classes('w-full p-8 text-center bg-gray-50 dark:bg-gray-700'):
                     if search_term:
                         ui.icon('search_off').classes('text-6xl text-gray-400 mb-4')
-                        ui.label(f'未找到匹配 "{search_term}" 的权限').classes('text-xl font-medium text-gray-500 dark:text-gray-400')
-                        ui.label('请尝试其他关键词或清空搜索条件').classes('text-gray-400 dark:text-gray-500')
-                        ui.button('清空搜索', icon='clear', 
-                                on_click=reset_search).classes('mt-4 bg-blue-500 text-white')
+                        ui.label('未找到匹配的权限').classes('text-lg text-gray-600 dark:text-gray-400 mb-2')
+                        ui.label(f'搜索关键词: "{search_term}"').classes('text-sm text-gray-500 dark:text-gray-500')
                     else:
-                        ui.icon('security_off').classes('text-6xl text-gray-400 mb-4')
-                        ui.label('暂无权限数据').classes('text-xl font-medium text-gray-500 dark:text-gray-400')
-                        ui.label('点击"添加权限"按钮添加第一个权限').classes('text-gray-400 dark:text-gray-500')
+                        ui.icon('security').classes('text-6xl text-gray-400 mb-4')
+                        ui.label('暂无权限数据').classes('text-lg text-gray-600 dark:text-gray-400')
                 return
 
-            # 显示搜索结果统计
-            search_term = search_input.value.strip() if search_input.value else None
-            if search_term:
-                ui.label(f'搜索 "{search_term}" 找到 {len(permissions)} 个权限').classes('text-sm text-gray-600 dark:text-gray-400 mb-4')
-
-            # 创建权限卡片网格 - 每行2个（与用户/角色页面保持一致）
-            for i in range(0, len(permissions), 2):
-                with ui.row().classes('w-full gap-3'):
-                    # 第一个权限卡片
-                    with ui.column().classes('flex-1'):
-                        create_permission_card(permissions[i])
-                    
-                    # 第二个权限卡片（如果存在）
-                    if i + 1 < len(permissions):
-                        with ui.column().classes('flex-1'):
-                            create_permission_card(permissions[i + 1])
-                    else:
-                        # 如果是奇数个权限，添加占位符保持布局
-                        ui.column().classes('flex-1')
+            # 权限卡片列表
+            for permission_data in permissions:
+                create_permission_card(permission_data)
 
     def create_permission_card(permission_data: DetachedPermission):
-        """创建单个权限卡片"""
-        # 根据权限分类确定主题色
-        if permission_data.category == '系统':
+        """创建权限卡片"""
+                # 确定角色颜色主题
+        if permission_data.name == 'system.manage':
             card_theme = 'border-l-4 border-red-500 bg-red-50 dark:bg-red-900/10'
             badge_theme = 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200'
             icon_theme = 'text-red-600 dark:text-red-400'
-            category_icon = 'admin_panel_settings'
-        elif permission_data.category == '内容':
-            card_theme = 'border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10'
-            badge_theme = 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
-            icon_theme = 'text-blue-600 dark:text-blue-400'
-            category_icon = 'content_paste'
-        elif permission_data.category == '分析':
-            card_theme = 'border-l-4 border-purple-500 bg-purple-50 dark:bg-purple-900/10'
-            badge_theme = 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200'
-            icon_theme = 'text-purple-600 dark:text-purple-400'
-            category_icon = 'analytics'
-        elif permission_data.category == '业务':
+        elif permission_data.name == 'user':
             card_theme = 'border-l-4 border-green-500 bg-green-50 dark:bg-green-900/10'
             badge_theme = 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200'
             icon_theme = 'text-green-600 dark:text-green-400'
-            category_icon = 'business'
-        elif permission_data.category == '个人':
-            card_theme = 'border-l-4 border-orange-500 bg-orange-50 dark:bg-orange-900/10'
-            badge_theme = 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200'
-            icon_theme = 'text-orange-600 dark:text-orange-400'
-            category_icon = 'person'
         else:
-            card_theme = 'border-l-4 border-gray-500 bg-gray-50 dark:bg-gray-900/10'
-            badge_theme = 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-            icon_theme = 'text-gray-600 dark:text-gray-400'
-            category_icon = 'security'
-
+            card_theme = 'border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10'
+            badge_theme = 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
+            icon_theme = 'text-blue-600 dark:text-blue-400'
+            
         with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
-            with ui.row().classes('w-full p-4 gap-4'):
+            with ui.row().classes('w-full gap-6'):
                 # 左侧：权限基本信息（约占 40%）
-                with ui.column().classes('flex-none w-80 gap-2'):
-                    # 权限头部信息
+                with ui.column().classes('flex-none w-2/5 gap-3'):
+                    # 权限标题和分类
                     with ui.row().classes('items-center gap-3 mb-2'):
-                        ui.icon(category_icon).classes(f'text-3xl {icon_theme}')
-                        with ui.column().classes('gap-0'):
-                            ui.label(permission_data.display_name or permission_data.name).classes('text-xl font-bold text-gray-800 dark:text-gray-200')
-                            ui.label(permission_data.name).classes('text-sm text-gray-500 dark:text-gray-400 font-mono')
-
-                    # 权限分类标签
-                    with ui.row().classes('gap-1 flex-wrap mb-2'):
-                        ui.chip(permission_data.category or '未分类', icon='category').classes(f'{badge_theme} text-xs py-1 px-2')
+                        ui.label(permission_data.display_name or permission_data.name).classes('text-xl font-bold text-gray-800 dark:text-gray-200')
                         
-                        # 角色状态指示器
+                        # 分类标签
+                        category_color = {
+                            '系统': 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
+                            '内容': 'bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-200',
+                            '分析': 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200',
+                            '业务': 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
+                            '个人': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200'
+                        }.get(permission_data.category, 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200')
+                        
+                        ui.chip(permission_data.category or '其他', icon='label').classes(f'{category_color} text-xs py-1 px-2')
+
+                    # 权限标识符
+                    ui.label(f'权限标识: {permission_data.name}').classes('text-sm font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300')
+
+                    # 使用状态
+                    with ui.row().classes('items-center gap-2 mt-2'):
                         if permission_data.roles_count > 0:
-                            if permission_data.roles_count >= 3:
-                                ui.chip(f'{permission_data.roles_count}个角色', icon='groups').classes('bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 text-xs py-1 px-2').tooltip('此权限被多个角色使用')
-                            elif permission_data.roles_count == 2:
-                                ui.chip(f'{permission_data.roles_count}个角色', icon='group').classes('bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 text-xs py-1 px-2')
+                            if permission_data.roles_count > 1:
+                                ui.chip(f'{permission_data.roles_count}个角色', icon='group').classes('bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200 text-xs py-1 px-2')
                             else:
                                 ui.chip('1个角色', icon='person').classes('bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200 text-xs py-1 px-2')
                         else:
@@ -228,164 +203,174 @@ def permission_management_page_content():
                             ui.label('关联角色').classes('text-xs text-gray-500 dark:text-gray-400')
                             ui.label(str(permission_data.roles_count)).classes('text-lg font-bold text-green-600 dark:text-green-400')
 
-                # 右侧：角色和操作区域（约占 60%）
-                with ui.column().classes('flex-1 gap-2'):
-                    # 关联角色信息
-                    with ui.row().classes('items-center justify-between w-full mb-2'):
-                        ui.label(f'关联角色 ({permission_data.roles_count})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
-
-                    # 角色展示区域
-                    with ui.card().classes('w-full p-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 min-h-[120px]'):
-                        if permission_data.roles:
-                            # 角色芯片区域
-                            with ui.column().classes('w-full gap-2'):
-                                with ui.row().classes('gap-2 flex-wrap'):
-                                    for role_name in permission_data.roles:
-                                        role_color = 'red' if role_name == 'admin' else 'blue' if role_name == 'user' else 'green'
-                                        # 创建可删除的角色芯片
-                                        with ui.chip(role_name, icon='group', removable=True).classes(f'bg-{role_color}-100 text-{role_color}-800 dark:bg-{role_color}-800 dark:text-{role_color}-200 text-sm') as chip:
-                                            chip.on('remove', lambda role=role_name, perm=permission_data: remove_role_from_permission(perm, role))
-                                
-                                # 批量操作区域
-                                with ui.row().classes('w-full justify-between items-center mt-2 pt-2 border-t border-gray-200 dark:border-gray-600'):
-                                    with ui.row().classes('gap-1'):
-                                        ui.button('+添加', icon='add', on_click=lambda p=permission_data: quick_add_role_dialog(p)).props('flat size=md color=green').classes('text-xs')
-                                        ui.button('管理', icon='settings', on_click=lambda p=permission_data: manage_permission_roles_dialog(p)).props('flat size=md color=blue').classes('text-xs')
-                                    
-                                    # 快速移除所有角色按钮
-                                    if len(permission_data.roles) > 1:
-                                        ui.button('清空', icon='clear_all', on_click=lambda p=permission_data: remove_all_roles_confirm(p)).props('flat size=md color=red').classes('text-xs').tooltip('移除所有角色关联')
-                        else:
-                            # 无角色状态
-                            with ui.column().classes('w-full items-center justify-center py-3'):
-                                ui.icon('group_off').classes('text-2xl text-gray-400 mb-1')
-                                ui.label('暂无关联角色').classes('text-sm text-gray-500 dark:text-gray-400 mb-2')
-                                
-                                # 添加角色按钮
-                                with ui.row().classes('gap-1'):
-                                    ui.button('添加角色', icon='add', on_click=lambda p=permission_data: quick_add_role_dialog(p)).props('flat size=sm color=green').classes('text-xs')
-                                    ui.button('批量管理', icon='settings', on_click=lambda p=permission_data: manage_permission_roles_dialog(p)).props('flat size=sm color=blue').classes('text-xs')
-
-                    # 时间信息
-                    with ui.card().classes('w-full p-3 bg-gray-50 dark:bg-gray-600 border border-gray-200 dark:border-gray-600'):
+                # 右侧：关联管理区域（约占 60%）
+                with ui.column().classes('flex-1 gap-4'):
+                    # 关联角色区域
+                    with ui.column().classes('gap-2'):
                         with ui.row().classes('items-center justify-between w-full'):
-                            with ui.column().classes('gap-1'):
-                                ui.label('创建时间').classes('text-xs text-gray-500 dark:text-gray-400')
-                                if permission_data.created_at:
-                                    ui.label(permission_data.created_at.strftime('%Y-%m-%d %H:%M')).classes('text-sm font-medium text-gray-700 dark:text-gray-300')
-                                else:
-                                    ui.label('未知').classes('text-sm text-gray-500')
-                            
-                            # 操作按钮
-                            with ui.row().classes('gap-1'):
-                                ui.button(icon='edit', on_click=lambda p=permission_data: edit_permission_dialog(p)).props('flat round size=sm color=blue').tooltip('编辑权限')
-                                
-                                # 快速操作菜单
-                                with ui.button(icon='more_vert').props('flat round size=sm color=gray') as more_btn:
-                                    with ui.menu() as more_menu:
-                                        ui.menu_item('快速添加角色', lambda p=permission_data: quick_add_role_dialog(p))
-                                        ui.menu_item('管理所有角色', lambda p=permission_data: manage_permission_roles_dialog(p))
-                                        ui.separator()
-                                        if permission_data.roles_count > 0:
-                                            ui.menu_item('移除所有角色', lambda p=permission_data: remove_all_roles_confirm(p))
-                                        if permission_data.roles_count == 0:
-                                            ui.menu_item('删除权限', lambda p=permission_data: delete_permission_confirm(p))
-                                
-                                # 如果没有关联角色，显示删除按钮
-                                if permission_data.roles_count == 0:
-                                    ui.button(icon='delete', on_click=lambda p=permission_data: delete_permission_confirm(p)).props('flat round size=sm color=red').tooltip('删除权限')
+                            ui.label(f'关联角色 ({permission_data.roles_count})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
 
-    # 搜索事件处理
+                        # 角色展示区域
+                        with ui.card().classes('w-full p-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 min-h-[120px]'):
+                            if permission_data.roles:
+                                # 角色芯片区域
+                                with ui.column().classes('w-full gap-2'):
+                                    with ui.row().classes('gap-2 flex-wrap'):
+                                        for role_name in permission_data.roles:
+                                            role_color = 'red' if role_name == 'admin' else 'blue' if role_name == 'user' else 'green'
+                                            # 创建可删除的角色芯片
+                                            with ui.card().classes(f'px-3 py-1 bg-{role_color}-100 border border-{role_color}-300 flex-none'):
+                                                with ui.row().classes('items-center gap-2 no-wrap'):
+                                                    ui.icon('badge').classes(f'text-{role_color}-600 text-sm')
+                                                    ui.label(role_name).classes(f'text-{role_color}-800 text-sm font-medium')
+                                                    ui.button(icon='close', on_click=lambda r=role_name: remove_role_from_permission(permission_data, r)).classes(f'text-{role_color}-600 hover:text-{role_color}-800 p-0 w-4 h-4').props('flat dense round size=xs')
+
+                                    # 角色操作按钮
+                                    with ui.row().classes('gap-2 mt-3'):
+                                        ui.button('添加角色', icon='add', on_click=lambda: add_roles_to_permission(permission_data)).classes('bg-blue-600 text-white px-3 py-1 text-sm')
+                                        if permission_data.roles:
+                                            ui.button('移除所有', icon='clear_all', on_click=lambda: remove_all_roles_confirm(permission_data)).classes('bg-orange-600 text-white px-3 py-1 text-sm')
+                            else:
+                                # 无角色状态
+                                with ui.column().classes('w-full items-center justify-center py-6'):
+                                    ui.icon('group_off').classes('text-3xl text-gray-400 mb-2')
+                                    ui.label('暂无关联角色').classes('text-gray-500 dark:text-gray-400 mb-3')
+                                    ui.button('添加角色', icon='add', on_click=lambda: add_roles_to_permission(permission_data)).classes('bg-blue-600 text-white px-3 py-1')
+
+                    # 关联用户区域（新增功能）
+                    with ui.column().classes('gap-2'):
+                        # 获取权限直接关联的用户 - 使用 detached_helper 中的函数
+                        permission_users = safe(
+                            lambda: get_permission_direct_users_safe(permission_data.id),
+                            return_value=[],
+                            error_msg="获取权限关联用户失败"
+                        )
+                        
+                        with ui.row().classes('items-center justify-between w-full'):
+                            ui.label(f'关联用户 ({len(permission_users)})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
+
+                        # 用户展示区域
+                        with ui.card().classes('w-full p-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 min-h-[120px]'):
+                            if permission_users:
+                                # 用户芯片区域
+                                with ui.column().classes('w-full gap-2'):
+                                    with ui.row().classes('gap-2 flex-wrap'):
+                                        for user_data in permission_users:
+                                            # 创建可删除的用户芯片
+                                            with ui.card().classes('px-3 py-1 bg-indigo-100 border border-indigo-300 flex-none'):
+                                                with ui.row().classes('items-center gap-2 no-wrap'):
+                                                    ui.icon('person').classes('text-indigo-600 text-sm')
+                                                    ui.label(user_data['username']).classes('text-indigo-800 text-sm font-medium')
+                                                    ui.button(icon='close', on_click=lambda u=user_data: remove_user_from_permission(permission_data, u)).classes('text-indigo-600 hover:text-indigo-800 p-0 w-4 h-4').props('flat dense round size=xs')
+
+                                    # 用户操作按钮
+                                    with ui.row().classes('gap-2 mt-3'):
+                                        ui.button('添加用户', icon='person_add', on_click=lambda: add_users_to_permission(permission_data)).classes('bg-indigo-600 text-white px-3 py-1 text-sm')
+                                        if permission_users:
+                                            ui.button('移除所有', icon='person_remove', on_click=lambda: remove_all_users_confirm(permission_data)).classes('bg-orange-600 text-white px-3 py-1 text-sm')
+                            else:
+                                # 无用户状态
+                                with ui.column().classes('w-full items-center justify-center py-6'):
+                                    ui.icon('person_off').classes('text-3xl text-gray-400 mb-2')
+                                    ui.label('无直接关联用户').classes('text-gray-500 dark:text-gray-400 mb-3')
+                                    ui.button('添加用户', icon='person_add', on_click=lambda: add_users_to_permission(permission_data)).classes('bg-indigo-600 text-white px-3 py-1')
+
+                    # 操作按钮区域
+                    with ui.row().classes('gap-2 mt-4 justify-end'):
+                        ui.button('编辑权限', icon='edit', on_click=lambda: edit_permission_dialog(permission_data)).classes('bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1')
+                        ui.button('删除权限', icon='delete', on_click=lambda: delete_permission_confirm(permission_data)).classes('bg-red-600 hover:bg-red-700 text-white px-3 py-1')
+
+    # 处理函数
     def handle_search():
+        """处理搜索"""
+        log_info(f"权限搜索: {search_input.value}, 分类: {category_filter.value}")
         update_permissions_display()
 
     def reset_search():
+        """重置搜索"""
         search_input.value = ''
         category_filter.value = '全部'
         update_permissions_display()
 
-    search_input.on('keydown.enter', handle_search)
-    category_filter.on('update:model-value', handle_search)
+    search_input.on('keyup.enter', handle_search)
 
-    # 权限操作对话框
+    # 权限CRUD操作
     def add_permission_dialog():
         """添加权限对话框"""
         with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
-            ui.label('添加新权限').classes('text-xl font-bold mb-4')
+            ui.label('添加新权限').classes('text-xl font-bold text-green-600 mb-4')
 
-            name_input = ui.input('权限名称', placeholder='如: user.manage').classes('w-full')
-            display_name_input = ui.input('显示名称', placeholder='如: 用户管理').classes('w-full mt-3')
-            category_input = ui.select(
+            name_input = ui.input('权限标识', placeholder='例如: content.create').classes('w-full mb-3')
+            display_name_input = ui.input('显示名称', placeholder='例如: 创建内容').classes('w-full mb-3')
+            category_select = ui.select(
                 options=['系统', '内容', '分析', '业务', '个人', '其他'],
-                label='权限分类'
-            ).classes('w-full mt-3')
-            description_input = ui.textarea('权限描述', placeholder='详细描述此权限的用途').classes('w-full mt-3')
+                label='权限分类',
+                value='其他'
+            ).classes('w-full mb-3')
+            description_input = ui.textarea('权限描述', placeholder='详细描述该权限的作用').classes('w-full mb-4')
 
             with ui.row().classes('w-full gap-2 mt-6 justify-end'):
                 ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('确认添加', on_click=lambda: confirm_add_permission()).classes('bg-green-600 text-white px-4 py-2')
+                ui.button('创建权限', on_click=lambda: create_new_permission()).classes('bg-green-600 text-white px-4 py-2')
 
-            def confirm_add_permission():
-                name = name_input.value.strip()
-                display_name = display_name_input.value.strip()
-                category = category_input.value
-                description = description_input.value.strip()
-
-                if not name:
-                    ui.notify('请输入权限名称', type='warning')
+            def create_new_permission():
+                """创建新权限"""
+                if not name_input.value:
+                    ui.notify('请输入权限标识', type='warning')
                     return
 
-                log_info(f"开始创建权限: {name}")
-                success = safe(
+                log_info(f"开始创建权限: {name_input.value}")
+                
+                permission_id = safe(
                     lambda: create_permission_safe(
-                        name=name,
-                        display_name=display_name or None,
-                        category=category,
-                        description=description or None
+                        name=name_input.value,
+                        display_name=display_name_input.value or None,
+                        category=category_select.value,
+                        description=description_input.value or None
                     ),
-                    return_value=False,
+                    return_value=None,
                     error_msg="权限创建失败"
                 )
 
-                if success:
+                if permission_id:
                     ui.notify('权限创建成功', type='positive')
                     dialog.close()
                     update_permissions_display()
                 else:
-                    ui.notify('权限创建失败，请检查权限名称是否重复', type='error')
+                    ui.notify('权限创建失败，可能权限标识已存在', type='error')
 
         dialog.open()
 
     def edit_permission_dialog(permission_data: DetachedPermission):
         """编辑权限对话框"""
         with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
-            ui.label(f'编辑权限: {permission_data.name}').classes('text-xl font-bold mb-4')
+            ui.label('编辑权限').classes('text-xl font-bold text-yellow-600 mb-4')
 
-            name_input = ui.input('权限名称', value=permission_data.name).classes('w-full').props('readonly')
-            display_name_input = ui.input('显示名称', value=permission_data.display_name or '').classes('w-full mt-3')
-            category_input = ui.select(
+            name_input = ui.input('权限标识', value=permission_data.name).classes('w-full mb-3')
+            name_input.enabled = False  # 权限标识不可修改
+            
+            display_name_input = ui.input('显示名称', value=permission_data.display_name or '').classes('w-full mb-3')
+            category_select = ui.select(
                 options=['系统', '内容', '分析', '业务', '个人', '其他'],
-                value=permission_data.category or '其他',
-                label='权限分类'
-            ).classes('w-full mt-3')
-            description_input = ui.textarea('权限描述', value=permission_data.description or '').classes('w-full mt-3')
+                label='权限分类',
+                value=permission_data.category or '其他'
+            ).classes('w-full mb-3')
+            description_input = ui.textarea('权限描述', value=permission_data.description or '').classes('w-full mb-4')
 
             with ui.row().classes('w-full gap-2 mt-6 justify-end'):
                 ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('保存更改', on_click=lambda: confirm_edit_permission()).classes('bg-blue-600 text-white px-4 py-2')
+                ui.button('保存修改', on_click=lambda: save_permission_changes()).classes('bg-yellow-600 text-white px-4 py-2')
 
-            def confirm_edit_permission():
-                display_name = display_name_input.value.strip()
-                category = category_input.value
-                description = description_input.value.strip()
-
+            def save_permission_changes():
+                """保存权限修改"""
                 log_info(f"开始更新权限: {permission_data.name}")
+                
                 success = safe(
                     lambda: update_permission_safe(
                         permission_data.id,
-                        display_name=display_name or None,
-                        category=category,
-                        description=description or None
+                        display_name=display_name_input.value or None,
+                        category=category_select.value,
+                        description=description_input.value or None
                     ),
                     return_value=False,
                     error_msg="权限更新失败"
@@ -401,19 +386,25 @@ def permission_management_page_content():
         dialog.open()
 
     def delete_permission_confirm(permission_data: DetachedPermission):
-        """删除权限确认对话框"""
-        with ui.dialog() as dialog, ui.card().classes('w-80 p-6'):
+        """确认删除权限"""
+        with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
             ui.label('确认删除权限').classes('text-xl font-bold text-red-600 mb-4')
-            ui.label(f'权限名称: {permission_data.name}').classes('text-gray-700 mb-2')
-            ui.label(f'显示名称: {permission_data.display_name or "无"}').classes('text-gray-700 mb-2')
-            ui.label('此操作无法撤销！').classes('text-red-500 font-bold mt-4')
+            ui.label(f'权限: {permission_data.display_name or permission_data.name}').classes('text-gray-700 mb-2')
+            ui.label(f'标识: {permission_data.name}').classes('text-gray-700 mb-2')
+            
+            if permission_data.roles_count > 0:
+                ui.label(f'⚠️ 该权限已关联 {permission_data.roles_count} 个角色，删除后将移除所有关联').classes('text-orange-600 font-medium mt-4')
+            
+            ui.label('此操作不可撤销，确定要删除吗？').classes('text-red-600 font-medium mt-4')
 
             with ui.row().classes('w-full gap-2 mt-6 justify-end'):
                 ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('确认删除', on_click=lambda: confirm_delete_permission()).classes('bg-red-600 text-white px-4 py-2')
+                ui.button('确认删除', on_click=lambda: execute_delete_permission()).classes('bg-red-600 text-white px-4 py-2')
 
-            def confirm_delete_permission():
+            def execute_delete_permission():
+                """执行删除权限"""
                 log_info(f"开始删除权限: {permission_data.name}")
+                
                 success = safe(
                     lambda: delete_permission_safe(permission_data.id),
                     return_value=False,
@@ -425,81 +416,93 @@ def permission_management_page_content():
                     dialog.close()
                     update_permissions_display()
                 else:
-                    ui.notify('权限删除失败', type='error')
+                    ui.notify('权限删除失败，可能存在关联关系', type='error')
 
         dialog.open()
 
-    def quick_add_role_dialog(permission_data: DetachedPermission):
-        """快速添加角色对话框"""
-        with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
-            ui.label(f'为权限 "{permission_data.display_name or permission_data.name}" 添加角色').classes('text-lg font-bold mb-4')
-            
-            # 获取可用角色（排除已关联的）
-            available_roles = safe(
-                lambda: [role for role in get_roles_safe() if role.name not in permission_data.roles],
-                return_value=[],
-                error_msg="获取可用角色失败"
-            )
-            
-            if not available_roles:
-                ui.label('所有角色都已关联此权限').classes('text-gray-500 text-center py-4')
-                with ui.row().classes('w-full justify-center mt-4'):
-                    ui.button('关闭', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                dialog.open()
-                return
-            
-            # 角色选择器
-            selected_role_ids = []
-            
-            ui.label('选择要添加的角色:').classes('text-sm font-medium mb-2')
-            
-            with ui.column().classes('w-full gap-2 max-h-48 overflow-auto'):
-                for role in available_roles:
-                    with ui.row().classes('w-full items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded'):
-                        checkbox = ui.checkbox(
-                            value=False,
-                            on_change=lambda checked, role_id=role.id: toggle_quick_role_selection(role_id, checked)
-                        )
-                        
-                        with ui.column().classes('flex-1 ml-2'):
-                            ui.label(role.display_name or role.name).classes('font-medium')
-                            ui.label(f'角色名: {role.name}').classes('text-sm text-gray-600')
-                            if role.description:
-                                ui.label(role.description).classes('text-xs text-gray-500')
+    # 角色关联管理
+    def add_roles_to_permission(permission_data: DetachedPermission):
+        """为权限添加角色关联"""
+        with ui.dialog() as dialog, ui.card().classes('w-lg p-6'):
+            ui.label('为权限添加角色').classes('text-xl font-bold text-blue-600 mb-4')
+            ui.label(f'权限: {permission_data.display_name or permission_data.name}').classes('text-gray-700 mb-4')
 
-            def toggle_quick_role_selection(role_id: int, checked: bool):
+            # 角色选择区域
+            selected_roles = set()
+            role_search_input = ui.input('搜索角色', placeholder='输入角色名称搜索').classes('w-full mb-4')
+            
+            with ui.column().classes('w-full max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-3') as role_list_container:
+                pass
+
+            def update_role_list():
+                """更新角色列表"""
+                role_list_container.clear()
+                search_term = role_search_input.value.strip() if role_search_input.value else None
+                
+                # 获取所有角色，排除已关联的
+                all_roles = safe(
+                    lambda: get_roles_safe(),
+                    return_value=[],
+                    error_msg="角色列表加载失败"
+                )
+                
+                available_roles = [role for role in all_roles if role.name not in permission_data.roles]
+                
+                if search_term:
+                    available_roles = [role for role in available_roles if search_term.lower() in role.name.lower() or (role.display_name and search_term.lower() in role.display_name.lower())]
+
+                with role_list_container:
+                    if not available_roles:
+                        ui.label('无可用角色' if not search_term else '未找到匹配的角色').classes('text-gray-500 text-center py-4')
+                        return
+
+                    for role in available_roles:
+                        with ui.row().classes('w-full items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded'):
+                            role_checkbox = ui.checkbox(value=role.id in selected_roles, on_change=lambda e, r=role: toggle_role_selection(r, e.value))
+                            ui.label(role.display_name or role.name).classes('flex-1 font-medium')
+                            ui.label(f'({role.name})').classes('text-sm text-gray-500')
+
+            def toggle_role_selection(role: DetachedRole, selected: bool):
                 """切换角色选择状态"""
-                if checked:
-                    if role_id not in selected_role_ids:
-                        selected_role_ids.append(role_id)
+                if selected:
+                    selected_roles.add(role.id)
                 else:
-                    if role_id in selected_role_ids:
-                        selected_role_ids.remove(role_id)
+                    selected_roles.discard(role.id)
+
+            def handle_role_search():
+                """处理角色搜索"""
+                update_role_list()
+
+            # 搜索输入监听
+            role_search_input.on('input', lambda: ui.timer(0.5, handle_role_search, once=True))
 
             with ui.row().classes('w-full gap-2 mt-6 justify-end'):
                 ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('添加选中角色', on_click=lambda: confirm_quick_add_roles()).classes('bg-green-600 text-white px-4 py-2')
+                ui.button('保存关联', on_click=lambda: confirm_update_roles()).classes('bg-blue-600 text-white px-4 py-2')
 
-            def confirm_quick_add_roles():
-                """确认快速添加角色"""
-                if not selected_role_ids:
+            def confirm_update_roles():
+                """确认更新角色关联"""
+                if not selected_roles:
                     ui.notify('请至少选择一个角色', type='warning')
                     return
 
-                log_info(f"快速为权限 {permission_data.name} 添加角色: {selected_role_ids}")
+                log_info(f"开始为权限 {permission_data.name} 添加角色关联: {list(selected_roles)}")
                 
                 success = safe(
-                    lambda: add_permission_to_roles(permission_data.id, selected_role_ids),
+                    lambda: add_permission_to_roles(permission_data.id, list(selected_roles)),
                     return_value=False,
-                    error_msg="快速添加角色失败"
+                    error_msg="权限角色关联失败"
                 )
 
                 if success:
-                    ui.notify(f'成功为权限添加了 {len(selected_role_ids)} 个角色', type='positive')
+                    ui.notify('权限角色关联成功', type='positive')
                     dialog.close()
                     update_permissions_display()
                 else:
-                    ui.notify('添加角色失败', type='error')
+                    ui.notify('权限角色关联失败', type='error')
+
+            # 初始化角色列表
+            update_role_list()
 
         dialog.open()
 
@@ -548,151 +551,221 @@ def permission_management_page_content():
             with ui.column().classes('w-full p-3 bg-gray-50 dark:bg-gray-600 rounded mb-4'):
                 with ui.row().classes('gap-2 flex-wrap'):
                     for role_name in permission_data.roles:
-                        role_color = 'red' if role_name == 'admin' else 'blue' if role_name == 'user' else 'green'
-                        ui.chip(role_name, icon='group').classes(f'bg-{role_color}-100 text-{role_color}-800 dark:bg-{role_color}-800 dark:text-{role_color}-200 text-sm')
+                        ui.chip(role_name, icon='badge').classes('bg-red-100 text-red-800 text-sm')
             
-            ui.label('此操作无法撤销！').classes('text-red-500 font-bold')
+            ui.label('此操作不可撤销，确定要移除所有角色关联吗？').classes('text-red-600 font-medium')
 
             with ui.row().classes('w-full gap-2 mt-6 justify-end'):
                 ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('确认移除所有', on_click=lambda: execute_remove_all_roles()).classes('bg-red-600 text-white px-4 py-2')
+                ui.button('确认移除', on_click=lambda: execute_remove_all_roles()).classes('bg-red-600 text-white px-4 py-2')
 
             def execute_remove_all_roles():
                 """执行移除所有角色操作"""
                 log_info(f"开始移除权限 {permission_data.name} 的所有角色关联")
                 
                 success_count = 0
-                total_count = len(permission_data.roles)
-                
                 for role_name in permission_data.roles:
                     success = safe(
-                        lambda rn=role_name: remove_permission_from_role(permission_data.id, rn),
+                        lambda: remove_permission_from_role(permission_data.id, role_name),
                         return_value=False,
-                        error_msg=f"移除角色 {role_name} 失败"
+                        error_msg=f"移除角色 {role_name} 关联失败"
                     )
                     if success:
                         success_count += 1
 
-                if success_count == total_count:
-                    ui.notify(f'成功移除所有 {total_count} 个角色关联', type='positive')
-                elif success_count > 0:
-                    ui.notify(f'成功移除 {success_count}/{total_count} 个角色关联', type='warning')
-                else:
-                    ui.notify('移除角色关联失败', type='error')
-                
-                dialog.close()
-                update_permissions_display()
-
-        dialog.open()
-
-    def manage_permission_roles_dialog(permission_data: DetachedPermission):
-        """管理权限角色关联对话框"""
-        with ui.dialog() as dialog, ui.card().classes('w-[800px] max-h-[600px] p-6'):
-            ui.label(f'管理权限角色: {permission_data.display_name or permission_data.name}').classes('text-xl font-bold mb-4')
-
-            # 当前关联的角色
-            with ui.column().classes('w-full mb-6'):
-                ui.label('当前关联角色').classes('text-lg font-semibold mb-2')
-                
-                if permission_data.roles:
-                    with ui.row().classes('gap-2 flex-wrap'):
-                        for role_name in permission_data.roles:
-                            ui.chip(role_name, removable=False).classes('bg-blue-100 text-blue-800')
-                else:
-                    ui.label('暂无关联角色').classes('text-gray-500')
-
-            # 可用角色列表
-            ui.label('可用角色').classes('text-lg font-semibold mb-2')
-            
-            # 角色搜索
-            role_search_input = ui.input('搜索角色', placeholder='输入角色名称搜索').classes('w-full mb-4')
-            
-            # 角色列表容器
-            with ui.column().classes('w-full max-h-64 overflow-auto') as role_list_container:
-                pass
-
-            selected_roles = set()
-
-            def update_role_list():
-                """更新角色列表"""
-                role_list_container.clear()
-                search_term = role_search_input.value.strip() if role_search_input.value else None
-                
-                roles = safe(
-                    lambda: get_roles_safe(),
-                    return_value=[],
-                    error_msg="角色列表加载失败"
-                )
-
-                # 过滤搜索
-                if search_term:
-                    roles = [r for r in roles if search_term.lower() in r.name.lower() 
-                           or search_term.lower() in (r.display_name or '').lower()]
-
-                with role_list_container:
-                    for role in roles:
-                        is_current = role.name in permission_data.roles
-                        is_selected = role.id in selected_roles
-                        
-                        with ui.row().classes('w-full items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded'):
-                            if is_current:
-                                ui.checkbox(value=True, on_change=None).props('disable')
-                                ui.label('已关联').classes('text-xs text-green-600 bg-green-100 px-2 py-1 rounded')
-                            else:
-                                checkbox = ui.checkbox(
-                                    value=is_selected,
-                                    on_change=lambda checked, role_id=role.id: toggle_role_selection(role_id, checked)
-                                )
-                            
-                            with ui.column().classes('flex-1 ml-2'):
-                                ui.label(role.display_name or role.name).classes('font-medium')
-                                ui.label(f'角色名: {role.name}').classes('text-sm text-gray-600')
-                                if role.description:
-                                    ui.label(role.description).classes('text-xs text-gray-500')
-
-            def toggle_role_selection(role_id: int, checked: bool):
-                """切换角色选择状态"""
-                if checked:
-                    selected_roles.add(role_id)
-                else:
-                    selected_roles.discard(role_id)
-
-            def handle_role_search():
-                update_role_list()
-
-            role_search_input.on('input', lambda: ui.timer(0.5, handle_role_search, once=True))
-
-            with ui.row().classes('w-full gap-2 mt-6 justify-end'):
-                ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('保存关联', on_click=lambda: confirm_update_roles()).classes('bg-blue-600 text-white px-4 py-2')
-
-            def confirm_update_roles():
-                """确认更新角色关联"""
-                if not selected_roles:
-                    ui.notify('请至少选择一个角色', type='warning')
-                    return
-
-                log_info(f"开始为权限 {permission_data.name} 添加角色关联: {list(selected_roles)}")
-                
-                success = safe(
-                    lambda: add_permission_to_roles(permission_data.id, list(selected_roles)),
-                    return_value=False,
-                    error_msg="权限角色关联失败"
-                )
-
-                if success:
-                    ui.notify('权限角色关联成功', type='positive')
+                if success_count > 0:
+                    ui.notify(f'成功移除 {success_count} 个角色关联', type='positive')
                     dialog.close()
                     update_permissions_display()
                 else:
-                    ui.notify('权限角色关联失败', type='error')
-
-            # 初始化角色列表
-            update_role_list()
+                    ui.notify('移除角色关联失败', type='error')
 
         dialog.open()
 
-    # 辅助函数：添加权限到角色
+    # 用户关联管理（新增功能）
+    def add_users_to_permission(permission_data: DetachedPermission):
+        """为权限添加用户关联"""
+        with ui.dialog() as dialog, ui.card().classes('w-lg p-6'):
+            ui.label('为权限添加用户').classes('text-xl font-bold text-indigo-600 mb-4')
+            ui.label(f'权限: {permission_data.display_name or permission_data.name}').classes('text-gray-700 mb-4')
+
+            # 用户选择区域
+            selected_users = set()
+            user_search_input = ui.input('搜索用户', placeholder='输入用户名或邮箱搜索').classes('w-full mb-4')
+            
+            with ui.column().classes('w-full max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-3') as user_list_container:
+                pass
+
+            def update_user_list():
+                """更新用户列表"""
+                user_list_container.clear()
+                search_term = user_search_input.value.strip() if user_search_input.value else None
+                
+                # 获取所有用户
+                all_users = safe(
+                    lambda: get_users_safe(search_term=search_term),
+                    return_value=[],
+                    error_msg="用户列表加载失败"
+                )
+                
+                # 获取已直接关联的用户
+                current_permission_users = safe(
+                    lambda: get_permission_direct_users_safe(permission_data.id),
+                    return_value=[],
+                    error_msg="获取权限关联用户失败"
+                )
+                current_user_ids = {user['id'] for user in current_permission_users}
+                
+                # 排除已关联的用户
+                available_users = [user for user in all_users if user.id not in current_user_ids]
+
+                with user_list_container:
+                    if not available_users:
+                        ui.label('无可用用户' if not search_term else '未找到匹配的用户').classes('text-gray-500 text-center py-4')
+                        return
+
+                    for user in available_users:
+                        with ui.row().classes('w-full items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded'):
+                            user_checkbox = ui.checkbox(value=user.id in selected_users, on_change=lambda e, u=user: toggle_user_selection(u, e.value))
+                            
+                            # 用户信息显示
+                            with ui.column().classes('flex-1 gap-1'):
+                                ui.label(user.full_name or user.username).classes('font-medium')
+                                ui.label(f'{user.username} ({user.email})').classes('text-sm text-gray-500')
+                            
+                            # 用户状态
+                            if not user.is_active:
+                                ui.chip('已停用', icon='block').classes('bg-red-100 text-red-800 text-xs')
+                            elif user.is_superuser:
+                                ui.chip('超管', icon='admin_panel_settings').classes('bg-purple-100 text-purple-800 text-xs')
+
+            def toggle_user_selection(user: DetachedUser, selected: bool):
+                """切换用户选择状态"""
+                if selected:
+                    selected_users.add(user.id)
+                else:
+                    selected_users.discard(user.id)
+
+            def handle_user_search():
+                """处理用户搜索"""
+                update_user_list()
+
+            # 搜索输入监听
+            user_search_input.on('input', lambda: ui.timer(0.5, handle_user_search, once=True))
+
+            with ui.row().classes('w-full gap-2 mt-6 justify-end'):
+                ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
+                ui.button('保存关联', on_click=lambda: confirm_update_users()).classes('bg-indigo-600 text-white px-4 py-2')
+
+            def confirm_update_users():
+                """确认更新用户关联"""
+                if not selected_users:
+                    ui.notify('请至少选择一个用户', type='warning')
+                    return
+
+                log_info(f"开始为权限 {permission_data.name} 添加用户关联: {list(selected_users)}")
+                
+                success = safe(
+                    lambda: add_permission_to_users(permission_data.id, list(selected_users)),
+                    return_value=False,
+                    error_msg="权限用户关联失败"
+                )
+
+                if success:
+                    ui.notify('权限用户关联成功', type='positive')
+                    dialog.close()
+                    update_permissions_display()
+                else:
+                    ui.notify('权限用户关联失败', type='error')
+
+            # 初始化用户列表
+            update_user_list()
+
+        dialog.open()
+
+    def remove_user_from_permission(permission_data: DetachedPermission, user_data: dict):
+        """从权限中移除用户"""
+        def confirm_remove():
+            with ui.dialog() as confirm_dialog, ui.card().classes('w-80 p-6'):
+                ui.label('确认移除用户').classes('text-lg font-bold text-orange-600 mb-4')
+                ui.label(f'权限: {permission_data.display_name or permission_data.name}').classes('text-gray-700 mb-2')
+                ui.label(f'用户: {user_data["username"]}').classes('text-gray-700 mb-2')
+                ui.label('确定要移除此用户的权限关联吗？').classes('text-orange-600 font-medium mt-4')
+
+                with ui.row().classes('w-full gap-2 mt-6 justify-end'):
+                    ui.button('取消', on_click=confirm_dialog.close).classes('bg-gray-500 text-white px-4 py-2')
+                    ui.button('确认移除', on_click=lambda: execute_remove_user()).classes('bg-orange-600 text-white px-4 py-2')
+
+                def execute_remove_user():
+                    """执行移除用户操作"""
+                    log_info(f"开始移除权限 {permission_data.name} 的用户关联: {user_data['username']}")
+                    
+                    success = safe(
+                        lambda: remove_permission_from_user(permission_data.id, user_data['id']),
+                        return_value=False,
+                        error_msg="移除用户权限关联失败"
+                    )
+
+                    if success:
+                        ui.notify(f'成功移除用户 "{user_data["username"]}" 的权限关联', type='positive')
+                        confirm_dialog.close()
+                        update_permissions_display()
+                    else:
+                        ui.notify('移除用户权限关联失败', type='error')
+
+            confirm_dialog.open()
+        
+        confirm_remove()
+
+    def remove_all_users_confirm(permission_data: DetachedPermission):
+        """确认移除所有用户关联"""
+        permission_users = safe(
+            lambda: get_permission_direct_users_safe(permission_data.id),
+            return_value=[],
+            error_msg="获取权限关联用户失败"
+        )
+        
+        with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
+            ui.label('确认移除所有用户').classes('text-xl font-bold text-red-600 mb-4')
+            ui.label(f'权限: {permission_data.display_name or permission_data.name}').classes('text-gray-700 mb-2')
+            ui.label(f'将移除以下 {len(permission_users)} 个用户的权限关联:').classes('text-gray-700 mb-2')
+            
+            # 显示将要移除的用户
+            with ui.column().classes('w-full p-3 bg-gray-50 dark:bg-gray-600 rounded mb-4 max-h-32 overflow-y-auto'):
+                with ui.row().classes('gap-2 flex-wrap'):
+                    for user_data in permission_users:
+                        ui.chip(user_data['username'], icon='person').classes('bg-red-100 text-red-800 text-sm')
+            
+            ui.label('此操作不可撤销，确定要移除所有用户的权限关联吗？').classes('text-red-600 font-medium')
+
+            with ui.row().classes('w-full gap-2 mt-6 justify-end'):
+                ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white px-4 py-2')
+                ui.button('确认移除', on_click=lambda: execute_remove_all_users()).classes('bg-red-600 text-white px-4 py-2')
+
+            def execute_remove_all_users():
+                """执行移除所有用户操作"""
+                log_info(f"开始移除权限 {permission_data.name} 的所有用户关联")
+                
+                success_count = 0
+                for user_data in permission_users:
+                    success = safe(
+                        lambda: remove_permission_from_user(permission_data.id, user_data['id']),
+                        return_value=False,
+                        error_msg=f"移除用户 {user_data['username']} 权限关联失败"
+                    )
+                    if success:
+                        success_count += 1
+
+                if success_count > 0:
+                    ui.notify(f'成功移除 {success_count} 个用户的权限关联', type='positive')
+                    dialog.close()
+                    update_permissions_display()
+                else:
+                    ui.notify('移除用户权限关联失败', type='error')
+
+        dialog.open()
+
+    # 辅助函数：权限-角色关联操作
     def add_permission_to_roles(permission_id: int, role_ids: list) -> bool:
         """将权限添加到指定角色"""
         try:
@@ -731,6 +804,33 @@ def permission_management_page_content():
 
         except Exception as e:
             log_error(f"移除权限角色关联失败: {e}")
+            return False
+
+    # 辅助函数：权限-用户关联操作（新增功能）
+    def add_permission_to_users(permission_id: int, user_ids: list) -> bool:
+        """将权限直接添加到指定用户 - 使用 detached_helper 中的函数"""
+        try:
+            success_count = 0
+            for user_id in user_ids:
+                # 使用 detached_helper 中的函数
+                from ..detached_helper import add_permission_to_user_safe
+                if add_permission_to_user_safe(user_id, permission_id):
+                    success_count += 1
+            
+            return success_count > 0
+
+        except Exception as e:
+            log_error(f"添加权限到用户失败: {e}")
+            return False
+
+    def remove_permission_from_user(permission_id: int, user_id: int) -> bool:
+        """从指定用户中移除权限 - 使用 detached_helper 中的函数"""
+        try:
+            from ..detached_helper import remove_permission_from_user_safe
+            return remove_permission_from_user_safe(user_id, permission_id)
+
+        except Exception as e:
+            log_error(f"移除用户权限关联失败: {e}")
             return False
 
     # 初始加载权限显示
