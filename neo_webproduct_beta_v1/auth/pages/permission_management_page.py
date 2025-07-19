@@ -100,12 +100,12 @@ def permission_management_page_content():
         def handle_search():
             """处理搜索"""
             log_info(f"权限搜索: {search_input.value}")
-            update_permissions_display()
+            load_permissions()
 
         def reset_search():
             """重置搜索"""
             search_input.value = ''
-            update_permissions_display()
+            load_permissions()
             
         with ui.row().classes('w-full gap-2 mb-4 items-end'):
             search_input = ui.input('搜索权限', placeholder='权限名称、标识或描述').classes('flex-1')
@@ -118,12 +118,11 @@ def permission_management_page_content():
         # 权限列表容器
         permissions_container = ui.column().classes('w-full gap-4')
 
-    def update_permissions_display():
+    def load_permissions():
         """更新权限显示"""
         log_info("开始更新权限显示")
         
         search_term = search_input.value.strip() if search_input.value else None
-        
         permissions = safe(
             lambda: get_permissions_safe(search_term=search_term),
             return_value=[],
@@ -131,7 +130,6 @@ def permission_management_page_content():
         )
         
         permissions_container.clear()
-        load_permissions()
         
         with permissions_container:
             if not permissions:
@@ -314,7 +312,7 @@ def permission_management_page_content():
                 if permission_id:
                     ui.notify('权限创建成功', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('权限创建失败，可能权限标识已存在', type='error')
 
@@ -358,7 +356,7 @@ def permission_management_page_content():
                 if success:
                     ui.notify('权限更新成功', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('权限更新失败', type='error')
 
@@ -393,7 +391,7 @@ def permission_management_page_content():
                 if success:
                     ui.notify('权限删除成功', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('权限删除失败，可能存在关联关系', type='error')
 
@@ -478,7 +476,7 @@ def permission_management_page_content():
                 if success:
                     ui.notify('权限角色关联成功', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('权限角色关联失败', type='error')
 
@@ -570,7 +568,7 @@ def permission_management_page_content():
                 if success_count > 0:
                     ui.notify(f'成功删除 {success_count} 个角色关联', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('删除角色关联失败', type='error')
 
@@ -660,7 +658,7 @@ def permission_management_page_content():
                 if success:
                     ui.notify('权限用户关联成功', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('权限用户关联失败', type='error')
 
@@ -759,7 +757,7 @@ def permission_management_page_content():
                 if success_count > 0:
                     ui.notify(f'成功删除 {success_count} 个用户关联', type='positive')
                     dialog.close()
-                    update_permissions_display()
+                    load_permissions()
                 else:
                     ui.notify('删除用户关联失败', type='error')
 
@@ -836,13 +834,7 @@ def permission_management_page_content():
             log_error(f"移除用户权限关联失败: {e}")
             return False
 
-    # 初始化函数
-    def load_permissions():
-        """加载权限数据"""
-        # 在这里可以添加任何初始化逻辑
-        pass
-
     # 初始加载权限显示
-    update_permissions_display()
+    load_permissions()
 
     log_info("权限管理页面加载完成")
