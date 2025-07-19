@@ -264,12 +264,12 @@ def role_management_page_content():
                         else:
                             with ui.column().classes('w-full items-center justify-center py-4'):
                                 ui.icon('people_outline').classes('text-3xl text-gray-400 mb-1')
-                                ui.label('暂无关联用户').classes('text-sm text-gray-500 dark:text-gray-400')
+                                ui.label('无关联用户').classes('text-sm text-gray-500 dark:text-gray-400')
                                 ui.label('点击"添加用户"分配用户').classes('text-xs text-gray-400 dark:text-gray-500')
 
                     # 角色操作按钮 - 使用更小的按钮
                     with ui.row().classes('gap-1 w-full mt-2'):
-                        ui.button('查看详情', icon='visibility',
+                        ui.button('查看', icon='visibility',
                                  on_click=lambda r=role_data: safe(lambda: view_role_dialog(r))).classes('flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1 text-xs')
                         
                         if not role_data.is_system:
