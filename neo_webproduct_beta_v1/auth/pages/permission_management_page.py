@@ -89,32 +89,43 @@ def permission_management_page_content():
                 ui.icon('group').classes('text-4xl opacity-80')
 
     # 搜索和筛选区域
-    with ui.card().classes('w-full mb-6 p-6 bg-white dark:bg-gray-800 shadow-lg'):
-        with ui.row().classes('w-full items-end gap-4'):
-            search_input = ui.input('搜索权限', placeholder='权限名称、标识或描述').classes('flex-1')
-            category_filter = ui.select(
-                options=['全部', '系统', '内容', '分析', '业务', '个人', '其他'],
-                label='权限分类',
-                value='全部'
-            ).classes('w-48')
-            
-            with ui.row().classes('gap-2'):
-                ui.button('搜索', icon='search', on_click=lambda: handle_search()).classes('bg-blue-600 text-white px-4 py-2')
-                ui.button('重置', icon='refresh', on_click=lambda: reset_search()).classes('bg-gray-500 text-white px-4 py-2')
-                ui.button('添加权限', icon='add', on_click=lambda: add_permission_dialog()).classes('bg-green-600 text-white px-4 py-2')
+    with ui.column().classes('w-full'):
+        with ui.row().classes('w-full gap-2 mt-4'):
+            ui.button('添加权限', icon='add', on_click=lambda: add_permission_dialog()).classes('bg-blue-500 text-white')
+            # 测试异常按钮
+            ui.button('测试异常', icon='bug_report', 
+                     on_click=lambda: safe(lambda: ui.notify("test")),
+                     color='red').classes('ml-4')
+        # 处理函数
+        def handle_search():
+            """处理搜索"""
+            log_info(f"权限搜索: {search_input.value}")
+            update_permissions_display()
 
-    # 权限列表容器
-    permissions_container = ui.column().classes('w-full gap-4')
+        def reset_search():
+            """重置搜索"""
+            search_input.value = ''
+            update_permissions_display()
+            
+        with ui.row().classes('w-full gap-2 mb-4 items-end'):
+            search_input = ui.input('搜索权限', placeholder='权限名称、标识或描述').classes('flex-1')
+            
+            ui.button('搜索', icon='search', on_click=lambda: handle_search()).classes('bg-blue-600 text-white px-4 py-2')
+            ui.button('重置', icon='refresh', on_click=lambda: reset_search()).classes('bg-gray-500 text-white px-4 py-2')
+
+        search_input.on('keyup.enter', handle_search)
+    
+        # 权限列表容器
+        permissions_container = ui.column().classes('w-full gap-4')
 
     def update_permissions_display():
         """更新权限显示"""
         log_info("开始更新权限显示")
         
         search_term = search_input.value.strip() if search_input.value else None
-        category = category_filter.value if category_filter.value != '全部' else None
         
         permissions = safe(
-            lambda: get_permissions_safe(search_term=search_term, category=category),
+            lambda: get_permissions_safe(search_term=search_term),
             return_value=[],
             error_msg="权限列表加载失败"
         )
@@ -135,9 +146,21 @@ def permission_management_page_content():
                         ui.label('暂无权限数据').classes('text-lg text-gray-600 dark:text-gray-400')
                 return
 
+            MAX_DISPLAY_USERS = 2
+            permissions_to_display = permissions[:MAX_DISPLAY_USERS]        
             # 权限卡片列表
-            for permission_data in permissions:
-                create_permission_card(permission_data)
+            for i in range(0, len(permissions_to_display), 2):
+                with ui.row().classes('w-full gap-3'):
+                    # 第一个权限卡片
+                    with ui.column().classes('flex-1'):
+                        create_permission_card(permissions_to_display[i])
+                    # 第二个权限卡片（如果存在）
+                    if i + 1 < len(permissions_to_display):
+                        with ui.column().classes('flex-1'):
+                            create_permission_card(permissions_to_display[i + 1])
+                    else:
+                        # 如果是奇数个权限，添加占位符保持布局
+                        ui.column().classes('flex-1')
 
     def create_permission_card(permission_data: DetachedPermission):
         """创建权限卡片"""
@@ -212,12 +235,12 @@ def permission_management_page_content():
                             ui.label(f'关联角色 ({permission_data.roles_count})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
 
                         # 角色操作按钮区域 - 只保留添加和删除按钮
-                        with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
-                            with ui.row().classes('gap-2 p-4 justify-center'):
-                                ui.button('添加角色', icon='add', 
-                                         on_click=lambda: add_roles_to_permission(permission_data)).classes('bg-blue-600 text-white px-4 py-2')
-                                ui.button('删除角色', icon='remove', 
-                                         on_click=lambda: remove_roles_from_permission(permission_data)).classes('bg-red-600 text-white px-4 py-2')
+                        # with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
+                        with ui.row().classes('gap-4 w-full items-center justify-start'):
+                            ui.button('添加角色', icon='add', 
+                                    on_click=lambda: add_roles_to_permission(permission_data)).classes('bg-blue-600 text-white px-4 py-2')
+                            ui.button('删除角色', icon='remove', 
+                                    on_click=lambda: remove_roles_from_permission(permission_data)).classes('bg-red-600 text-white px-4 py-2')
 
                     # 关联用户区域 - 修改后的版本
                     with ui.column().classes('gap-2'):
@@ -232,33 +255,23 @@ def permission_management_page_content():
                             ui.label(f'关联用户 ({len(permission_users)})').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
 
                         # 用户操作按钮区域 - 只保留添加和删除按钮
-                        with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
-                            with ui.row().classes('gap-2 p-4 justify-center'):
-                                ui.button('添加用户', icon='person_add', 
-                                         on_click=lambda: add_users_to_permission(permission_data)).classes('bg-indigo-600 text-white px-4 py-2')
-                                ui.button('删除用户', icon='person_remove', 
-                                         on_click=lambda: remove_users_from_permission(permission_data)).classes('bg-orange-600 text-white px-4 py-2')
+                        # with ui.card().classes(f'w-full {card_theme} shadow-md hover:shadow-lg transition-shadow duration-300'):
+                        with ui.row().classes('gap-4 w-full items-center justify-start'):
+                            ui.button('添加用户', icon='person_add', 
+                                        on_click=lambda: add_users_to_permission(permission_data)).classes('bg-indigo-600 text-white px-4 py-2')
+                            ui.button('删除用户', icon='person_remove', 
+                                        on_click=lambda: remove_users_from_permission(permission_data)).classes('bg-orange-600 text-white px-4 py-2')
 
                     # 操作按钮区域
-                    with ui.row().classes('gap-2 mt-4 justify-end'):
+                    with ui.row().classes('items-center justify-between w-full'):
+                            ui.label(f'权限操作').classes('text-lg font-bold text-gray-800 dark:text-gray-200')
+                    with ui.row().classes('gap-4 w-full items-center justify-start'):
                         ui.button('编辑权限', icon='edit', 
-                                 on_click=lambda: edit_permission_dialog(permission_data)).classes('bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1')
+                                 on_click=lambda: edit_permission_dialog(permission_data)).classes('bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2')
                         ui.button('删除权限', icon='delete', 
-                                 on_click=lambda: delete_permission_confirm(permission_data)).classes('bg-red-600 hover:bg-red-700 text-white px-3 py-1')
+                                 on_click=lambda: delete_permission_confirm(permission_data)).classes('bg-red-600 hover:bg-red-700 text-white px-4 py-2')
 
-    # 处理函数
-    def handle_search():
-        """处理搜索"""
-        log_info(f"权限搜索: {search_input.value}, 分类: {category_filter.value}")
-        update_permissions_display()
-
-    def reset_search():
-        """重置搜索"""
-        search_input.value = ''
-        category_filter.value = '全部'
-        update_permissions_display()
-
-    search_input.on('keyup.enter', handle_search)
+    
 
     # 权限CRUD操作
     def add_permission_dialog():
