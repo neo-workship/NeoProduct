@@ -155,7 +155,7 @@ def permission_management_page_content():
                     with ui.column().classes('flex-1'):
                         ui.label('使用提示').classes('text-lg font-semibold text-blue-800 dark:text-blue-200')
                         if not search_term:
-                            ui.label('权限列表最多显示2个权限。要查看或操作特定用户，请使用上方搜索框输入权限名称搜索').classes('text-blue-700 dark:text-blue-300 text-sm leading-relaxed')
+                            ui.label('权限列表最多显示2个权限。要查看或操作特定权限，请使用上方搜索框输入权限名称或标识搜索').classes('text-blue-700 dark:text-blue-300 text-sm leading-relaxed')
                         else:
                             if len(all_permissions) > MAX_DISPLAY_USERS:
                                 ui.label(f'搜索到 {len(all_permissions)} 个权限，当前显示前 {MAX_DISPLAY_USERS} 个。请使用更精确的关键词缩小搜索范围。').classes('text-blue-700 dark:text-blue-300 text-sm leading-relaxed')
@@ -294,6 +294,9 @@ def permission_management_page_content():
                                         on_click=lambda: add_users_to_permission(permission_data)).classes('bg-indigo-600 text-white px-4 py-2')
                             ui.button('删除用户', icon='person_remove', 
                                         on_click=lambda: remove_users_from_permission(permission_data)).classes('bg-orange-600 text-white px-4 py-2')
+                            # ui.button('批量关联', icon='upload_file',
+                            #             on_click=lambda: batch_associate_users_to_permission_dialog(permission_data)).classes('bg-purple-600 hover:bg-purple-700 text-white px-4 py-2')
+
 
                     # 操作按钮区域
                     with ui.row().classes('items-center justify-between w-full'):
@@ -305,6 +308,211 @@ def permission_management_page_content():
                                  on_click=lambda: delete_permission_confirm(permission_data)).classes('bg-red-600 hover:bg-red-700 text-white px-4 py-2')
 
     # 权限CRUD操作
+    @safe_protect(name="批量关联用户到权限")
+    def batch_associate_users_to_permission_dialog(permission_data: DetachedPermission):
+        """批量关联用户到权限对话框 - 通过上传文件"""
+        log_info(f"打开批量关联用户到权限对话框: {permission_data.name}")
+        
+        with ui.dialog() as dialog, ui.card().classes('w-[700px] max-h-[80vh]'):
+            dialog.open()
+            
+            # 对话框标题
+            with ui.row().classes('w-full items-center justify-between p-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-t-lg -m-6 mb-6'):
+                ui.label(f'批量关联用户到权限 "{permission_data.display_name or permission_data.name}"').classes('text-xl font-bold')
+                ui.button(icon='close', on_click=dialog.close).props('flat round color=white').classes('ml-auto')
+
+            # 说明信息
+            with ui.card().classes('w-full mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700'):
+                ui.label('操作说明').classes('font-bold mb-2 text-blue-800 dark:text-blue-200')
+                ui.label('1. 上传包含用户信息的文本文件（支持 .txt 和 .csv 格式）').classes('text-sm text-blue-700 dark:text-blue-300')
+                ui.label('2. 文件每行包含一个用户名或注册邮箱').classes('text-sm text-blue-700 dark:text-blue-300')
+                ui.label('3. 系统将自动识别用户并建立权限关联').classes('text-sm text-blue-700 dark:text-blue-300')
+                ui.label('4. 如果用户已关联该权限，将会跳过').classes('text-sm text-blue-700 dark:text-blue-300')
+                ui.label('5. 无法识别的用户名/邮箱将在结果中显示').classes('text-sm text-blue-700 dark:text-blue-300')
+
+            # 文件上传示例
+            with ui.expansion('查看文件格式示例', icon='help').classes('w-full mb-4'):
+                with ui.column().classes('gap-2'):
+                    ui.label('TXT 文件示例:').classes('font-bold text-gray-700 dark:text-gray-300')
+                    ui.code('''admin
+    user1
+    test@example.com
+    manager
+    developer@company.com''').classes('text-sm bg-gray-100 dark:bg-gray-800 p-2 rounded')
+                    
+                    ui.label('CSV 文件示例:').classes('font-bold text-gray-700 dark:text-gray-300 mt-4')
+                    ui.code('''username
+    admin
+    user1
+    test@example.com
+    manager''').classes('text-sm bg-gray-100 dark:bg-gray-800 p-2 rounded')
+
+            # 文件上传区域
+            uploaded_file_content = None
+            upload_status = ui.label('请选择用户列表文件').classes('text-gray-600 dark:text-gray-400')
+            
+            def handle_file_upload(e):
+                """处理文件上传"""
+                nonlocal uploaded_file_content
+                
+                if not e.content:
+                    upload_status.text = '文件上传失败：文件为空'
+                    upload_status.classes('text-red-600')
+                    return
+                
+                # 检查文件类型
+                filename = e.name.lower()
+                if not (filename.endswith('.txt') or filename.endswith('.csv')):
+                    upload_status.text = '文件格式不支持：仅支持 .txt 和 .csv 文件'
+                    upload_status.classes('text-red-600')
+                    return
+                
+                try:
+                    # 解码文件内容
+                    uploaded_file_content = e.content.read().decode('utf-8')
+                    upload_status.text = f'文件上传成功: {e.name} ({len(uploaded_file_content.splitlines())} 行)'
+                    upload_status.classes('text-green-600')
+                    log_info(f"文件上传成功: {e.name}, 内容长度: {len(uploaded_file_content)}")
+                    
+                except Exception as ex:
+                    log_error(f"文件上传处理失败: {e.name}", exception=ex)
+                    upload_status.text = f'文件处理失败: {str(ex)}'
+                    upload_status.classes('text-red-600')
+                    uploaded_file_content = None
+
+            ui.upload(
+                label='选择用户列表文件',
+                on_upload=handle_file_upload,
+                max_file_size=1024*1024  # 1MB 限制
+            ).classes('w-full').props('accept=".txt,.csv"')
+
+            def process_batch_association():
+                """处理批量关联"""
+                if not uploaded_file_content:
+                    ui.notify('请先上传用户列表文件', type='warning')
+                    return
+
+                try:
+                    # 解析用户列表
+                    users_list = []
+                    lines = uploaded_file_content.strip().split('\n')
+                    
+                    for i, line in enumerate(lines):
+                        line = line.strip()
+                        # 跳过空行和CSV标题行
+                        if not line or (i == 0 and line.lower() in ['username', 'user', 'email', '用户名', '邮箱']):
+                            continue
+                        # 移除可能的逗号分隔符（支持CSV格式）
+                        if ',' in line:
+                            line = line.split(',')[0].strip()
+                        if line:
+                            users_list.append(line)
+
+                    if not users_list:
+                        ui.notify('文件中没有发现有效的用户信息', type='warning')
+                        return
+
+                    log_info(f"开始批量关联用户到权限 {permission_data.name}: {len(users_list)} 个用户")
+
+                    # 执行批量关联
+                    success_count = 0
+                    skip_count = 0
+                    error_users = []
+
+                    with db_safe(f"批量关联用户到权限 {permission_data.name}") as db:
+                        permission = db.query(Permission).filter(Permission.id == permission_data.id).first()
+                        if not permission:
+                            ui.notify('权限不存在', type='error')
+                            return
+
+                        for user_identifier in users_list:
+                            try:
+                                # 尝试按用户名查找
+                                user = db.query(User).filter(User.username == user_identifier).first()
+                                
+                                # 如果按用户名找不到，尝试按邮箱查找
+                                if not user and '@' in user_identifier:
+                                    user = db.query(User).filter(User.email == user_identifier).first()
+                                
+                                if not user:
+                                    error_users.append(user_identifier)
+                                    continue
+                                
+                                # 检查是否已经有直接权限关联
+                                if permission in user.permissions:
+                                    skip_count += 1
+                                    log_info(f"用户 {user.username} 已拥有权限 {permission_data.name}，跳过")
+                                    continue
+                                
+                                # 添加权限关联
+                                user.permissions.append(permission)
+                                success_count += 1
+                                log_info(f"成功为用户 {user.username} 添加权限 {permission_data.name}")
+                                
+                            except Exception as e:
+                                log_error(f"处理用户 {user_identifier} 时出错", exception=e)
+                                error_users.append(user_identifier)
+
+                    # 显示结果对话框
+                    result_message = f'''批量关联完成！
+                    成功关联: {success_count} 个用户
+                    已有权限跳过: {skip_count} 个用户
+                    无法识别: {len(error_users)} 个用户'''
+
+                    with ui.dialog() as result_dialog, ui.card().classes('w-[500px]'):
+                        result_dialog.open()
+                        
+                        # 结果标题
+                        with ui.row().classes('w-full items-center justify-between p-4 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-t-lg -m-6 mb-6'):
+                            ui.label('批量关联结果').classes('text-xl font-bold')
+                            ui.button(icon='close', on_click=result_dialog.close).props('flat round color=white').classes('ml-auto')
+
+                        # 统计卡片
+                        with ui.row().classes('w-full gap-2 mb-4'):
+                            with ui.card().classes('flex-1 p-3 bg-green-50 dark:bg-green-900/20 text-center'):
+                                ui.label('成功关联').classes('text-sm text-green-700 dark:text-green-300')
+                                ui.label(str(success_count)).classes('text-2xl font-bold text-green-700 dark:text-green-300')
+
+                            with ui.card().classes('flex-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-center'):
+                                ui.label('跳过').classes('text-sm text-yellow-700 dark:text-yellow-300')
+                                ui.label(str(skip_count)).classes('text-2xl font-bold text-yellow-700 dark:text-yellow-300')
+
+                            with ui.card().classes('flex-1 p-3 bg-red-50 dark:bg-red-900/20 text-center'):
+                                ui.label('错误').classes('text-sm text-red-700 dark:text-red-300')
+                                ui.label(str(len(error_users))).classes('text-2xl font-bold text-red-700 dark:text-red-300')
+
+                        # 详细信息
+                        ui.label(result_message).classes('text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line mb-4')
+                        
+                        # 显示无法识别的用户
+                        if error_users:
+                            with ui.expansion('查看无法识别的用户', icon='error').classes('w-full mb-4'):
+                                with ui.column().classes('gap-1 max-h-40 overflow-auto'):
+                                    for user in error_users:
+                                        ui.label(f'• {user}').classes('text-sm text-red-600 dark:text-red-400')
+
+                        with ui.row().classes('w-full justify-end gap-2'):
+                            ui.button('确定', on_click=result_dialog.close).classes('bg-purple-600 hover:bg-purple-700 text-white')
+
+                    # 显示成功通知
+                    if success_count > 0:
+                        ui.notify(f'成功关联 {success_count} 个用户到权限 {permission_data.name}', type='positive')
+                        dialog.close()
+                        safe(load_permissions)  # 重新加载权限列表
+                    else:
+                        ui.notify('没有新用户被关联', type='info')
+
+                    log_info(f"批量关联完成: 权限={permission_data.name}, 成功={success_count}, 跳过={skip_count}, 错误={len(error_users)}")
+
+                except Exception as e:
+                    log_error(f"批量关联用户失败: {permission_data.name}", exception=e)
+                    ui.notify('批量关联失败，请稍后重试', type='negative')
+
+            # 操作按钮
+            with ui.row().classes('w-full justify-end gap-3 mt-6'):
+                ui.button('取消', on_click=dialog.close).classes('px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white')
+                ui.button('开始关联', icon='link', on_click=lambda: safe(process_batch_association)).classes('px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white')
+
     def add_permission_dialog():
         """添加权限对话框"""
         with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
@@ -871,3 +1079,5 @@ def permission_management_page_content():
     load_permissions()
 
     log_info("权限管理页面加载完成")
+
+
