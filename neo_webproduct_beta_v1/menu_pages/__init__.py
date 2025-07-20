@@ -2,7 +2,7 @@ from .home_page import home_content
 from .dashboard_page import dashboard_content
 from .smart_audit_page import smart_audit_content
 from .person_archive_page import person_archive_content
-from .enterprise_archive import enterprise_archive_content
+from .enterprise_archive_page import enterprise_archive_content
 from .about_page import about_page_content
 from .smart_index_page import smart_index_content
 
