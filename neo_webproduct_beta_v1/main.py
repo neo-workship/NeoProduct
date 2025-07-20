@@ -105,11 +105,13 @@ if __name__ in {"__main__", "__mp_main__"}:
             config=config,
             menu_items=[
                 {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
-                {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard', 'separator_after': True},
-                {'key': 'data', 'label': '智能审计', 'icon': 'policy', 'route': 'data'},
-                {'key': 'analysis', 'label': '智能问数', 'icon': 'question_answer', 'route': 'analysis'},
-                {'key': 'mcp', 'label': 'MCP服务', 'icon': 'api', 'route': 'mcp', 'separator_after': True},
+                {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard', 'separator_after': True},  
+                {'key': 'enterprise_archive', 'label': '一企一档', 'icon': 'business', 'route': 'enterprise_archive'},
+                {'key': 'person_archive', 'label': '一人一档', 'icon': 'co_present', 'route': 'person_archive','separator_after': True},
+                {'key': 'smart_audit', 'label': '智能审计', 'icon': 'policy', 'route': 'smart_audit'},
+                {'key': 'smart_index', 'label': '智能指标', 'icon': 'insights', 'route': 'smart_index','separator_after': True},
                 {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'}
+
             ],
             header_config_items=[
                 {'key': 'search', 'icon': 'search', 'label': '查询', 'route': 'search_page'},

@@ -23,6 +23,7 @@ project/
 │   │   ├── register_page.py            # 注册页面
 │   │   ├── role_management_page.py     # 角色管理页面
 │   │   └── user_management_page.py     # 用户管理页面
+│   ├── doc/                  # auth包相关文档
 │   └── migrations/           # 数据库迁移脚本
 │       └── __init__.py
 ├── common/                # 公共功能包
@@ -75,4 +76,65 @@ project/
 │       └── assets.json   # 资源配置
 └── main.py               # 复杂应用程序入口
 └── siample_main.py       # 简单布局应用程序入口
+└── README.py             # 工程说明文档
+```
+
+# 计划构建方式
+
+采用微服务构架，nicegui 作为前端（要搭配一个 fastapi 服务完成路由、认证、权限管理），然后构建若干的 fastapi 业务服务。前端的 nicegui web，分别连接不同的业务 fastapi。这样 fastapi 服务个数就有 n+1，n 表示不同的业务服务,以下构架图。
+
+```
+@startuml
+!theme mars
+skinparam monochrome true
+skinparam shadowing false
+skinparam dpi 300
+skinparam defaultFontName Noto Sans CJK JP
+title 构架图
+
+rectangle "客户端层" as clientLayer {
+    component "浏览器 (用户界面)" as browser
+}
+
+rectangle "前端服务层" as frontendServiceLayer {
+    component "NiceGUI + FastAPI\n(前端UI + 网关聚合)" as frontendApi
+    note bottom of frontendApi
+        UI页面渲染
+        用户认证/角色和权限管理
+        API网关/代理
+        会话管理
+    end note
+}
+
+rectangle "后端服务层" {
+    component "MongoDB服务\n:8001\nFastAPI" as MongodbService
+    component "OpenAI API服务\n:8002\nFastAPI" as OpenaiService
+    component "智能审计服务\n:8003\nFastAPI" as SmartAuditService
+    component "智能指标服务\n:8004\nFastAPI" as SmartIndexService
+}
+
+database "共享数据库" as sharedDB {
+    rectangle "认证表组" as authGroup
+    rectangle "业务表组" as businessGroup
+}
+
+note right of sharedDB
+    认证表组：users, roles, permissions,
+    role_permissions, user_permissions, user_roles
+
+    业务表组：mongodb_server, openai_server,
+    smart_audit, smart_index 等服务表
+end note
+
+browser --> frontendApi : HTTP请求
+frontendApi --> MongodbService : HTTP调用
+frontendApi --> OpenaiService : HTTP调用
+frontendApi --> SmartAuditService : HTTP调用
+frontendApi --> SmartIndexService : HTTP调用
+
+MongodbService --> sharedDB
+OpenaiService --> sharedDB
+SmartAuditService --> sharedDB
+SmartIndexService --> sharedDB
+@enduml
 ```
