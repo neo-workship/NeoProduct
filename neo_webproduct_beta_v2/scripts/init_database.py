@@ -2,6 +2,7 @@
 """
 统一数据库初始化脚本
 负责创建所有表（认证表 + 业务表）并进行数据初始化
+在 scripts/init_database.py 中尝试导入 UserRole、RolePermission、UserPermission，但这些在 auth.models 中是关联表（Table），不是模型类
 """
 import os
 import sys

@@ -15,7 +15,7 @@ class AuditMixin:
     updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     
     # 不在这里定义关系，让具体的业务模型自己决定是否需要关系
-    # 这样可以避免与 auth 模块的强耦合
+    # 这样可以避免与auth模块的强耦合
     
     def get_creator_info(self):
         """获取创建者信息的辅助方法"""

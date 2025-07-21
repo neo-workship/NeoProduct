@@ -185,9 +185,9 @@ if __name__ in {"__main__", "__mp_main__"}:
                 {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'},
             ],
             header_config_items=[
-                {'key': 'search', 'label': '搜索', 'icon': 'search', 'route': 'search_page'},
-                {'key': 'messages', 'label': '消息', 'icon': 'mail', 'route': 'messages_page'},
-                {'key': 'contact', 'label': '联系我们', 'icon': 'contact_support', 'route': 'contact_page'},
+                {'key': 'search', 'label': '搜索', 'icon': 'search', 'route': 'search'},
+                {'key': 'messages', 'label': '消息', 'icon': 'mail', 'route': 'messages'},
+                {'key': 'contact', 'label': '联系我们', 'icon': 'contact_support', 'route': 'contact'},
             ],
             route_handlers=protected_handlers
         )
