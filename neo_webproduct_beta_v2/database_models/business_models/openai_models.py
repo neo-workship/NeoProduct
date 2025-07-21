@@ -1,6 +1,6 @@
 # database_models/business_models/openai_models.py
-from sqlalchemy import Column, String, Integer, Text, Boolean, JSON, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String, Integer, Text, Boolean, JSON, Enum, ForeignKey
+from sqlalchemy.orm import relationship, declared_attr
 from ..shared_base import BusinessBaseModel
 import enum
 
@@ -32,6 +32,17 @@ class OpenAIConfig(BusinessBaseModel):
     total_requests = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
     
+    # 内部关系（不依赖外部模型）
+    requests = relationship("OpenAIRequest", back_populates="config", cascade="all, delete-orphan")
+    
+    def get_user_info(self):
+        """获取创建者的详细信息"""
+        return self.get_creator_info()  # 使用基类方法
+    
+    def get_request_count(self):
+        """获取请求数量"""
+        return len(self.requests) if self.requests else 0
+    
     def __repr__(self):
         return f"<OpenAIConfig(name='{self.name}', model='{self.model_name.value}')>"
 
@@ -52,12 +63,42 @@ class OpenAIRequest(BusinessBaseModel):
     status = Column(String(20), default='pending')  # pending, success, error
     error_message = Column(Text)
     
-    # 关系
+    # 内部关系
     config = relationship("OpenAIConfig", back_populates="requests")
-    user = relationship("User", back_populates="openai_requests")
+    
+    def get_user_info(self):
+        """获取请求用户信息"""
+        if not self.user_id:
+            return None
+            
+        try:
+            from auth.database import get_db
+            from auth.models import User
+            
+            with get_db() as db:
+                user = db.query(User).filter(User.id == self.user_id).first()
+                if user:
+                    return {
+                        'id': user.id,
+                        'username': user.username,
+                        'full_name': user.full_name
+                    }
+        except Exception:
+            pass
+        return None
     
     def __repr__(self):
         return f"<OpenAIRequest(user_id={self.user_id}, status='{self.status}')>"
 
-# 在OpenAIConfig中添加反向关系
-OpenAIConfig.requests = relationship("OpenAIRequest", back_populates="config", cascade="all, delete-orphan")
+# 可选：如果需要在OpenAI模块中访问用户关系，可以定义扩展方法
+class OpenAIUserMixin:
+    """OpenAI模块的用户关系混入（可选使用）"""
+    
+    @declared_attr
+    def user(cls):
+        """可选的用户关系"""
+        return relationship("User", lazy="select")
+
+# 示例：如果某个特定模型需要用户关系，可以这样继承
+# class OpenAIRequestWithUser(OpenAIRequest, OpenAIUserMixin):
+#     pass

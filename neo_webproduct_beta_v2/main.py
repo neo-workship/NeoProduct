@@ -1,6 +1,9 @@
 """
-主应用入口 - 集成认证功能
+主应用入口 - 集成统一建表功能（简化版）
 """
+import sys
+import os
+from pathlib import Path
 from nicegui import ui, app
 from component import with_spa_layout, LayoutConfig, static_manager
 from menu_pages import get_menu_page_handlers
@@ -11,69 +14,138 @@ from auth import (
     require_role,
     login_page_content,
     register_page_content,
-    get_auth_page_handlers,
-    init_database
+    get_auth_page_handlers
 )
 
-# 初始化测试数据
-def init_test_data():
-    """创建测试用户（仅在开发环境使用）"""
-    from auth.database import get_db
-    from auth.models import User, Role
-    
-    with get_db() as db:
-        # 检查是否已有用户
-        if db.query(User).count() > 0:
-            return
+def init_database_simple():
+    """简化的数据库初始化"""
+    try:
+        print("🔄 开始数据库初始化...")
         
-        # 获取角色
-        admin_role = db.query(Role).filter(Role.name == 'admin').first()
-        user_role = db.query(Role).filter(Role.name == 'user').first()
+        # 首先确保数据库连接正常
+        from auth.database import init_database as auth_init
+        auth_init()
         
-        # 创建管理员
-        admin = User(
-            username='admin',
-            email='admin@example.com',
-            full_name='系统管理员',
-            is_active=True,
-            is_verified=True,
-            is_superuser=True
-        )
-        admin.set_password('admin123')
-        if admin_role:
-            admin.roles.append(admin_role)
+        # 直接运行统一初始化脚本
+        from scripts.init_database import DatabaseInitializer
         
-        # 创建普通用户
-        user = User(
-            username='user',
-            email='user@example.com',
-            full_name='测试用户',
-            is_active=True,
-            is_verified=True
-        )
-        user.set_password('user123')
-        if user_role:
-            user.roles.append(user_role)
+        initializer = DatabaseInitializer()
+        initializer.run_full_initialization(create_test_data=True)
         
-        db.add(admin)
-        db.add(user)
-        db.commit()
-       
-        print("✅ 测试数据初始化完成")
+        print("✅ 数据库初始化成功！")
+        return True
+        
+    except Exception as e:
+        print(f"❌ 数据库初始化失败: {e}")
+        print("尝试使用基础初始化方案...")
+        
+        try:
+            # 备用方案：只初始化基础表
+            from auth.database import get_db, Base, get_engine
+            
+            # 导入所有模型确保表结构
+            from auth.models import User, Role, Permission, LoginLog
+            from auth.models import user_roles, role_permissions, user_permissions
+            from database_models.business_models.openai_models import OpenAIConfig, OpenAIRequest
+            
+            # 创建所有表
+            engine = get_engine()
+            Base.metadata.create_all(bind=engine)
+            
+            print("✅ 基础表创建成功")
+            
+            # 创建默认数据
+            _create_basic_data()
+            
+            return True
+            
+        except Exception as fallback_error:
+            print(f"❌ 备用初始化也失败: {fallback_error}")
+            return False
 
-# 创建受保护的页面处理器
+def _create_basic_data():
+    """创建基础数据"""
+    from auth.database import get_db
+    from auth.models import User, Role, Permission
+    
+    try:
+        with get_db() as db:
+            # 检查是否已有数据
+            if db.query(User).count() > 0:
+                print("数据已存在，跳过创建")
+                return
+            
+            # 创建基础角色
+            admin_role = Role(name='admin', display_name='管理员', description='系统管理员')
+            user_role = Role(name='user', display_name='普通用户', description='普通用户')
+            
+            db.add(admin_role)
+            db.add(user_role)
+            db.flush()  # 获取ID
+            
+            # 创建基础权限
+            permissions = [
+                Permission(name='openai.view', display_name='查看OpenAI配置', category='openai'),
+                Permission(name='openai.use', display_name='使用OpenAI对话', category='openai'),
+                Permission(name='system.admin', display_name='系统管理', category='system'),
+            ]
+            
+            for perm in permissions:
+                db.add(perm)
+            
+            db.flush()  # 获取权限ID
+            
+            # 分配权限
+            admin_role.permissions.extend(permissions)  # 管理员有所有权限
+            user_role.permissions.append(permissions[0])  # 用户只能查看
+            user_role.permissions.append(permissions[1])  # 用户可以使用
+            
+            # 创建测试用户
+            admin = User(
+                username='admin',
+                email='admin@example.com',
+                full_name='系统管理员',
+                is_active=True,
+                is_verified=True,
+                is_superuser=True
+            )
+            admin.set_password('admin123')
+            admin.roles.append(admin_role)
+            
+            user = User(
+                username='user',
+                email='user@example.com',
+                full_name='测试用户',
+                is_active=True,
+                is_verified=True
+            )
+            user.set_password('user123')
+            user.roles.append(user_role)
+            
+            db.add(admin)
+            db.add(user)
+            db.commit()
+            
+            print("✅ 基础数据创建完成")
+            print("管理员: admin/admin123")
+            print("普通用户: user/user123")
+            
+    except Exception as e:
+        print(f"基础数据创建失败: {e}")
+        raise
+
 def create_protected_handlers():
     """为需要认证的页面添加装饰器"""
     menu_handlers = get_menu_page_handlers()
     header_handlers = get_header_page_handlers()
     system_handlers = get_auth_page_handlers()
     
-    return {**menu_handlers, **header_handlers,**system_handlers}
+    return {**menu_handlers, **header_handlers, **system_handlers}
 
 if __name__ in {"__main__", "__mp_main__"}:
-    # 初始化数据库和测试数据
-    init_database()
-    init_test_data()
+    # 初始化数据库
+    if not init_database_simple():
+        print("⚠️ 数据库初始化失败，但尝试继续运行...")
 
     # 获取受保护的页面处理器
     protected_handlers = create_protected_handlers()
@@ -107,34 +179,28 @@ if __name__ in {"__main__", "__mp_main__"}:
                 {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
                 {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard', 'separator_after': True},  
                 {'key': 'enterprise_archive', 'label': '一企一档', 'icon': 'business', 'route': 'enterprise_archive'},
-                {'key': 'person_archive', 'label': '一人一档', 'icon': 'co_present', 'route': 'person_archive','separator_after': True},
-                {'key': 'smart_audit', 'label': '智能审计', 'icon': 'policy', 'route': 'smart_audit'},
-                {'key': 'smart_index', 'label': '智能指标', 'icon': 'insights', 'route': 'smart_index','separator_after': True},
-                {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'}
-
+                {'key': 'person_archive', 'label': '一人一档', 'icon': 'person', 'route': 'person_archive','separator_after': True},
+                {'key': 'smart_audit', 'label': '智能审计', 'icon': 'smart_toy', 'route': 'smart_audit'},
+                {'key': 'smart_index', 'label': '智能指标', 'icon': 'analytics', 'route': 'smart_index','separator_after': True},
+                {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'},
             ],
             header_config_items=[
-                {'key': 'search', 'icon': 'search', 'label': '查询', 'route': 'search_page'},
-                {'key': 'messages', 'icon': 'mail', 'label': '消息', 'route': 'messages_page'},
-                {'key': 'contact', 'label': '联系我们', 'icon': 'support', 'route': 'contact_page'},
+                {'key': 'search', 'label': '搜索', 'icon': 'search', 'route': 'search_page'},
+                {'key': 'messages', 'label': '消息', 'icon': 'mail', 'route': 'messages_page'},
+                {'key': 'contact', 'label': '联系我们', 'icon': 'contact_support', 'route': 'contact_page'},
             ],
             route_handlers=protected_handlers
         )
-        def spa_layout():
+        def spa_content():
             pass
+        
+        return spa_content()
 
-        spa_layout()
-
-    # 启动应用
-    print("🌐 启动应用服务器...")
-    print("📝 测试账号：")
-    print("   管理员 - 用户名: admin, 密码: admin123")
-    print("   普通用户 - 用户名: user, 密码: user123")
-    print("🔄 支持页面刷新保持路由状态（基于存储）")
-
-    @app.on_startup
-    def redirect_to_workbench():
+    # 直接跳转到工作台
+    @ui.page('/')
+    def index():
         ui.navigate.to('/workbench')
+
     ui.run(
         title=config.app_title,
         port=8080,

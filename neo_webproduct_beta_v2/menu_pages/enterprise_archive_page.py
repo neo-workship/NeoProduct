@@ -25,23 +25,24 @@ def enterprise_archive_content():
 def show_openai_configs():
     """显示OpenAI配置列表"""
     user = auth_manager.current_user
-    configs = lambda: get_openai_configs_safe()
+    configs = lambda:get_openai_configs_safe()
     
-    for config in configs:
-        with ui.card():
-            ui.label(config.name)
-            
-            # 编辑按钮（需要编辑权限）
-            if user.has_permission('openai.edit'):
-                ui.button('编辑', on_click=lambda c=config: edit_config(c.id))
-            
-            # 删除按钮（需要删除权限）
-            if user.has_permission('openai.delete'):
-                ui.button('删除', on_click=lambda c=config: delete_config(c.id))
-            
-            # API密钥管理（需要特殊权限）
-            if user.has_permission('openai.manage_api_key'):
-                ui.button('管理密钥', on_click=lambda c=config: manage_api_key(c.id))
+    if configs:
+        for config in configs:
+            with ui.card():
+                ui.label(config.name)
+                
+                # 编辑按钮（需要编辑权限）
+                if user.has_permission('openai.edit'):
+                    ui.button('编辑', on_click=lambda c=config: edit_config(c.id))
+                
+                # 删除按钮（需要删除权限）
+                if user.has_permission('openai.delete'):
+                    ui.button('删除', on_click=lambda c=config: delete_config(c.id))
+                
+                # API密钥管理（需要特殊权限）
+                if user.has_permission('openai.manage_api_key'):
+                    ui.button('管理密钥', on_click=lambda c=config: manage_api_key(c.id))
 
 def create_config_dialog():
     """创建配置对话框"""
