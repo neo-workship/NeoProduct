@@ -15,52 +15,6 @@ from auth import (
     init_database
 )
 
-# 初始化测试数据
-def init_test_data():
-    """创建测试用户（仅在开发环境使用）"""
-    from auth.database import get_db
-    from auth.models import User, Role
-    
-    with get_db() as db:
-        # 检查是否已有用户
-        if db.query(User).count() > 0:
-            return
-        
-        # 获取角色
-        admin_role = db.query(Role).filter(Role.name == 'admin').first()
-        user_role = db.query(Role).filter(Role.name == 'user').first()
-        
-        # 创建管理员
-        admin = User(
-            username='admin',
-            email='admin@example.com',
-            full_name='系统管理员',
-            is_active=True,
-            is_verified=True,
-            is_superuser=True
-        )
-        admin.set_password('admin123')
-        if admin_role:
-            admin.roles.append(admin_role)
-        
-        # 创建普通用户
-        user = User(
-            username='user',
-            email='user@example.com',
-            full_name='测试用户',
-            is_active=True,
-            is_verified=True
-        )
-        user.set_password('user123')
-        if user_role:
-            user.roles.append(user_role)
-        
-        db.add(admin)
-        db.add(user)
-        db.commit()
-       
-        print("✅ 测试数据初始化完成")
-
 # 创建受保护的页面处理器
 def create_protected_handlers():
     """为需要认证的页面添加装饰器"""
@@ -71,16 +25,12 @@ def create_protected_handlers():
     return {**menu_handlers, **header_handlers, **system_handlers}
 
 if __name__ in {"__main__", "__mp_main__"}:
-    # 初始化数据库和测试数据
-    init_database()
-    init_test_data()
-
     # 获取受保护的页面处理器
     protected_handlers = create_protected_handlers()
 
     # 创建自定义配置
     config = LayoutConfig()
-    config.app_title = 'MCP智能平台 - 简单布局'  # 修改标题以区分布局
+    config.app_title = 'MCP智能平台 - Header版'  # 修改标题以区分布局
 
     # 登录页面
     @ui.page('/login')
@@ -105,8 +55,8 @@ if __name__ in {"__main__", "__mp_main__"}:
         @with_simple_spa_layout(
             config=config,
             nav_items=[
-                {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
-                {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard'},
+                {'key': 'enterprise_archive', 'label': '一企一档', 'icon': 'business', 'route': 'enterprise_archive'},
+                {'key': 'person_archive', 'label': '一人一档', 'icon': 'person', 'route': 'person_archive','separator_after': True},
                 # {'key': 'data', 'label': '智能审计', 'icon': 'policy', 'route': 'data'},
                 # {'key': 'analysis', 'label': '智能问数', 'icon': 'question_answer', 'route': 'analysis'},
                 # {'key': 'mcp', 'label': 'MCP服务', 'icon': 'api', 'route': 'mcp'},

@@ -26,7 +26,7 @@ def show_openai_configs():
     """显示OpenAI配置列表"""
     user = auth_manager.current_user
     configs = lambda:get_openai_configs_safe()
-    
+
     if configs:
         for config in configs:
             with ui.card():
