@@ -89,10 +89,10 @@ class AuthConfig:
             return f'sqlite:///{db_path}'
         elif self.database_type == 'mysql':
             # 示例：mysql://user:password@localhost/dbname
-            return os.environ.get('DATABASE_URL', 'mysql://root:password@localhost/auth_db')
+            return os.environ.get('DATABASE_URL', 'mysql://root:12345678@localhost:3309/auth_db')
         elif self.database_type == 'postgresql':
             # 示例：postgresql://user:password@localhost/dbname
-            return os.environ.get('DATABASE_URL', 'postgresql://postgres:password@localhost/auth_db')
+            return os.environ.get('DATABASE_URL', 'postgresql://neo:12345678@172.22.160.1/auth_db')
         else:
             raise ValueError(f"Unsupported database type: {self.database_type}")
     
