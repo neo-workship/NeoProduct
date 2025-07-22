@@ -143,7 +143,6 @@ class AuthManager:
             
             return {'success': True, 'message': '登录成功', 'user': user_session}
             
-    
     def logout(self):
         """用户登出 - 增强版"""
         session_token = app.storage.user.get(self._session_key)
@@ -277,7 +276,6 @@ class AuthManager:
         self.current_user = None
         return None
 
-    
     def change_password(self, user_id: int, old_password: str, new_password: str) -> Dict[str, Any]:
         """修改密码"""
         with get_db() as db:

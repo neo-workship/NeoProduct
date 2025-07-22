@@ -56,12 +56,12 @@ if __name__ in {"__main__", "__mp_main__"}:
         @with_spa_layout(
             config=config,
             menu_items=[
-                {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
-                {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard', 'separator_after': True},  
+                {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home','separator_after': True},
+                # {'key': 'dashboard', 'label': '看板', 'icon': 'dashboard', 'route': 'dashboard', 'separator_after': True},  
                 {'key': 'enterprise_archive', 'label': '一企一档', 'icon': 'business', 'route': 'enterprise_archive'},
-                {'key': 'person_archive', 'label': '一人一档', 'icon': 'person', 'route': 'person_archive','separator_after': True},
-                {'key': 'smart_audit', 'label': '智能审计', 'icon': 'smart_toy', 'route': 'smart_audit'},
-                {'key': 'smart_index', 'label': '智能指标', 'icon': 'analytics', 'route': 'smart_index','separator_after': True},
+                {'key': 'person_archive', 'label': '一人一档', 'icon': 'people', 'route': 'person_archive','separator_after': True},
+                {'key': 'smart_audit', 'label': '智能审计', 'icon': 'policy', 'route': 'smart_audit'},
+                {'key': 'smart_index', 'label': '智能指标', 'icon': 'query_stats', 'route': 'smart_index','separator_after': True},
                 {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'},
             ],
             header_config_items=[
