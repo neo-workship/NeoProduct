@@ -17,60 +17,66 @@ def enterprise_archive_content():
     # ui.label(f'欢迎，{user.username}, 权限为：{user.permissions}')
     
     # 仅设置 tabs 固定宽度和内容区域宽度
-    # ui.add_head_html('''
-    # <style>
-    # /* 固定tabs宽度 */
-    # .fixed-width-tabs .q-tabs {
-    #     width: 160px !important;
-    #     min-width: 160px !important;
-    #     max-width: 160px !important;
-    # }
+    ui.add_head_html('''
+    <style>
+    /* 固定tabs宽度 */
+    .fixed-width-tabs .q-tabs {
+        width: 160px !important;
+        min-width: 160px !important;
+        max-width: 160px !important;
+    }
     
-    # /* 确保tab panels容器占满窗口 */
-    # .full-width-panels {
-    #     width: 100% !important;
-    #     flex: 1 !important;
-    #     height: 100% !important;
-    # }
+    /* 确保tab panels容器占满窗口 */
+    .full-width-panels {
+        width: 100% !important;
+        flex: 1 !important;
+        height: 100% !important;
+    }
     
-    # /* 确保每个tab panel占满容器 */
-    # .full-width-panels .q-tab-panel {
-    #     width: 100% !important;
-    #     height: 100% !important;
-    #     padding: 0 !important;
-    # }
+    /* 确保每个tab panel占满容器 */
+    .full-width-panels .q-tab-panel {
+        width: 100% !important;
+        height: 100% !important;
+        padding: 0 !important;
+    }
     
-    # /* tab panel内容样式 */
-    # .tab-content {
-    #     width: 100% !important;
-    #     height: 100% !important;
-    #     padding: 20px !important;
-    #     box-sizing: border-box !important;
-    # }
+    /* tab panel内容样式 */
+    .tab-content {
+        width: 100% !important;
+        height: 100% !important;
+        padding: 20px !important;
+        box-sizing: border-box !important;
+    }
     
-    # /* 确保splitter右侧区域占满 */
-    # .q-splitter__after {
-    #     width: 100% !important;
-    #     overflow: hidden !important;
-    # }
-    # </style>
-    # ''')
+    /* 确保splitter右侧区域占满 */
+    .q-splitter__after {
+        width: 100% !important;
+        overflow: hidden !important;
+    }
+    </style>
+    ''')
     
-    with ui.tabs() as tabs:
-        ai_query = ui.tab('智能问数', icon='tips_and_updates').classes('ml-12')
-        data_operator = ui.tab('数据操作', icon='precision_manufacturing').classes('ml-12')
-        data_sync = ui.tab('数据更新', icon='sync_alt').classes('ml-12')
-        setting = ui.tab('配置数据', icon='build_circle').classes('ml-12')
-    ui.separator()
-    with ui.tab_panels(tabs, value=ai_query).classes('w-full'):
-        with ui.tab_panel(ai_query):
-            create_ai_query_content()
-        with ui.tab_panel(data_operator):
-            create_data_operator_content()
-        with ui.tab_panel(data_sync):
-            create_data_sync_content()
-        with ui.tab_panel(setting):
-            create_setting_content()
+    # with ui.splitter(value=20).classes('w-full h-full') as splitter:
+    with ui.row():
+        # 左侧tabs区域 - 固定宽度
+        # with splitter.before:
+        with ui.tabs().props('vertical').classes('fixed-width-tabs') as tabs:
+            ai_query = ui.tab('智能问数', icon='tips_and_updates')
+            data_operator = ui.tab('数据操作', icon='precision_manufacturing')
+            data_sync = ui.tab('数据更新', icon='sync_alt')
+            setting = ui.tab('配置数据', icon='build_circle')
+        
+        # 右侧内容区域 - 占满剩余空间
+        # with splitter.after:
+        with ui.tab_panels(tabs, value=ai_query).props('vertical').classes('full-width-panels'):
+            with ui.tab_panel(ai_query):
+                create_ai_query_content()
+            with ui.tab_panel(data_operator):
+                create_data_operator_content()
+            with ui.tab_panel(data_sync):
+                create_data_sync_content()
+            with ui.tab_panel(setting):
+                create_setting_content()
 
 def create_ai_query_content():
     """创建智能问数内容"""
