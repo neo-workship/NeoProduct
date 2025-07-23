@@ -9,12 +9,13 @@ from common.exception_handler import log_info, log_error, safe, db_safe, safe_pr
 def enterprise_archive_content():
     user = auth_manager.current_user
     # ui.label(f'欢迎，{user.username}, 权限为：{user.permissions}')
+    
     with ui.tabs().classes('w-full') as tabs:
         ai_query = ui.tab('智能问数', icon='tips_and_updates').classes('flex-grow')
         data_operator = ui.tab('数据操作', icon='precision_manufacturing').classes('flex-grow')
         data_sync = ui.tab('数据更新', icon='sync_alt').classes('flex-grow')
         setting = ui.tab('配置数据', icon='build_circle').classes('flex-grow')
-    ui.separator().classes('w-full')
+    ui.separator()
     with ui.tab_panels(tabs, value=ai_query).classes('w-full'):
         with ui.tab_panel(ai_query):
             create_ai_query_content()
