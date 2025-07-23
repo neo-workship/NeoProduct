@@ -7,61 +7,14 @@ from common.exception_handler import log_info, log_error, safe, db_safe, safe_pr
 
 @safe_protect(name="一企一档", error_msg="一企一档页面加载失败")
 def enterprise_archive_content():
-    """
-    一企一档页面内容
-    优化了tabs布局，包括：
-    1. 固定tabs宽度（仅宽度设置，不设置颜色或其他样式）
-    2. 设置tab选项内容占满窗口
-    """
     user = auth_manager.current_user
     # ui.label(f'欢迎，{user.username}, 权限为：{user.permissions}')
-    
-    # 仅设置 tabs 固定宽度和内容区域宽度
-    # ui.add_head_html('''
-    # <style>
-    # /* 固定tabs宽度 */
-    # .fixed-width-tabs .q-tabs {
-    #     width: 160px !important;
-    #     min-width: 160px !important;
-    #     max-width: 160px !important;
-    # }
-    
-    # /* 确保tab panels容器占满窗口 */
-    # .full-width-panels {
-    #     width: 100% !important;
-    #     flex: 1 !important;
-    #     height: 100% !important;
-    # }
-    
-    # /* 确保每个tab panel占满容器 */
-    # .full-width-panels .q-tab-panel {
-    #     width: 100% !important;
-    #     height: 100% !important;
-    #     padding: 0 !important;
-    # }
-    
-    # /* tab panel内容样式 */
-    # .tab-content {
-    #     width: 100% !important;
-    #     height: 100% !important;
-    #     padding: 20px !important;
-    #     box-sizing: border-box !important;
-    # }
-    
-    # /* 确保splitter右侧区域占满 */
-    # .q-splitter__after {
-    #     width: 100% !important;
-    #     overflow: hidden !important;
-    # }
-    # </style>
-    # ''')
-    
-    with ui.tabs() as tabs:
-        ai_query = ui.tab('智能问数', icon='tips_and_updates').classes('ml-12')
-        data_operator = ui.tab('数据操作', icon='precision_manufacturing').classes('ml-12')
-        data_sync = ui.tab('数据更新', icon='sync_alt').classes('ml-12')
-        setting = ui.tab('配置数据', icon='build_circle').classes('ml-12')
-    ui.separator()
+    with ui.tabs().classes('w-full') as tabs:
+        ai_query = ui.tab('智能问数', icon='tips_and_updates').classes('flex-grow')
+        data_operator = ui.tab('数据操作', icon='precision_manufacturing').classes('flex-grow')
+        data_sync = ui.tab('数据更新', icon='sync_alt').classes('flex-grow')
+        setting = ui.tab('配置数据', icon='build_circle').classes('flex-grow')
+    ui.separator().classes('w-full')
     with ui.tab_panels(tabs, value=ai_query).classes('w-full'):
         with ui.tab_panel(ai_query):
             create_ai_query_content()
@@ -74,7 +27,7 @@ def enterprise_archive_content():
 
 def create_ai_query_content():
     """创建智能问数内容"""
-    with ui.column().classes('tab-content'):
+    with ui.column().classes('w-full'):
         ui.label('智能问数').classes('text-2xl font-bold mb-4 text-blue-600')
         
         # 创建一个卡片容器展示功能 - 使用全宽度
