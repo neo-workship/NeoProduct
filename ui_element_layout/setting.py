@@ -2,40 +2,285 @@
 from nicegui import ui
 
 def create_setting_content():
-    with ui.row().classes('flex h-screen w-full bg-gray-100 gap-2 p-2'):
-    
-        # 左侧大容器 - 使用卡片组件
-        with ui.card().classes('flex-1'):
-            ui.label('左侧主要内容区域').classes('text-xl font-bold text-gray-700 mb-4')
-            
-            # 使用容器组件代替div
-            with ui.column().classes('gap-4'):
-                ui.markdown('''
-                ### 主要内容区域
-                这是页面的主要内容区域，占据了大部分空间。''')
+
+
+    # 设置页面标题和样式
+    ui.page_title('NiceGUI 弹性盒子布局演示')
+
+    # 添加简单的全局样式
+    ui.add_head_html('''
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+    </style>
+    ''')
+
+    # 页面标题
+    ui.markdown('# NiceGUI 弹性盒子布局演示')
+    ui.separator()
+
+    # ===== 弹性容器属性演示 =====
+    ui.markdown('## 一、弹性容器属性演示')
+
+    # 1. flex-direction 演示
+    ui.markdown('### 1. flex-direction (主轴方向)')
+
+    with ui.card():
+        ui.markdown('**flex-direction: row (默认-水平) | tailwind class(flex-row)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24').style("flex-direction: row"):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: flex-direction: row').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-direction: column (垂直) | tailwind class(flex-col)**')
+        with ui.column().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-48').style("flex-direction: column"):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: flex-direction: column').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-direction: row-reverse (水平反向) | tailwind class(flex-row-reverse)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24').style("flex-direction: row-reverse"):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: flex-direction: row-reverse').classes('text-sm text-gray-600')
+
+    # 2. justify-content 演示
+    ui.markdown('### 2. justify-content (主轴对齐)')
+
+    with ui.card().classes("w-full"):
+        ui.markdown('**justify-content: flex-start (默认-起始对齐) | tailwind class(justify-start)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24').style("justify-content: flex-start"):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-yellow-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: justify-content: flex-start').classes('text-sm text-gray-600')
+
+    with ui.card().classes("w-full"):
+        ui.markdown('**justify-content: center (居中对齐)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24 justify-center'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-yellow-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: justify-content: center').classes('text-sm text-gray-600')
+
+    with ui.card().classes("w-full"):
+        ui.markdown('**justify-content: flex-end (末端对齐)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24 justify-end'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-yellow-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: justify-content: flex-end').classes('text-sm text-gray-600')
+
+    with ui.card().classes("w-full"):
+        ui.markdown('**justify-content: space-between (两端对齐)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24 justify-between'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-yellow-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: justify-content: space-between').classes('text-sm text-gray-600')
+
+    with ui.card().classes("w-full"):
+        ui.markdown('**justify-content: space-around (环绕对齐),tailwind class - justify-around**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24').style("justify-content: space-around"):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-yellow-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: justify-content: space-around').classes('text-sm text-gray-600')
+
+    with ui.card().classes('w-full'):
+        ui.markdown('**justify-content: space-evenly (平均分布)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24 justify-evenly'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-yellow-200 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: justify-content: space-evenly').classes('text-sm text-gray-600')
+
+    # 3. align-items 演示
+    ui.markdown('### 3. align-items (交叉轴对齐)')
+
+    with ui.card():
+        ui.markdown('**align-items: stretch (默认-拉伸)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 h-32 items-stretch'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-indigo-200 text-center flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-teal-200 text-center flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-orange-200 text-center flex items-center justify-center')
+        ui.label('属性值: align-items: stretch').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**align-items: center (居中)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 h-32 items-center'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-indigo-200 text-center min-h-12 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-teal-200 text-center min-h-12 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-orange-200 text-center min-h-12 flex items-center justify-center')
+        ui.label('属性值: align-items: center').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**align-items: flex-start (起始对齐)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 h-32 items-start'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-indigo-200 text-center min-h-12 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-teal-200 text-center min-h-12 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-orange-200 text-center min-h-12 flex items-center justify-center')
+        ui.label('属性值: align-items: flex-start').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**align-items: flex-end (末端对齐)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 h-32 items-end'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-indigo-200 text-center min-h-12 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-teal-200 text-center min-h-12 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-orange-200 text-center min-h-12 flex items-center justify-center')
+        ui.label('属性值: align-items: flex-end').classes('text-sm text-gray-600')
+
+    # 4. flex-wrap 演示
+    ui.markdown('### 4. flex-wrap (换行控制)')
+
+    with ui.card():
+        ui.markdown('**flex-wrap: nowrap (不换行)**')
+        with ui.row(wrap=False).classes('w-96 p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24 flex-nowrap'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-red-300 w-32 text-center min-h-10 flex items-center justify-center flex-shrink-0')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-green-300 w-32 text-center min-h-10 flex items-center justify-center flex-shrink-0')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-blue-300 w-32 text-center min-h-10 flex items-center justify-center flex-shrink-0')
+            ui.label('项目4').classes('p-3 m-1 rounded bg-purple-300 w-32 text-center min-h-10 flex items-center justify-center flex-shrink-0')
+        ui.label('属性值: flex-wrap: nowrap').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-wrap: wrap (换行)**')
+        with ui.row().classes('w-96 p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24 flex-wrap'):
+            ui.label('项目1').classes('p-3 m-1 rounded bg-red-300 w-32 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目2').classes('p-3 m-1 rounded bg-green-300 w-32 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目3').classes('p-3 m-1 rounded bg-blue-300 w-32 text-center min-h-10 flex items-center justify-center')
+            ui.label('项目4').classes('p-3 m-1 rounded bg-purple-300 w-32 text-center min-h-10 flex items-center justify-center')
+        ui.label('属性值: flex-wrap: wrap').classes('text-sm text-gray-600')
+
+    ui.separator()
+
+    # ===== 弹性元素属性演示 =====
+    ui.markdown('## 二、弹性元素属性演示')
+
+    # 1. flex-grow 演示
+    ui.markdown('### 1. flex-grow (放大比例)')
+
+    with ui.card():
+        ui.markdown('**flex-grow: 0 (默认-不放大)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('grow-0').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center grow-0')
+            ui.label('grow-0').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center grow-0')
+            ui.label('grow-0').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center grow-0')
+        ui.label('属性值: flex-grow: 0').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-grow: 1 (平均分配剩余空间)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('grow-1').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center grow')
+            ui.label('grow-1').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center grow')
+            ui.label('grow-1').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center grow')
+        ui.label('属性值: flex-grow: 1').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-grow: 不同比例 (1:2:1)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('grow-1').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center grow')
+            ui.label('grow-2').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center grow-[2]')
+            ui.label('grow-1').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center grow')
+        ui.label('属性值: flex-grow: 1, 2, 1').classes('text-sm text-gray-600')
+
+    # 2. flex-shrink 演示
+    ui.markdown('### 2. flex-shrink (缩小比例)')
+
+    with ui.card():
+        ui.markdown('**flex-shrink: 1 (默认-等比缩小)**')
+        with ui.row().classes('w-80 p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('项目1-长文本').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center shrink')
+            ui.label('项目2-长文本').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center shrink')
+            ui.label('项目3-长文本').classes('p-3 m-1 rounded bg-orange-200 text-center min-h-10 flex items-center justify-center shrink')
+        ui.label('属性值: flex-shrink: 1').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-shrink: 0 (不缩小)**')
+        with ui.row().classes('w-80 p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('不缩小').classes('p-3 m-1 rounded bg-purple-200 text-center min-h-10 flex items-center justify-center shrink-0')
+            ui.label('会缩小').classes('p-3 m-1 rounded bg-pink-200 text-center min-h-10 flex items-center justify-center shrink')
+            ui.label('会缩小').classes('p-3 m-1 rounded bg-orange-200 text-center min-h-10 flex items-center justify-center shrink')
+        ui.label('属性值: flex-shrink: 0, 1, 1').classes('text-sm text-gray-600')
+
+    # 3. flex-basis 演示
+    ui.markdown('### 3. flex-basis (初始大小)')
+
+    with ui.card():
+        ui.markdown('**flex-basis: auto (默认-根据内容)**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('短').classes('p-3 m-1 rounded bg-cyan-200 text-center min-h-10 flex items-center justify-center basis-auto')
+            ui.label('中等长度文本').classes('p-3 m-1 rounded bg-lime-200 text-center min-h-10 flex items-center justify-center basis-auto')
+            ui.label('这是一个很长的文本内容').classes('p-3 m-1 rounded bg-amber-200 text-center min-h-10 flex items-center justify-center basis-auto')
+        ui.label('属性值: flex-basis: auto').classes('text-sm text-gray-600')
+
+    with ui.card():
+        ui.markdown('**flex-basis: 指定大小**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('basis-24').classes('p-3 m-1 rounded bg-cyan-200 text-center min-h-10 flex items-center justify-center basis-24')
+            ui.label('basis-32').classes('p-3 m-1 rounded bg-lime-200 text-center min-h-10 flex items-center justify-center basis-32')
+            ui.label('basis-40').classes('p-3 m-1 rounded bg-amber-200 text-center min-h-10 flex items-center justify-center basis-40')
+        ui.label('属性值: flex-basis: 96px, 128px, 160px').classes('text-sm text-gray-600')
+
+    # 4. align-self 演示
+    ui.markdown('### 4. align-self (单独对齐)')
+
+    with ui.card():
+        ui.markdown('**align-self: 不同对齐方式**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 items-center h-40'):
+            ui.label('self-start').classes('p-3 m-1 rounded bg-red-200 text-center min-h-12 flex items-center justify-center self-start')
+            ui.label('self-center').classes('p-3 m-1 rounded bg-green-200 text-center min-h-12 flex items-center justify-center self-center')
+            ui.label('self-end').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-12 flex items-center justify-center self-end')
+            ui.label('self-stretch').classes('p-3 m-1 rounded bg-purple-200 text-center flex items-center justify-center self-stretch')
+        ui.label('属性值: align-self: flex-start, center, flex-end, stretch').classes('text-sm text-gray-600')
+
+    # 5. order 演示
+    ui.markdown('### 5. order (排列顺序)')
+
+    with ui.card():
+        ui.markdown('**order: 改变显示顺序**')
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 min-h-24'):
+            ui.label('第一个(order-3)').classes('p-3 m-1 rounded bg-red-200 text-center min-h-10 flex items-center justify-center order-3')
+            ui.label('第二个(order-1)').classes('p-3 m-1 rounded bg-green-200 text-center min-h-10 flex items-center justify-center order-1')
+            ui.label('第三个(order-2)').classes('p-3 m-1 rounded bg-blue-200 text-center min-h-10 flex items-center justify-center order-2')
+        ui.label('属性值: order: 3, 1, 2 (显示顺序: 2, 3, 1)').classes('text-sm text-gray-600')
+
+    ui.separator()
+
+    # ===== 综合应用示例 =====
+    ui.markdown('## 三、综合应用示例')
+
+    with ui.card():
+        ui.markdown('### 响应式卡片布局')
+        ui.markdown('**使用 justify-between + items-stretch + flex-wrap**')
         
-        # 右侧容器 - 使用列布局
-        with ui.column().classes('w-80 gap-2'):
+        with ui.row().classes('w-full p-4 border-2 border-dashed border-blue-400 bg-blue-50 justify-between items-stretch flex-wrap gap-4'):
+            with ui.card().classes('basis-64 grow p-4'):
+                ui.label('卡片 1').classes('text-lg font-bold mb-2')
+                ui.label('这是第一张卡片的内容，展示了弹性布局的综合应用。')
             
-            # 右上角容器 - 使用卡片组件
-            with ui.card().classes('flex-1'):
-                ui.label('右上区域').classes('text-lg font-semibold text-gray-700 mb-2')
-                
-                with ui.column().classes('gap-2'):
-                    ui.markdown('''
-                    **侧边栏上部**
-                    ''')
+            with ui.card().classes('basis-64 grow p-4'):
+                ui.label('卡片 2').classes('text-lg font-bold mb-2')
+                ui.label('这是第二张卡片，内容稍短一些。')
             
-            # 右下角容器 - 使用卡片组件
-            with ui.card().classes('flex-1'):
-                ui.label('右下区域').classes('text-lg font-semibold text-gray-700 mb-2')
-                
-                with ui.column().classes('gap-2'):
-                    ui.markdown('''
-                    **侧边栏下部**
-                    
-                    这里可以放置：
-                    - 设置选项
-                    - 统计信息
-                    - 辅助工具
-                    ''')
+            with ui.card().classes('basis-64 grow p-4'):
+                ui.label('卡片 3').classes('text-lg font-bold mb-2')
+                ui.label('第三张卡片展示了如何在不同屏幕尺寸下保持良好的布局效果。')
+        
+        ui.label('属性组合: justify-content: space-between + align-items: stretch + flex-wrap: wrap + flex-basis: 256px + flex-grow: 1').classes('text-sm text-gray-600')
+
+    # 页面底部说明
+    ui.separator()
+    ui.markdown('''
+    ### 📝 说明
+    - NiceGUI 基于 Quasar 框架，默认使用弹性盒子布局
+    - 可以通过 Tailwind CSS 类名来控制弹性属性
+    - `ui.row()` 默认为水平弹性容器，`ui.column()` 默认为垂直弹性容器
+    - 通过 `.classes()` 方法添加 Tailwind CSS 类来实现各种布局效果
+    - 注意：NiceGUI 的 `ui.row()` 默认 `wrap=True`，与标准 flexbox 不同
+    ''')

@@ -62,6 +62,8 @@ if __name__ in {"__main__", "__mp_main__"}:
                 {'key': 'person_archive', 'label': '一人一档', 'icon': 'people', 'route': 'person_archive','separator_after': True},
                 {'key': 'smart_audit', 'label': '智能审计', 'icon': 'policy', 'route': 'smart_audit'},
                 {'key': 'smart_index', 'label': '智能指标', 'icon': 'query_stats', 'route': 'smart_index','separator_after': True},
+                {'key': 'llm_workflow', 'label': 'AI工作流', 'icon': 'schema', 'route': 'llm_workflow'},
+                {'key': 'llm_excel', 'label': 'AI Excel', 'icon': 'table_view', 'route': 'llm_excel','separator_after': True},
                 {'key': 'about', 'label': '关于', 'icon': 'info', 'route': 'about'},
             ],
             header_config_items=[

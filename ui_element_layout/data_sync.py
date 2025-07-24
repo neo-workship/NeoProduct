@@ -157,13 +157,13 @@ def create_flexbox_demo():
         ('Shrink 0', 'flex-shrink-0', 'bg-red-500'),
         ('Normal', '', 'bg-blue-500'),
         ('Normal', '', 'bg-green-500')
-    ], 'flex w-full', 'flex-shrink: 0 - 第一项不收缩，保持宽度')
+    ], 'flex w-96', 'flex-shrink: 0 - 第一项不收缩，保持宽度')
     
     create_item_demo([
-        ('Normal', 'w-32', 'bg-blue-500'),
-        ('Shrink 2', 'flex-shrink-2 w-32', 'bg-red-500'),
-        ('Normal', 'w-32', 'bg-green-500')
-    ], 'flex w-full', 'flex-shrink: 2 - 中间项收缩2倍')
+        ('Normal', '', 'bg-blue-500'),
+        ('Shrink 2', 'flex-shrink-2', 'bg-red-500'),
+        ('Normal', '', 'bg-green-500')
+    ], 'flex w-96', 'flex-shrink: 2 - 中间项收缩2倍')
     
     # 3. flex-basis 属性
     ui.markdown('### 3. flex-basis - 基础尺寸')

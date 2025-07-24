@@ -5,6 +5,8 @@ from .person_archive_page import person_archive_content
 from .enterprise_archive_page import enterprise_archive_content
 from .about_page import about_page_content
 from .smart_index_page import smart_index_content
+from .llm_workflow_page import llm_workflow_content
+from .llm_excel_page import llm_excel_content
 
 # 导出所有菜单页面处理函数
 def get_menu_page_handlers():
@@ -16,6 +18,8 @@ def get_menu_page_handlers():
         'smart_index':smart_index_content,
         'person_archive': person_archive_content,
         'enterprise_archive': enterprise_archive_content,
+        'llm_workflow':llm_workflow_content,
+        'llm_excel':llm_excel_content,
         'about': about_page_content
     }
 
@@ -26,6 +30,8 @@ __all__ = [
     'smart_index_content',
     'person_archive_content',
     'enterprise_archive_content',
+    'llm_workflow_content'
+    'llm_excel_content'
     'about_page_content',
     'get_menu_page_handlers'
 ]

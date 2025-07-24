@@ -322,8 +322,8 @@ class LayoutManager:
                 if self.menu_items:
                     for menu_item in self.menu_items:
                         with ui.row().classes('w-full cursor-pointer rounded-lg hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors duration-200 p-3') as menu_row:
-                            ui.icon(menu_item.icon).classes('text-blue-600 mr-3 text-xl font-bold')
-                            ui.label(menu_item.label).classes('text-gray-800 dark:text-gray-200 font-medium flex-1 text-xl font-bold')
+                            ui.icon(menu_item.icon).classes('text-blue-600 mr-3 text-lg font-bold')
+                            ui.label(menu_item.label).classes('text-gray-800 dark:text-gray-200 flex-1 text-lg font-bold')
 
                             menu_row.on('click', lambda key=menu_item.key, row=menu_row: self.select_menu_item(key, row))
                             # 保存菜单行引用
