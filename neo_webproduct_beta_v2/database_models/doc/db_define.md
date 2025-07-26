@@ -79,49 +79,49 @@ def create_openai_config_example():
     from auth import auth_manager
     from database_models.business_models.openai_models import OpenAIConfig
     from auth.database import get_db
-            # 获取当前用户
-            current_user = auth_manager.current_user
-            with get_db() as db:
-                # 创建配置
-                config = OpenAIConfig(
-                    name="我的DeepSeek配置",
-                    api_key="sk-xxxxxxxxxxxx",
-                    base_url="https://api.deepseek.com/v1",
-                    # 设置审计字段
-                    created_by=current_user.id,    # 记录是谁创建的
-                    updated_by=current_user.id     # 记录是谁更新的
-                )
+    # 获取当前用户
+    current_user = auth_manager.current_user
+    with get_db() as db:
+        # 创建配置
+        config = OpenAIConfig(
+            name="我的DeepSeek配置",
+            api_key="sk-xxxxxxxxxxxx",
+            base_url="https://api.deepseek.com/v1",
+            # 设置审计字段
+            created_by=current_user.id,    # 记录是谁创建的
+            updated_by=current_user.id     # 记录是谁更新的
+        )
 
-                db.add(config)
-                db.commit()
+        db.add(config)
+        db.commit()
 
-                print(f"配置创建成功，创建者: {current_user.username}")
+        print(f"配置创建成功，创建者: {current_user.username}")
 
 def create_openai_request_example():
     """创建 OpenAI 请求的示例"""
     from auth import auth_manager
     from database_models.business_models.openai_models import OpenAIRequest
     from auth.database import get_db
-            current_user = auth_manager.current_user
-            with get_db() as db:
-                # 创建请求记录
-                request = OpenAIRequest(
-                    config_id=1,  # 使用哪个配置
-                    user_id=current_user.id,      # 直接关联：谁发起的请求
-                    prompt="你好，请介绍一下自己",
-                    response="我是DeepSeek...",
-                    tokens_used=150,
-                    # 审计字段
-                    created_by=current_user.id,   # 记录创建者
-                    updated_by=current_user.id    # 记录更新者
-                )
+    current_user = auth_manager.current_user
+    with get_db() as db:
+        # 创建请求记录
+        request = OpenAIRequest(
+            config_id=1,  # 使用哪个配置
+            user_id=current_user.id,      # 直接关联：谁发起的请求
+            prompt="你好，请介绍一下自己",
+            response="我是DeepSeek...",
+            tokens_used=150,
+            # 审计字段
+            created_by=current_user.id,   # 记录创建者
+            updated_by=current_user.id    # 记录更新者
+        )
 
-                db.add(request)
-                db.commit()
+        db.add(request)
+        db.commit()
 
-                print(f"请求记录创建成功")
-                print(f"请求用户: {current_user.username}")
-                print(f"记录创建者: {current_user.username}")
+        print(f"请求记录创建成功")
+        print(f"请求用户: {current_user.username}")
+        print(f"记录创建者: {current_user.username}")
 ```
 
 ### 1.2.5 查询关联数据的示例
@@ -133,30 +133,30 @@ def query_user_data_example():
     from auth.models import User
     from database_models.business_models.openai_models import OpenAIConfig, OpenAIRequest
 
-            with get_db() as db:
-                # 查询用户创建的所有配置
-                user = db.query(User).filter(User.username == 'admin').first()
+    with get_db() as db:
+        # 查询用户创建的所有配置
+        user = db.query(User).filter(User.username == 'admin').first()
 
-                # 方式1：通过外键查询
-                user_configs = db.query(OpenAIConfig).filter(
-                    OpenAIConfig.created_by == user.id
-                ).all()
+        # 方式1：通过外键查询
+        user_configs = db.query(OpenAIConfig).filter(
+            OpenAIConfig.created_by == user.id
+        ).all()
 
-                # 方式2：通过辅助方法查询
-                for config in user_configs:
-                    creator_info = config.get_creator_info()  # 使用shared_base.py中的方法
-                    print(f"配置: {config.name}, 创建者: {creator_info['username']}")
+        # 方式2：通过辅助方法查询
+        for config in user_configs:
+            creator_info = config.get_creator_info()  # 使用shared_base.py中的方法
+            print(f"配置: {config.name}, 创建者: {creator_info['username']}")
 
-                # 查询用户的所有请求
-                user_requests = db.query(OpenAIRequest).filter(
-                    OpenAIRequest.user_id == user.id
-                ).all()
+        # 查询用户的所有请求
+        user_requests = db.query(OpenAIRequest).filter(
+            OpenAIRequest.user_id == user.id
+        ).all()
 
-                print(f"用户 {user.username} 创建了 {len(user_configs)} 个配置")
-                print(f"用户 {user.username} 发起了 {len(user_requests)} 个请求")
+        print(f"用户 {user.username} 创建了 {len(user_configs)} 个配置")
+        print(f"用户 {user.username} 发起了 {len(user_requests)} 个请求")
 ```
 
-# 2. get_creator_info 方法的作用和使用详解
+# 2. shared_base.py/get_creator_info 使用详解
 
 """
 get_creator_info 的设计思路：
@@ -208,21 +208,19 @@ def manual_assignment_example():
     from auth import auth_manager
     from database_models.business_models.openai_models import OpenAIConfig
     from auth.database import get_db
+    current_user = auth_manager.current_user  # 获取当前登录用户
+    with get_db() as db:
+        # 创建新配置时 - 手动设置审计字段
+        config = OpenAIConfig(
+            name="新配置",
+            api_key="sk-xxx",
+            # 👇 手动设置审计字段
+            created_by=current_user.id,   # 谁创建的
+            updated_by=current_user.id    # 谁更新的（初始时与创建者相同）
+        )
 
-            current_user = auth_manager.current_user  # 获取当前登录用户
-
-            with get_db() as db:
-                # 创建新配置时 - 手动设置审计字段
-                config = OpenAIConfig(
-                    name="新配置",
-                    api_key="sk-xxx",
-                    # 👇 手动设置审计字段
-                    created_by=current_user.id,   # 谁创建的
-                    updated_by=current_user.id    # 谁更新的（初始时与创建者相同）
-                )
-
-                db.add(config)
-                db.commit()
+        db.add(config)
+        db.commit()
 
 def update_assignment_example():
     """更新时的赋值示例"""
@@ -256,27 +254,25 @@ def display_config_with_creator():
     from nicegui import ui
     from database_models.business_models.openai_models import OpenAIConfig
     from auth.database import get_db
+    with get_db() as db:
+        configs = db.query(OpenAIConfig).all()
+        for config in configs:
+            with ui.card():
+                ui.label(f'配置名称: {config.name}')
+                ui.label(f'模型: {config.model_name.value}')
 
-        with get_db() as db:
-            configs = db.query(OpenAIConfig).all()
+                # 👇 使用get_creator_info方法获取创建者信息
+                creator_info = config.get_creator_info()
+                if creator_info:
+                    ui.label(f'创建者: {creator_info["username"]} ({creator_info["full_name"]})')
+                    ui.label(f'创建时间: {config.created_at}')
+                else:
+                    ui.label('创建者: 未知')
 
-            for config in configs:
-                with ui.card():
-                    ui.label(f'配置名称: {config.name}')
-                    ui.label(f'模型: {config.model_name.value}')
-
-                    # 👇 使用get_creator_info方法获取创建者信息
-                    creator_info = config.get_creator_info()
-                    if creator_info:
-                        ui.label(f'创建者: {creator_info["username"]} ({creator_info["full_name"]})')
-                        ui.label(f'创建时间: {config.created_at}')
-                    else:
-                        ui.label('创建者: 未知')
-
-                    # 获取更新者信息
-                    updater_info = config.get_updater_info()
-                    if updater_info:
-                        ui.label(f'最后更新: {updater_info["username"]} 于 {config.updated_at}')
+                # 获取更新者信息
+                updater_info = config.get_updater_info()
+                if updater_info:
+                    ui.label(f'最后更新: {updater_info["username"]} 于 {config.updated_at}')
 ```
 
 ## 2.4 使用辅助工具类自动设置审计字段
@@ -288,26 +284,24 @@ def using_audit_helper():
     from database_models.business_models.openai_models import OpenAIConfig
     from database_models.business_utils import AuditHelper
     from auth.database import get_db
+    current_user = auth_manager.current_user
+    with get_db() as db:
+        # 创建配置
+        config = OpenAIConfig(
+            name="使用辅助工具的配置",
+            api_key="sk-xxx"
+        )
 
-        current_user = auth_manager.current_user
+        # 👇 使用辅助工具自动设置审计字段
+        AuditHelper.set_audit_fields(config, current_user.id, is_update=False)
 
-        with get_db() as db:
-            # 创建配置
-            config = OpenAIConfig(
-                name="使用辅助工具的配置",
-                api_key="sk-xxx"
-            )
+        db.add(config)
+        db.commit()
 
-            # 👇 使用辅助工具自动设置审计字段
-            AuditHelper.set_audit_fields(config, current_user.id, is_update=False)
-
-            db.add(config)
-            db.commit()
-
-            # 后来更新时
-            config.name = "更新后的名称"
-            AuditHelper.set_audit_fields(config, current_user.id, is_update=True)
-            db.commit()
+        # 后来更新时
+        config.name = "更新后的名称"
+        AuditHelper.set_audit_fields(config, current_user.id, is_update=True)
+        db.commit()
 ```
 
 ## 2.5 在页面中使用装饰器自动包含用户信息
@@ -341,7 +335,7 @@ from database_models.business_utils import with_user_info, with_audit_info
     # }
 ```
 
-# 3.总结：get_creator_info 的使用流程
+## 2.6 get_creator_info 使用总结
 
 """
 
@@ -362,7 +356,7 @@ from database_models.business_utils import with_user_info, with_audit_info
 核心理念：解耦设计 - 业务模型不强依赖 auth 模型，通过方法动态获取
 """
 
-## 3.1 business_utils.py 的作用和使用场景详解
+# 3 business_utils.py 的作用和使用场景详解
 
 """
 business_utils.py 的设计目的：
@@ -374,7 +368,7 @@ business_utils.py 的设计目的：
 解决方案：提供统一的工具类，封装常用操作，实现松耦合
 """
 
-## 3.2 UserInfoHelper - 统一用户信息获取
+## 3.1 UserInfoHelper - 统一用户信息获取
 
 ```py
 class UserInfoHelper:
@@ -440,7 +434,7 @@ def usage_example_2():
                 return UserInfoHelper.get_user_info(self.created_by)
 ```
 
-## 3.3 AuditHelper - 统一审计字段管理
+## 3.2 AuditHelper - 统一审计字段管理
 
 ```py
 class AuditHelper:
@@ -553,7 +547,7 @@ def usage_example_4():
             print(f"- 发起了 {len(user_requests)} 个成功请求")
 ```
 
-## 3.4 装饰器 - 自动化常用操作
+## 3.3 装饰器 - 自动化常用操作
 
 ```py
 def with_user_info(func):
@@ -633,7 +627,7 @@ def usage_example_6():
                                 ui.label(f"创建时间: {audit_info['created_at']}")
 ```
 
-# 4、总结：business_utils.py 的价值
+## 3.4 总结：business_utils.py 的价值
 
 """
 
