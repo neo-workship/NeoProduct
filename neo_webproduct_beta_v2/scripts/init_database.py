@@ -100,6 +100,7 @@ class DatabaseInitializer:
             # 例如：未来添加MongoDB模型时
             # from database_models.business_models.mongodb_models import MongoDBConfig, MongoDBQuery
             # self.logger.info("✅ MongoDB业务模型导入成功")
+            from database_models.business_models.mongodb_models import MongoDBConfig
             
             # 例如：未来添加审计模型时
             # from database_models.business_models.audit_models import AuditRecord
@@ -115,6 +116,7 @@ class DatabaseInitializer:
                 'LoginLog': LoginLog,
                 'OpenAIConfig': OpenAIConfig,
                 'OpenAIRequest': OpenAIRequest,
+                'MongoDBConfig': MongoDBConfig,
             }
             
         except ImportError as e:
