@@ -144,7 +144,7 @@ class FlatEnterpriseArchiveGenerator:
             
             # 生成扁平化文档
             field_document = {
-                # 企业信息（稍后填充）
+                # 企业信息
                 "enterprise_code": f"{enterprise_code}",
                 "enterprise_name": f"{enterprise_name}",
                 
@@ -246,7 +246,7 @@ class FlatEnterpriseArchiveGenerator:
                 return source
         return ""
 
-def generate_doc():
+def generate_doc(enterprise_code: str = "", enterprise_name: str = ""):
     """
     主函数：演示扁平化文档生成流程
     """
@@ -259,7 +259,11 @@ def generate_doc():
     try:
         print("开始读取Excel文件...")
         # 读取Excel并生成模板文档
-        template_documents = generator.read_excel_with_merged_cells(file_path)
+        template_documents = generator.read_excel_with_merged_cells(
+            file_path,
+            enterprise_code=enterprise_code, 
+            enterprise_name=enterprise_name
+        )
         print(f"成功生成 {len(template_documents)} 个字段模板")
         return template_documents
         
