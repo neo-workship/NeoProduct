@@ -14,6 +14,13 @@ from .business_models.openai_models import (
     ModelType
 )
 
+from .business_models.mongodb_models import (
+    MongoDBConfig,
+    MongoDBAuthType,
+    MongoDBSSLMode,
+    MongoDBConnectionLog
+)
+
 # 在这里添加其他业务模型的导入
 # from .business_models.mongodb_models import MongoDBConfig, MongoDBConnection
 # from .business_models.audit_models import AuditRecord, AuditAction
@@ -30,13 +37,11 @@ __all__ = [
     'OpenAIRequest',
     'ModelType',
     
-    # 在这里添加其他模型的导出
-    # 'MongoDBConfig',
-    # 'MongoDBConnection',
-    # 'AuditRecord',
-    # 'AuditAction',
-    # 'IndexConfig',
-    # 'IndexResult',
+    # MongoDB模型
+    'MongoDBConfig',
+    'MongoDBAuthType',
+    'MongoDBSSLMode',
+    'MongoDBConnectionLog',
 ]
 
 def get_all_business_models():
@@ -45,12 +50,15 @@ def get_all_business_models():
         OpenAIConfig,
         OpenAIRequest,
         # 在这里添加其他模型类
+        MongoDBConfig,
+        MongoDBConnectionLog,
     ]
 
 def get_models_by_category():
     """按类别获取模型"""
     return {
         'openai': [OpenAIConfig, OpenAIRequest],
+        'mongodb': [MongoDBConfig, MongoDBConnectionLog],
         # 'mongodb': [MongoDBConfig, MongoDBConnection],
         # 'audit': [AuditRecord, AuditAction],
         # 'smart_index': [IndexConfig, IndexResult],

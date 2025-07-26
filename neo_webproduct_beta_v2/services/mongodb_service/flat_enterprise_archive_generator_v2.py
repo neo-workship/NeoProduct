@@ -1,9 +1,5 @@
-import pandas as pd
-import json
-import random
 from openpyxl import load_workbook
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from typing import List, Dict, Any, Optional
 import hashlib
 
@@ -176,7 +172,7 @@ class FlatEnterpriseArchiveGenerator:
                 "value_text": "",     # 用于全文检索的文本值
                 "value_pic_url":"",   # 值对应图片url，指向文件服务器
                 "value_doc_url":"",   # 值对应文档url，指向文件服务器
-                "value_vedio_url":"", # 值对应视频url，指向文件服务器
+                "value_video_url":"", # 值对应视频url，指向文件服务器
 
                 # 元数据
                 "remark": remark,
@@ -250,7 +246,7 @@ class FlatEnterpriseArchiveGenerator:
                 return source
         return ""
 
-def main():
+def generate_doc():
     """
     主函数：演示扁平化文档生成流程
     """
@@ -265,10 +261,6 @@ def main():
         # 读取Excel并生成模板文档
         template_documents = generator.read_excel_with_merged_cells(file_path)
         print(f"成功生成 {len(template_documents)} 个字段模板")
-        # template_file = f"字段模板_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.json"
-        # with open(template_file, 'w', encoding='utf-8') as f:
-        #     json.dump(template_documents, f, ensure_ascii=False, indent=2, default=str)
-        # print(f"字段模板已保存为: {template_file}")
         return template_documents
         
     except FileNotFoundError:

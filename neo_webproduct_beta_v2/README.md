@@ -143,7 +143,7 @@ rectangle "前端服务层" as frontendServiceLayer {
     end note
 }
 
-rectangle "后端服务层" {
+rectangle "后端服务层，都设计为异步调用" {
     component "MongoDB服务\n:8001\nFastAPI" as MongodbService
     component "OpenAI API服务\n:8002\nFastAPI" as OpenaiService
     component "智能审计服务\n:8003\nFastAPI" as SmartAuditService
