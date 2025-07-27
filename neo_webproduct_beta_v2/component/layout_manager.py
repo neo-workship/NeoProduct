@@ -275,8 +275,8 @@ class LayoutManager:
                     icon='menu'
                 ).props('flat color=white').classes('mr-2')
 
-                with ui.avatar():
-                    ui.image(self.config.app_icon).classes('w-15 h-15')
+                with ui.avatar().classes('w-15 h-15'):
+                    ui.image(self.config.app_icon).classes('w-full h-full object-contain')
                 ui.label(self.config.app_title).classes('ml-4 text-xl font-medium text-white dark:text-white')
 
             with ui.row().classes('items-center gap-2'):
