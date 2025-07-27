@@ -186,7 +186,6 @@ async def create_document(
         )
 
 # ==================== 错误处理 ====================
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """全局异常处理器"""
