@@ -9,8 +9,8 @@ import os
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from common.exception_handler import log_info, log_error, safe
-
+# from common.exception_handler import log_info, log_error, safe
+from mongo_exception_handler import log_info, log_error, safe
 
 class MongoDBManager:
     """
@@ -154,7 +154,7 @@ class MongoDBManager:
             bool: 插入是否成功
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return False
             
@@ -195,7 +195,7 @@ class MongoDBManager:
             Optional[Dict]: 找到的文档，未找到返回None
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return None
             
@@ -227,7 +227,7 @@ class MongoDBManager:
             List[Dict]: 文档列表
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return []
             
@@ -257,7 +257,7 @@ class MongoDBManager:
             int: 文档数量
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return 0
             
@@ -285,7 +285,7 @@ class MongoDBManager:
             bool: 更新是否成功
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return False
             
@@ -320,7 +320,7 @@ class MongoDBManager:
             bool: 删除是否成功
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return False
             
@@ -359,7 +359,7 @@ class MongoDBManager:
             bool: 创建是否成功
         """
         try:
-            if not self.collection:
+            if self.collection is None:
                 log_error("MongoDB集合未初始化")
                 return False
             

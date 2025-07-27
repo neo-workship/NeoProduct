@@ -1,9 +1,7 @@
-import pandas as pd
 import json
 import random
 from openpyxl import load_workbook
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from typing import List, Dict, Any, Optional
 import hashlib
 
@@ -265,10 +263,11 @@ def main():
         # 读取Excel并生成模板文档
         template_documents = generator.read_excel_with_merged_cells(file_path)
         print(f"成功生成 {len(template_documents)} 个字段模板")
-        # template_file = f"字段模板_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.json"
-        # with open(template_file, 'w', encoding='utf-8') as f:
-        #     json.dump(template_documents, f, ensure_ascii=False, indent=2, default=str)
-        # print(f"字段模板已保存为: {template_file}")
+        current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        template_file = f"字段模板_{current_time}.json"
+        with open(template_file, 'w', encoding='utf-8') as f:
+            json.dump(template_documents, f, ensure_ascii=False, indent=2, default=str)
+        print(f"字段模板已保存为: {template_file}")
         return template_documents
         
     except FileNotFoundError:
@@ -280,3 +279,5 @@ def main():
         import traceback
         traceback.print_exc()
         return {}
+if __name__ == "__main__":
+    main()

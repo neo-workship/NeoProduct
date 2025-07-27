@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import sys
 import os
+from contextlib import asynccontextmanager # 导入 asynccontextmanager
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -11,22 +12,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from services.mongodb_service.config import get_connection_string, get_config
 from services.mongodb_service.mongodb_manager import MongoDBManager
 from services.mongodb_service.flat_enterprise_archive_generator_v2 import generate_doc
-from common.exception_handler import log_info, log_error, safe
-
-app = FastAPI(
-    title="MongoDB Service API",
-    description="企业档案MongoDB数据服务",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
+# from common.exception_handler import log_info, log_error, safe
+from mongo_exception_handler import log_info, log_error, safe
 
 # 全局MongoDB管理器实例
 mongodb_manager: Optional[MongoDBManager] = None
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时初始化MongoDB连接"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI 应用程序的生命周期事件处理器。
+    在应用程序启动时初始化 MongoDB 连接，在应用程序关闭时断开连接。
+    """
     global mongodb_manager
     try:
         # 使用local配置初始化MongoDB管理器
@@ -37,23 +34,30 @@ async def startup_event():
         mongodb_manager = MongoDBManager(connection_string, collection_name)
         await mongodb_manager.connect()
         
-        log_info("MongoDB服务启动成功", extra_data=f'{{"collection": "{collection_name}"}}')
+        log_info("MongoDB 服务启动成功", extra_data=f'{{"collection": "{collection_name}"}}')
+        yield # 在这里应用程序开始处理请求
     except Exception as e:
-        log_error("MongoDB服务启动失败", exception=e)
+        log_error("MongoDB 服务启动失败", exception=e)
         raise
+    finally:
+        # 应用程序关闭时断开MongoDB连接
+        if mongodb_manager:
+            await mongodb_manager.disconnect()
+            log_info("MongoDB 服务已关闭")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭时断开MongoDB连接"""
-    global mongodb_manager
-    if mongodb_manager:
-        await mongodb_manager.disconnect()
-        log_info("MongoDB服务已关闭")
+app = FastAPI(
+    title="MongoDB Service API",
+    description="企业档案MongoDB数据服务",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan # 将 lifespan 函数传递给 FastAPI 实例
+)
 
 def get_mongodb_manager() -> MongoDBManager:
     """依赖注入：获取MongoDB管理器实例"""
     if mongodb_manager is None:
-        raise HTTPException(status_code=500, detail="MongoDB服务未初始化")
+        raise HTTPException(status_code=500, detail="MongoDB 服务未初始化")
     return mongodb_manager
 
 # ==================== 数据模型 ====================
@@ -115,7 +119,7 @@ async def create_document(
     """
     try:
         log_info(f"开始创建企业档案文档", 
-                extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "enterprise_name": "{request.enterprise_name}"}}')
+                 extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "enterprise_name": "{request.enterprise_name}"}}')
         
         # 调用文档生成器生成JSON数据
         def generate_documents():
@@ -155,7 +159,7 @@ async def create_document(
         
         if result:
             log_info(f"企业档案文档创建成功", 
-                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "fields_count": {len(template_documents)}}}')
+                     extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "fields_count": {len(template_documents)}}}')
             
             return CreateDocumentResponse(
                 success=True,
@@ -165,7 +169,7 @@ async def create_document(
             )
         else:
             log_error(f"文档插入失败", 
-                     extra_data=f'{{"enterprise_code": "{request.enterprise_code}"}}')
+                      extra_data=f'{{"enterprise_code": "{request.enterprise_code}"}}')
             
             return CreateDocumentResponse(
                 success=False,
@@ -174,7 +178,7 @@ async def create_document(
             
     except Exception as e:
         log_error("创建企业档案文档异常", exception=e, 
-                 extra_data=f'{{"enterprise_code": "{request.enterprise_code}"}}')
+                  extra_data=f'{{"enterprise_code": "{request.enterprise_code}"}}')
         
         raise HTTPException(
             status_code=500,
@@ -187,7 +191,7 @@ async def create_document(
 async def global_exception_handler(request, exc):
     """全局异常处理器"""
     log_error("未处理的API异常", exception=exc, 
-             extra_data=f'{{"path": "{request.url.path}", "method": "{request.method}"}}')
+              extra_data=f'{{"path": "{request.url.path}", "method": "{request.method}"}}')
     
     return {
         "error": "内部服务器错误",
