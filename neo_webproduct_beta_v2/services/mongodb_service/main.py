@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from services.mongodb_service.config import get_connection_string, get_config
 from services.mongodb_service.mongodb_manager import MongoDBManager
 from services.mongodb_service.flat_enterprise_archive_generator_v2 import generate_doc
+from services.mongodb_service.hierarchy_data import hierarchy_data
 # from common.exception_handler import log_info, log_error, safe
 from mongo_exception_handler import log_info, log_error, safe
 
@@ -184,6 +185,10 @@ async def create_document(
             status_code=500,
             detail=f"创建文档失败: {str(e)}"
         )
+
+@app.get("/api/v1/hierarchy")
+async def get_hierarchy_data():
+    return hierarchy_data.get_hierarchy_data()
 
 # ==================== 错误处理 ====================
 @app.exception_handler(Exception)
