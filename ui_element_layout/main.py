@@ -1,5 +1,5 @@
 from nicegui import ui
-from ai_query import create_ai_query_content
+from ui_element_layout.chat_message.ai_query import create_ai_query_content
 from data_operator import create_data_operator_content
 from data_sync import create_data_sync_content
 from setting import create_setting_content

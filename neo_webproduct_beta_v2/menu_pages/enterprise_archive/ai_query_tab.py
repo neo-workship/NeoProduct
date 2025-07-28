@@ -11,8 +11,8 @@ def create_ai_query_content_grid():
         
         # 第一部分：层级选择器（固定高度 100px，无 margin/padding）
         # with ui.element('div').classes('flex-none h-[100px] w-full'):
-    # hierarchy_selector = HierarchySelector()
-    # hierarchy_selector.render()
+    hierarchy_selector = HierarchySelector()
+    hierarchy_selector.render()
 
         # 第二部分：聊天组件（剩余高度，内部滚动）
         # with ui.element('div').classes('flex-1 min-h-0 w-full'):
