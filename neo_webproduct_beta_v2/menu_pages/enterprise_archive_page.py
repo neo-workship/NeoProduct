@@ -20,10 +20,7 @@ def enterprise_archive_content():
     #         data_operator = ui.tab('数据操作', icon='precision_manufacturing')
     #         data_sync = ui.tab('数据更新', icon='sync')
     #         setting = ui.tab('配置数据', icon='build_circle')
-            
-    #     # 第二行：分隔线
-    #     # ui.separator().classes('w-full')
-    #     # 第三行：内容区域
+    #     # 第二行：内容区域
     #     with ui.tab_panels(tabs, value=ai_query).classes('w-full h-full'):
     #         with ui.tab_panel(ai_query).classes('w-full'):
     #             create_ai_query_content_grid()
@@ -117,7 +114,6 @@ async def ensure_hierarchy_data_in_storage():
 def get_hierarchy_data_from_storage() -> Dict[str, Any]:
     """
     从app.storage.general获取层级数据，如果获取失败则返回空字典
-    
     Returns:
         Dict[str, Any]: 层级数据，如果不存在返回空字典
     """
@@ -131,12 +127,10 @@ def get_hierarchy_data_from_storage() -> Dict[str, Any]:
 def extract_level_options(hierarchy_data: Dict[str, Any], level: str, parent_code: str = None) -> List[Dict[str, str]]:
     """
     从层级数据中提取指定级别的选项列表
-    
     Args:
         hierarchy_data: 完整的层级数据
         level: 级别 ('l1', 'l2', 'l3', 'field')
         parent_code: 父级代码（用于l2、l3、field级别的筛选）
-    
     Returns:
         List[Dict[str, str]]: 选项列表，每个选项包含 'value'(code) 和 'label'(name)
     """
@@ -187,11 +181,9 @@ def extract_level_options(hierarchy_data: Dict[str, Any], level: str, parent_cod
                                     'value': field.get('field_code', ''),
                                     'label': field.get('field_name', '')
                                 })
-                            break
-                            
+                            break                    
     except Exception as e:
         log_error(f"提取{level}级别选项失败", exception=e)
-    
     return options
 
 
@@ -199,7 +191,6 @@ def create_ai_query_content_grid():
     """
     创建智能问数内容网格，包含4级级联选择器
     """
-    
     # 存储选中的值
     selected_values = {
         'l1': None,
@@ -376,7 +367,6 @@ def create_ai_query_content_grid():
                         selects['l1'].set_label('数据加载失败')
                     finally:
                         hierarchy_data_cache['loading'] = False
-                
                 asyncio.create_task(do_load())
             
             # 创建所有选择器
@@ -384,86 +374,6 @@ def create_ai_query_content_grid():
             create_l2_select()
             create_l3_select()
             create_field_select()
-        
-        # 操作按钮区域
-        # with ui.row().classes('w-full q-mt-md'):
-        #     ui.button('重置选择', 
-        #              on_click=lambda: reset_selections(),
-        #              icon='refresh').classes('q-mr-md')
-            
-        #     ui.button('查询数据', 
-        #              on_click=lambda: query_data(),
-        #              icon='search').classes('q-mr-md')
-            
-        #     ui.button('刷新层级数据', 
-        #              on_click=lambda: refresh_hierarchy_data(),
-        #              icon='sync').classes('q-mr-md')
-        
-        # 选中信息显示区域 - 隐藏
-        # selection_info = ui.card().classes('w-full q-mt-md').style('display: none;')
-        
-        def reset_selections():
-            """重置所有选择"""
-            for key in selected_values:
-                selected_values[key] = None
-            
-            for select in selects.values():
-                select.set_value(None)
-            
-            # 重置下级选择器选项
-            selects['l2'].set_options({})
-            selects['l2'].set_label('请先选择一级分类')
-            selects['l3'].set_options({})
-            selects['l3'].set_label('请先选择二级分类')
-            selects['field'].set_options({})
-            selects['field'].set_label('请先选择三级分类')
-            
-            update_selection_info()
-        
-        def query_data():
-            """查询数据"""
-            if not any(selected_values.values()):
-                ui.notify('请至少选择一个分类', type='warning')
-                return
-            
-            ui.notify(f'查询数据: {selected_values}', type='info')
-            update_selection_info()
-        
-        def refresh_hierarchy_data():
-            """刷新层级数据"""
-            async def do_refresh():
-                # 清除已存储的数据
-                try:
-                    if hasattr(app.storage.general, 'hierarchy_data'):
-                        delattr(app.storage.general, 'hierarchy_data')
-                except:
-                    pass
-                
-                # 清除内存缓存
-                hierarchy_data_cache['data'] = None
-                
-                # 重新获取数据
-                hierarchy_data = await ensure_hierarchy_data_in_storage()
-                hierarchy_data_cache['data'] = hierarchy_data
-                
-                # 重置选择器
-                reset_selections()
-                
-                # 重新初始化一级选择器选项
-                if hierarchy_data and 'l1' in selects:
-                    l1_options = extract_level_options(hierarchy_data, 'l1')
-                    options_dict = {opt['value']: opt['label'] for opt in l1_options}
-                    selects['l1'].set_options(options_dict)
-                    selects['l1'].set_label('请选择一级分类' if options_dict else '暂无分类数据')
-                
-                ui.notify('层级数据已刷新', type='positive')
-            
-            asyncio.create_task(do_refresh())
-        
-        def update_selection_info():
-            """更新选中信息显示 - 当前已隐藏"""
-            pass
-    
     # 页面加载时初始化层级数据
     load_hierarchy_data()
 
