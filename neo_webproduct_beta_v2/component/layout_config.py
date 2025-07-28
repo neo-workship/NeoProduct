@@ -4,7 +4,7 @@ from .static_resources import static_manager
 class LayoutConfig:
     """布局配置类"""
     def __init__(self):
-        self.app_title = 'MCP集成综合服务平台'
+        self.app_title = '政务综合服务平台'
         self.app_icon = static_manager.get_logo_path('robot.svg')
         self.header_bg = 'bg-[#3874c8] dark:bg-gray-900'
         self.drawer_bg = 'bg-[#ebf1fa] dark:bg-gray-800'
