@@ -3,6 +3,6 @@
 """
 from .main_page import enterprise_archive_content
 from .hierarchy_selector_component import HierarchySelector
-from .chat_component import ChatComponent
+from .chat_component import ChatComponent,chat_page
 
-__all__ = ['enterprise_archive_content', 'HierarchySelector', 'ChatComponent']
+__all__ = ['enterprise_archive_content', 'HierarchySelector', 'ChatComponent','chat_page']

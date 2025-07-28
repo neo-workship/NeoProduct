@@ -8,32 +8,31 @@ app.add_static_files('/static', static_files_dir)
 
 @ui.page('/')
 def chat_page():
-    ui.add_head_html('''
-        <style>
-        /* === 用户消息（sent） === */
-        /* 气泡整体背景 */
-        .q-message-sent .q-message-container {
-            background-color: #1976d2 !important; 
-        }
-        /* 文字块背景（去掉 Quasar 自带的白色） */
-        .q-message-sent .q-message-text,
-        .q-message-sent .q-message-text-content {
-            background: transparent !important;
-            color: #ffffff;
-        }
+    # ui.add_head_html('''
+    #     <style>
+    #     /* === 用户消息（sent） === */
+    #     /* 气泡整体背景 */
+    #     .q-message-sent .q-message-container {
+    #         background-color: #1976d2 !important; 
+    #     }
+    #     /* 文字块背景（去掉 Quasar 自带的白色） */
+    #     .q-message-sent .q-message-text,
+    #     .q-message-sent .q-message-text-content {
+    #         background: transparent !important;
+    #         color: #ffffff;
+    #     }
 
-        /* === Bot 消息（received） === */
-        .q-message-received .q-message-container {
-            background-color: #e0e0e0 !important;   /* 灰色 */
-        }
-        .q-message-received .q-message-text,
-        .q-message-received .q-message-text-content {
-            background: transparent !important;
-            color: #000000;
-        }
-        </style>
-    ''')
-
+    #     /* === Bot 消息（received） === */
+    #     .q-message-received .q-message-container {
+    #         background-color: #e0e0e0 !important;   /* 灰色 */
+    #     }
+    #     .q-message-received .q-message-text,
+    #     .q-message-received .q-message-text-content {
+    #         background: transparent !important;
+    #         color: #000000;
+    #     }
+    #     </style>
+    # ''')
     # 聊天消息区域 - 可滚动，占据剩余空间，底部留出输入框空间
     messages = ui.column().classes('flex-grow overflow-y-auto p-4 w-full mb-20').style('scroll-behavior: smooth;')
 
@@ -42,7 +41,7 @@ def chat_page():
     welcome_message_container = ui.column().classes('absolute-center items-center')
     with welcome_message_container:
         ui.icon('chat', size='6rem').classes('text-gray-400')
-        ui.label('欢迎使用一企一档智能问数！！').classes('text-xl text-gray-600')
+        ui.label('Welcome! Start chatting by typing a message below.').classes('text-xl text-gray-600')
 
     # 提前声明可变对象，供内部嵌套函数读写
     input_ref = {'widget': None}
