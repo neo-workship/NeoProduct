@@ -19,7 +19,7 @@ def enterprise_archive_content():
     
     with ui.splitter(value=10).classes('w-full h-full') as splitter:
         with splitter.before:
-            with ui.tabs().classes('w-20 w-min-20 w-max-20').props('vertical') as tabs:
+            with ui.tabs().props('vertical') as tabs:
                 ai_query = ui.tab('智能问数', icon='tips_and_updates')
                 data_operator = ui.tab('数据操作', icon='precision_manufacturing')
                 data_sync = ui.tab('数据更新', icon='sync')

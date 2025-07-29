@@ -30,7 +30,7 @@ if __name__ in {"__main__", "__mp_main__"}:
 
     # 创建自定义配置
     config = LayoutConfig()
-    config.app_title = 'MCP智能平台 - Header版'  # 修改标题以区分布局
+    config.app_title = '政务综合服务平台'  # 修改标题以区分布局
 
     # 登录页面
     @ui.page('/login')
@@ -55,8 +55,9 @@ if __name__ in {"__main__", "__mp_main__"}:
         @with_simple_spa_layout(
             config=config,
             nav_items=[
+                {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
                 {'key': 'enterprise_archive', 'label': '一企一档', 'icon': 'business', 'route': 'enterprise_archive'},
-                {'key': 'person_archive', 'label': '一人一档', 'icon': 'person', 'route': 'person_archive','separator_after': True},
+                {'key': 'person_archive', 'label': '一人一档', 'icon': 'people', 'route': 'person_archive','separator_after': True},
                 # {'key': 'data', 'label': '智能审计', 'icon': 'policy', 'route': 'data'},
                 # {'key': 'analysis', 'label': '智能问数', 'icon': 'question_answer', 'route': 'analysis'},
                 # {'key': 'mcp', 'label': 'MCP服务', 'icon': 'api', 'route': 'mcp'},
