@@ -96,5 +96,6 @@ if __name__ in {"__main__", "__mp_main__"}:
         reload=True,
         favicon='🚀',
         dark=False,
+        prod_js=False,
         storage_secret='your-secret-key-here'
     )

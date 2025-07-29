@@ -6,6 +6,7 @@ from auth import auth_manager
 from auth.decorators import require_permission
 from nicegui import ui
 from common.exception_handler import safe_protect
+from component import static_manager
 
 from .ai_query_tab import create_ai_query_content_grid
 from .data_operator_tab import create_data_operator_content_grid
@@ -35,3 +36,5 @@ def enterprise_archive_content():
                     create_data_sync_content_grid()
                 with ui.tab_panel(setting).classes('w-full'):
                     create_setting_content_grid()
+
+

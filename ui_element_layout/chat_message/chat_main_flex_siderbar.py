@@ -261,5 +261,6 @@ if __name__ in {"__main__", "__mp_main__"}:
         host='0.0.0.0',
         port=8086,
         reload=True,
+        prod_js=False,
         show=True
     )
