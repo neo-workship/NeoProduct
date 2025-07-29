@@ -13,9 +13,29 @@ def page_layout():
         ui.label('HEADER')
     with ui.left_drawer(top_corner=True, bottom_corner=True).style('background-color: #d7e3f4'):
         ui.label('LEFT DRAWER')
-    ohter_page()
-    # ui.separator()
-    chat_page()
+    enterprise_archive_content()
+
+def enterprise_archive_content():
+    """企业档案主内容"""
+    
+    with ui.splitter(value=10).classes('w-full h-full') as splitter:
+        with splitter.before:
+            with ui.tabs().props('vertical') as tabs:
+                ai_query = ui.tab('智能问数', icon='tips_and_updates')
+                data_operator = ui.tab('数据操作', icon='precision_manufacturing')
+                data_sync = ui.tab('数据更新', icon='sync')
+                setting = ui.tab('配置数据', icon='build_circle')
+        
+        with splitter.after:
+            with ui.tab_panels(tabs, value=ai_query).props('vertical').classes('w-full h-full'):    
+                with ui.tab_panel(ai_query).classes('w-full'):
+                    chat_page()
+                with ui.tab_panel(data_operator).classes('w-full'):
+                    ohter_page()
+                with ui.tab_panel(data_sync).classes('w-full'):
+                    chat_page()
+                with ui.tab_panel(setting).classes('w-full'):
+                    ohter_page()
 
 def ohter_page():
     continents = [
