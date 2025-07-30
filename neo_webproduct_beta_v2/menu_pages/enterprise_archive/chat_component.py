@@ -60,12 +60,12 @@ def chat_page():
         # 侧边栏 - 固定宽度
         with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
             # 侧边栏标题
-            with ui.row().classes('w-full p-4 border-b'):
+            with ui.row().classes('w-full p-2 border-b'):
                 ui.icon('menu', size='md').classes('text-gray-600')
                 ui.label('功能菜单').classes('text-lg font-semibold ml-2')
             
             # 侧边栏内容 - 完全按照原有结构
-            with ui.column().classes('w-full p-3'):
+            with ui.column().classes('w-full p-2'):
                 # 添加按钮
                 ui.button('添加按钮', icon='add').classes('w-full mb-3').props('outlined')
                 
@@ -108,7 +108,7 @@ def chat_page():
         with ui.column().classes('flex-grow h-full flex flex-col relative').style('overflow: hidden; min-width: 0;'):
             
             # 核心改进：使用 ui.scroll_area 替代原来的 ui.column + overflow-y-auto
-            with ui.scroll_area().classes('flex-grow p-4 w-full rounded ').style(
+            with ui.scroll_area().classes('flex-grow p-2 w-full rounded ').style(
                 'margin-bottom: 80px;'  # 为输入框留出空间
             ) as scroll_area:
                 messages = ui.column().classes('w-full')
@@ -119,7 +119,7 @@ def chat_page():
                     ui.label('欢迎,使用一企一档智能问数!!!').classes('text-xl text-blue-600')
                     
             # 输入区域 - 固定在底部，距离底部10px
-            with ui.row().classes('w-full items-center gap-2 p-3 rounded ').style(
+            with ui.row().classes('w-full items-center gap-2 p-2 rounded ').style(
                 'position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 1000; '
                 'margin: 0 auto; max-width: calc(100% - 20px);'
             ):    

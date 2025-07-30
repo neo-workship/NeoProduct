@@ -12,7 +12,6 @@ from auth import (
     login_page_content,
     register_page_content,
     get_auth_page_handlers,
-    init_database
 )
 
 # 创建受保护的页面处理器
