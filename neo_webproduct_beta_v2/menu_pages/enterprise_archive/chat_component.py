@@ -191,8 +191,7 @@ def chat_page():
                     
                     if key == 'Enter':
                         if shift_key:
-                            # Shift+Enter: 允许换行，不做任何处理
-                            # NiceGUI会自动处理换行，我们不需要阻止默认行为
+                            # Shift+Enter: 允许换行，不做任何处理。会自动处理换行，我们不需要阻止默认行为
                             pass
                         else:
                             # 单独的Enter: 发送消息

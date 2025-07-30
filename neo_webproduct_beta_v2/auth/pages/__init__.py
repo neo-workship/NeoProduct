@@ -18,15 +18,17 @@ def no_permission_page_content():
     ui.label('权限不足').classes('text-3xl font-bold text-red-600 dark:text-red-400')
     ui.label('您没有访问此功能的权限').classes('text-gray-600 dark:text-gray-400 mt-4')
     
-    with ui.card().classes('w-full max-w-md mt-6 p-6 text-center'):
+    with ui.card().classes('w-full  mt-6 p-6 text-center'):
         ui.icon('block').classes('text-6xl text-red-500 mb-4')
         ui.label('访问被拒绝').classes('text-xl font-semibold text-red-600')
         ui.label('您需要管理员权限才能访问此功能').classes('text-gray-600 mt-2')
         
         with ui.row().classes('gap-2 mt-6 justify-center'):
+            # 选择不同的layout这里要做响应的切换
+            # simple_spa_layout->simple_navigate_to / spa_layout->navigate_to
             def go_home():
-                from component.spa_layout import navigate_to
-                navigate_to('home', '首页')
+                from component.simple_spa_layout import simple_navigate_to
+                simple_navigate_to('home', '首页')
             
             ui.button('返回首页', icon='home', on_click=go_home).classes('bg-blue-500 text-white')
             ui.button('联系管理员', icon='contact_support', 
