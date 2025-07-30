@@ -77,7 +77,7 @@ def chat_page():
                         ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
                 
                 # 数据expansion组件
-                with ui.expansion('提示辅助数据', icon='settings').classes('expansion-panel w-full'):
+                with ui.expansion('提示辅助', icon='tips_and_updates').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
                         switch = ui.switch('启用')
                         ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
