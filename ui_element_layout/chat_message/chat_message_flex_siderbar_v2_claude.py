@@ -1,12 +1,12 @@
-"""
-聊天组件 - 类似Vue组件，可复用的聊天UI
-"""
 import asyncio
 from nicegui import ui, app
-from typing import Optional
-from component import static_manager
 import os
-    
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_files_dir = os.path.join(current_dir, 'static_assets')
+app.add_static_files('/static', static_files_dir)
+
+@ui.page('/')
 def chat_page():
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
@@ -57,7 +57,7 @@ def chat_page():
     ''')
     
     # 主容器 - 使用水平布局
-    with ui.row().classes('w-full h-full').style('overflow: hidden; height: calc(100vh - 120px); margin: 0; padding: 0;'):   
+    with ui.row().classes('w-full h-full').style('overflow: hidden; height: calc(100vh - 20px); margin: 0; padding: 0;'):   
         # 侧边栏 - 固定宽度
         with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
             # 侧边栏标题
@@ -214,3 +214,6 @@ def chat_page():
         });
     </script>
     ''')
+
+if __name__ in {'__main__', '__mp_main__'}:
+    ui.run(host='0.0.0.0', port=8083, title='优化聊天界面')
