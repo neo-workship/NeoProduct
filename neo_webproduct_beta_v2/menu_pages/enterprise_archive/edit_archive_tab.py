@@ -3,7 +3,7 @@
 """
 from nicegui import ui
 
-def create_setting_content_grid():
+def edit_archive_content():
     """创建配置数据内容网格"""
     with ui.grid(columns=1).classes('w-full gap-4'):
         ui.label('配置数据功能').classes('text-h6')
