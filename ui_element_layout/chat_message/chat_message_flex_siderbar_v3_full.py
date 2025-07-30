@@ -1,12 +1,12 @@
-"""
-聊天组件 - 类似Vue组件，可复用的聊天UI
-"""
 import asyncio
 from nicegui import ui, app
-from typing import Optional
-from component import static_manager
 import os
-    
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_files_dir = os.path.join(current_dir, 'static_assets')
+app.add_static_files('/static', static_files_dir)
+
+@ui.page('/')
 def chat_page():
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
@@ -23,6 +23,7 @@ def chat_page():
         }
         .sidebar {
             border-right: 1px solid #e5e7eb;
+            background-color: #f9fafb;
             overflow-y: auto;
         }
         .sidebar::-webkit-scrollbar {
@@ -56,7 +57,7 @@ def chat_page():
     ''')
     
     # 主容器 - 使用水平布局
-    with ui.row().classes('w-full h-full').style('overflow: hidden; height: calc(100vh - 120px); margin: 0; padding: 0;'):   
+    with ui.row().classes('w-full h-full').style('overflow: hidden; height: calc(100vh - 20px); margin: 0; padding: 0;'):   
         
         # 侧边栏 - 固定宽度
         with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
@@ -77,7 +78,7 @@ def chat_page():
                         ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
                 
                 # 数据expansion组件
-                with ui.expansion('提示数据', icon='data_usage').classes('expansion-panel w-full'):
+                with ui.expansion('提示辅助数据', icon='settings').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
                         switch = ui.switch('启用')
                         ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
@@ -86,7 +87,7 @@ def chat_page():
                         ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
                 
                 # 历史expansion组件
-                with ui.expansion('历史消息', icon='history',value=True).classes('expansion-panel w-full'):
+                with ui.expansion('历史消息', icon='history').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
                         for i in range(5):
                             ui.label(f'历史对话 {i+1}').classes('chat-history-item p-2 rounded cursor-pointer').on('click', lambda: ui.notify('加载历史对话'))
@@ -105,12 +106,12 @@ def chat_page():
                     with ui.card().classes('w-full max-w-2xl mx-auto shadow-lg'):
                         with ui.column().classes('p-6 text-center'):
                             ui.icon('smart_toy', size='2xl').classes('text-blue-500 mb-4')
-                            ui.label('欢迎使用一企一档智能问数助手').classes('text-2xl font-bold mb-2')
+                            ui.label('欢迎使用一企一档智能助手').classes('text-2xl font-bold text-gray-800 mb-2')
                             ui.label('请输入您的问题，我将为您提供帮助').classes('text-gray-600 mb-4')
                             
                             with ui.row().classes('justify-center gap-4'):
                                 ui.chip('问答', icon='help_outline').classes('text-blue-600')
-                                ui.chip('翻译', icon='translate').classes('text-yellow-600')
+                                ui.chip('翻译', icon='translate').classes('text-green-600')
                                 ui.chip('写作', icon='edit').classes('text-purple-600')
                                 ui.chip('分析', icon='analytics').classes('text-orange-600')
                     
@@ -136,55 +137,66 @@ def chat_page():
                     user_message = input_ref['widget'].value.strip()
                     if not user_message:
                         return
+                    
+                    # 🔒 禁用输入框和发送按钮，防止重复发送
+                    input_ref['widget'].set_enabled(False)
+                    send_button_ref['widget'].set_enabled(False)
+                    
+                    # 清空输入框
                     input_ref['widget'].set_value('')
 
-                    # 删除欢迎消息
-                    if welcome_message_container:
-                        welcome_message_container.clear()
+                    try:
+                        # 删除欢迎消息
+                        if welcome_message_container:
+                            welcome_message_container.clear()
 
-                    # 用户消息
-                    with messages:
-                        user_avatar = static_manager.get_fallback_path(
-                            static_manager.get_logo_path('user.svg'),
-                            'https://robohash.org/user'
-                        )
-                        with ui.chat_message(
-                            name='您',
-                            avatar=user_avatar,
-                            sent=True
-                        ).classes('w-full'):
-                            ui.label(user_message).classes('whitespace-pre-wrap break-words')
+                        # 用户消息
+                        with messages:
+                            with ui.chat_message(
+                                name='您',
+                                avatar='/static/robot.svg',
+                                sent=True
+                            ).classes('w-full'):
+                                ui.label(user_message).classes('whitespace-pre-wrap break-words')
 
-                    # 添加用户消息后立即滚动到底部
-                    await scroll_to_bottom_smooth()
+                        # 添加用户消息后立即滚动到底部
+                        await scroll_to_bottom_smooth()
 
-                    # 机器人消息
-                    with messages:
-                        robot_avatar = static_manager.get_fallback_path(
-                            static_manager.get_logo_path('robot_txt.svg'),
-                            'https://robohash.org/ui'
-                        )
-                        with ui.chat_message(
-                            name='AI',
-                            avatar=robot_avatar
-                        ).classes('w-full'):
-                            # 先放一个不可见的 label，用来做打字机动画
-                            stream_label = ui.label('').classes('whitespace-pre-wrap')
+                        # 机器人消息
+                        with messages:
+                            with ui.chat_message(
+                                name='AI',
+                                avatar='/static/robot.svg'
+                            ).classes('w-full'):
+                                # 先放一个不可见的 label，用来做打字机动画
+                                stream_label = ui.label('').classes('whitespace-pre-wrap')
 
-                            full = f"我收到了您的消息：{user_message}。这是一个智能回复示例。"  # 示例回复
-                            typed = ''
-                            for ch in full:
-                                typed += ch
-                                stream_label.text = typed
-                                # 打字过程中也滚动到底部
+                                full = f"我收到了您的消息：{user_message}。这是一个智能回复示例，包含更多内容来演示打字机效果。让我们看看这个功能如何工作..."  # 示例回复
+                                typed = ''
+                                for ch in full:
+                                    typed += ch
+                                    stream_label.text = typed
+                                    # 打字过程中也滚动到底部
+                                    await scroll_to_bottom_smooth()
+                                    await asyncio.sleep(0.03)
+
+                                # 完成回复后最终滚动
                                 await scroll_to_bottom_smooth()
-                                await asyncio.sleep(0.03)
-
-                            # 完成回复后最终滚动
-                            await scroll_to_bottom_smooth()
+                    
+                    finally:
+                        # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
+                        input_ref['widget'].set_enabled(True)
+                        send_button_ref['widget'].set_enabled(True)
+                        # 重新聚焦到输入框，提升用户体验
+                        input_ref['widget'].run_method('focus')
 
                 # 改进的事件处理方式
                 def handle_keydown(e):
+                    """处理键盘事件 - 使用NiceGUI原生方法"""
+                    # 检查输入框是否已禁用，如果禁用则不处理按键事件
+                    if not input_ref['widget'].enabled:
+                        return
+                        
                     # 获取事件详细信息
                     key = e.args.get('key', '')
                     shift_key = e.args.get('shiftKey', False)
@@ -199,7 +211,10 @@ def chat_page():
                             # 阻止默认的换行行为
                             ui.run_javascript('event.preventDefault();')
                             # 异步调用消息处理函数
-                            ui.timer(0.03, lambda: handle_message(), once=True)
+                            ui.timer(0.01, lambda: handle_message(), once=True)
+
+                # 为发送按钮创建引用容器
+                send_button_ref = {'widget': None}
 
                 # 创建textarea并绑定事件
                 input_ref['widget'] = ui.textarea(
@@ -217,7 +232,10 @@ def chat_page():
                 # 可选：添加on_change监听内容变化
                 # input_ref['widget'].on_change = lambda: print(f"内容变化: {input_ref['widget'].value}")
                 
-                send_button = ui.button(
+                send_button_ref['widget'] = ui.button(
                     icon='send',
                     on_click=handle_message
                 ).props('round dense ').classes('ml-2')
+
+if __name__ in {'__main__', '__mp_main__'}:
+    ui.run(host='0.0.0.0', port=8083, title='优化聊天界面 - 改进事件处理')

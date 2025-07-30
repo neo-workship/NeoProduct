@@ -59,7 +59,7 @@ def chat_page():
     # 主容器 - 使用水平布局
     with ui.row().classes('w-full h-full').style('overflow: hidden; height: calc(100vh - 20px); margin: 0; padding: 0;'):   
         # 侧边栏 - 固定宽度
-        with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
+        with ui.column().classes('sidebar h-full').style('width: 240px; min-width: 240px;'):
             # 侧边栏标题
             with ui.row().classes('w-full p-4 border-b'):
                 ui.icon('menu', size='md').classes('text-gray-600')
@@ -120,7 +120,7 @@ def chat_page():
                     ui.label('欢迎,使用一企一档智能问数!!!').classes('text-xl text-blue-600')
                     
             # 输入区域 - 固定在底部，距离底部10px
-            with ui.row().classes('w-full items-center gap-2 p-3 rounded ').style(
+            with ui.row().classes('w-full items-center gap-2 p-2 rounded ').style(
                 'position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 1000; '
                 'margin: 0 auto; max-width: calc(100% - 20px);'
             ):    

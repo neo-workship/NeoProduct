@@ -263,7 +263,7 @@ class SimpleLayoutManager:
 
     def create_header(self):
         """创建头部导航栏"""
-        with ui.header(elevated=True).classes(f'items-center justify-between px-4 {self.config.header_bg}'):
+        with ui.header(elevated=True).classes(f'items-center justify-between px-8 {self.config.header_bg}'):
             # 左侧：Logo
             with ui.row().classes('items-center gap-2'):
                 # Logo区域
