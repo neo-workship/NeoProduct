@@ -55,7 +55,7 @@ def get_simple_layout_manager() -> SimpleLayoutManager:
     """获取简单布局管理器实例"""
     global current_simple_layout_manager
     if current_simple_layout_manager is None:
-        raise RuntimeError("简单布局管理器未初始化，请确保使用了 @with_simple_spa_layout 装饰器")
+        raise RuntimeError("布局管理器未初始化，请确保使用了 @with_simple_spa_layout 装饰器")
     return current_simple_layout_manager
 
 def register_simple_route_handler(route: str, handler: Callable):

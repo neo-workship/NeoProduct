@@ -16,6 +16,10 @@ class LayoutManager:
         self.current_route = None
         self.menu_rows: Dict[str, any] = {}
         
+        # 主题切换
+        self._theme_key = 'theme' 
+        initial_theme = app.storage.user.get(self._theme_key, False)
+        app.storage.user[self._theme_key] = initial_theme   # 确保键存在
         # 新增：所有可能的路由映射
         self.all_routes: Dict[str, str] = {}  # route -> label 的映射
 
@@ -292,8 +296,13 @@ class LayoutManager:
                     ui.separator().props('vertical').classes('h-10')
 
                 # 主题切换
-                self.dark_mode = ui.dark_mode()
-                ui.switch('主题切换').bind_value(self.dark_mode)
+                # self.dark_mode = ui.dark_mode()
+                # ui.switch('主题切换').bind_value(self.dark_mode)
+                self.dark_mode = ui.dark_mode(value=app.storage.user[self._theme_key])
+                ui.switch('主题切换') \
+                    .bind_value(self.dark_mode) \
+                    .on_value_change(lambda e: app.storage.user.update({self._theme_key: e.value})) \
+                    .classes('mx-2')
 
                 # 设置菜单
                 with ui.button(icon='settings').props('flat color=white round').classes('w-10 h-10'):
