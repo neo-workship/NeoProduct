@@ -347,5 +347,5 @@ class LayoutManager:
 
     def create_content_area(self):
         """创建内容区域"""
-        with ui.column().classes('w-full p-6') as content_container:
+        with ui.column().classes('w-full') as content_container:
             self.content_container = content_container

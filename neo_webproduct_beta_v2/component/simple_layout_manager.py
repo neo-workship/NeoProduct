@@ -325,7 +325,7 @@ class SimpleLayoutManager:
 
     def create_content_area(self):
         """创建内容区域"""
-        with ui.column().classes('flex-1 p-6 w-full') as content_container:
+        with ui.column().classes('flex-1 w-full') as content_container:
             self.content_container = content_container
 
     def initialize_layout(self):

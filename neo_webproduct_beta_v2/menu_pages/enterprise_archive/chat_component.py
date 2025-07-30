@@ -23,7 +23,6 @@ def chat_page():
         }
         .sidebar {
             border-right: 1px solid #e5e7eb;
-            background-color: #f9fafb;
             overflow-y: auto;
         }
         .sidebar::-webkit-scrollbar {
