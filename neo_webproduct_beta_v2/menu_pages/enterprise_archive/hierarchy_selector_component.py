@@ -29,15 +29,25 @@ class HierarchySelector:
         # 在内存中存储层级数据，避免修改app.storage.general
         self.hierarchy_data_cache = {'data': None, 'loading': False}
     
-    def render(self):
+    def render_row(self):
         """渲染组件 - 对应Vue的template部分"""
         # 4级级联选择器
-        with ui.grid(columns=4).classes('w-full gap-4').style('height: 120px;'):
+        with ui.grid(columns=4).classes('w-full gap-4'):
             self._create_l1_select()
             self._create_l2_select()
             self._create_l3_select()
             self._create_field_select()
-        
+        self._load_hierarchy_data()
+
+    def render_column(self):
+        """渲染组件 - 对应Vue的template部分"""
+        # 4级级联选择器
+        with ui.grid(rows=4).classes('w-full gap-4'):
+        # with ui.column().classes('w-full gap-2'):
+            self._create_l1_select()
+            self._create_l2_select()
+            self._create_l3_select()
+            self._create_field_select()       
         # 页面加载时初始化层级数据
         self._load_hierarchy_data()
     
@@ -49,7 +59,7 @@ class HierarchySelector:
                 with_input=True,
                 clearable=True,
                 label='加载中...'
-            ).classes('w-full')
+            ).classes('w-full').props('dense')
 
             def on_l1_change(event):
                 self.selected_values['l1'] = event.value
@@ -79,7 +89,7 @@ class HierarchySelector:
                 with_input=True,
                 clearable=True,
                 label='请先选择一级分类'
-            ).classes('w-full')
+            ).classes('w-full').props('dense')
             
             def on_l2_change(event):
                 self.selected_values['l2'] = event.value
@@ -106,7 +116,7 @@ class HierarchySelector:
                 with_input=True,
                 clearable=True,
                 label='请先选择二级分类'
-            ).classes('w-full')
+            ).classes('w-full').props('dense')
             
             def on_l3_change(event):
                 self.selected_values['l3'] = event.value
@@ -130,7 +140,7 @@ class HierarchySelector:
                 with_input=True,
                 clearable=True,
                 label='请先选择三级分类'
-            ).classes('w-full')
+            ).classes('w-full').props('dense')
             
             def on_field_change(event):
                 self.selected_values['field'] = event.value

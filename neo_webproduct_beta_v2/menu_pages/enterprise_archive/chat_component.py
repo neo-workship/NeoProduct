@@ -6,6 +6,7 @@ from nicegui import ui, app
 from typing import Optional
 from component import static_manager
 import os
+from .hierarchy_selector_component import HierarchySelector
     
 def chat_page():
     # 添加全局样式，保持原有样式并添加scroll_area优化
@@ -102,17 +103,17 @@ def chat_page():
                 # 欢迎消息（可能会被删除）
                 welcome_message_container = ui.column().classes('w-full')
                 with welcome_message_container:
-                    with ui.card().classes('w-full max-w-2xl mx-auto shadow-lg'):
+                    with ui.card().classes('w-full max-w-3xl mx-auto shadow-lg'):
                         with ui.column().classes('p-6 text-center'):
-                            ui.icon('tips_and_updates', size='2xl').classes('text-blue-500 mb-4 text-3xl')
+                            ui.icon('tips_and_updates', size='3xl').classes('text-blue-500 mb-4 text-3xl')
                             ui.label('欢迎使用一企一档智能助手').classes('text-2xl font-bold mb-2')
-                            ui.label('请输入您的问题，我将为您提供帮助').classes('text-gray-600 mb-4')
+                            ui.label('请输入您的问题，我将为您提供帮助').classes('text-lg text-gray-600 mb-4')
                             
                             with ui.row().classes('justify-center gap-4'):
-                                ui.chip('问答', icon='help_outline').classes('text-blue-600')
-                                ui.chip('翻译', icon='translate').classes('text-yellow-600')
-                                ui.chip('写作', icon='edit').classes('text-purple-600')
-                                ui.chip('分析', icon='analytics').classes('text-orange-600')
+                                ui.chip('问答', icon='help_outline').classes('text-blue-600 text-lg')
+                                ui.chip('翻译', icon='translate').classes('text-yellow-600 text-lg')
+                                ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
+                                ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
                     
             # 输入区域 - 固定在底部，距离底部10px
             with ui.row().classes('w-full items-center gap-2 p-3 rounded ').style(
