@@ -15,12 +15,13 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 @safe_protect(name="创建档案页面", error_msg="创建档案页面加载失败")
 def create_archive_content():
     """创建档案内容页面"""
-    
+    # ==================== UI设计 ====================
+
     with ui.column().classes('w-full gap-6 p-4'):
         
         # ==================== 第一部分：输入区域 ====================
         with ui.column().classes('w-full gap-4'):
-            ui.label('企业档案创建').classes('text-h5 font-bold text-primary')
+            ui.label('创建企业档案').classes('text-h5 font-bold text-primary')
             ui.separator()
             
             # 输入框容器
@@ -115,7 +116,7 @@ def create_archive_content():
                 ).classes('w-full mt-3')
     
     # ==================== 事件处理函数 ====================
-    
+    @safe_protect(name="执行档案操作", error_msg="创建档案失败")
     async def create_archive():
         """创建档案的主要函数"""
         try:
@@ -189,19 +190,16 @@ def create_archive_content():
                             error_msg = result.get('message', '创建失败')
                             status_label.set_text(f'创建失败: {error_msg}')
                             ui.notify(f'创建失败: {error_msg}', type='negative')
-                            doc_log.push(f'❌ 创建失败: {error_msg}')
                     else:
                         error_text = await response.text()
                         status_label.set_text('服务器错误')
                         ui.notify(f'服务器错误 ({response.status})', type='negative')
-                        doc_log.push(f'❌ 服务器错误: {response.status}')
                         log_error(f"API调用失败", extra_data=f'{{"status": {response.status}, "response": "{error_text}"}}')
                         
         except Exception as e:
             progress_bar.set_value(0)
             status_label.set_text('创建失败')
             ui.notify('创建档案时发生错误', type='negative')
-            doc_log.push(f'❌ 异常错误: {str(e)}')
             log_error("创建档案异常", exception=e)
         
         finally:
@@ -210,49 +208,32 @@ def create_archive_content():
             await asyncio.sleep(2)  # 显示结果2秒后隐藏进度条
             progress_bar.style('display: none')
     
-    def generate_document():
+    def sync_document():
         """生成文档函数"""
         doc_name = doc_input.value.strip() if doc_input.value else "默认文档"
         doc_log.push(f'📝 开始生成文档: {doc_name}')
-        doc_log.push(f'⏱️ 生成时间: {ui.context.client.timestamp()}')
+        doc_log.push(f'⏱️ 生成时间: {ui.context.client}')
         
         # 模拟文档生成过程
-        ui.timer(1.0, lambda: doc_log.push('🔧 正在分析模板...'), once=True)
+        ui.timer(1.0, lambda: doc_log.push('🔧 连接创建API...'), once=True)
         ui.timer(2.0, lambda: doc_log.push('📋 正在填充数据...'), once=True)
         ui.timer(3.0, lambda: doc_log.push('✅ 文档生成完成'), once=True)
         
         ui.notify(f'开始生成文档: {doc_name}', type='info')
     
-    def apply_config():
+    def sync_field():
         """应用配置函数"""
         # 获取层级选择器的值
         selected_values = hierarchy_selector.selected_values
         data_source = data_source_input.value.strip() if data_source_input.value else ""
         
-        config_info = []
-        if selected_values.get('l1'):
-            config_info.append(f"一级: {selected_values['l1']}")
-        if selected_values.get('l2'):
-            config_info.append(f"二级: {selected_values['l2']}")
-        if selected_values.get('l3'):
-            config_info.append(f"三级: {selected_values['l3']}")
-        if selected_values.get('field'):
-            config_info.append(f"字段: {selected_values['field']}")
-        if data_source:
-            config_info.append(f"数据源: {data_source}")
-        
-        if config_info:
-            doc_log.push('⚙️ 应用配置:')
-            for info in config_info:
-                doc_log.push(f'  • {info}')
-            ui.notify('配置已应用', type='positive')
-        else:
-            ui.notify('请先选择分类或输入数据源', type='warning')
+        ui.notify(f'选择的层级：{selected_values}', type='info')
+       
     
     # ==================== 绑定事件 ====================
     create_button.on_click(lambda: asyncio.create_task(create_archive()))
-    generate_doc_button.on_click(generate_document)
-    config_button.on_click(apply_config)
+    generate_doc_button.on_click(lambda: asyncio.create_task(sync_document()))
+    config_button.on_click(sync_field)
     
     # 初始化日志
     doc_log.push('🚀 准备就绪')

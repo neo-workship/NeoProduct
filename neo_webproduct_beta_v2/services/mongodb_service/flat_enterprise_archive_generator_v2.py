@@ -316,12 +316,13 @@ class FlatEnterpriseArchiveGenerator:
         for row_idx, row_data in enumerate(data[1:], start=2):
             if len(row_data) < 5:
                 continue
-                
+            
             # 提取各级分类数据
             level1 = row_data[1] if row_data[1] is not None else ""
             level2 = row_data[2] if row_data[2] is not None else ""
             level3 = row_data[3] if row_data[3] is not None else ""
             field_name = row_data[4] if row_data[4] is not None else ""
+            data_url = row_data[6] if len(row_data) > 6 and row_data[6] is not None else ""
 
             # 跳过空行
             if not any([level1, level2, level3, field_name]):
@@ -421,7 +422,6 @@ class FlatEnterpriseArchiveGenerator:
         print(f"✅ 层级结构JSON文件已生成: {output_path}")
         return hierarchy_structure
 
-
 def generate_doc(enterprise_code: str = "", enterprise_name: str = ""):
     """
     主函数：演示扁平化文档生成流程
@@ -452,7 +452,6 @@ def generate_doc(enterprise_code: str = "", enterprise_name: str = ""):
         import traceback
         traceback.print_exc()
         return {}
-
 
 def create_hierarchy_json(excel_file: str = "./一企一档数据项.xlsx", 
                          json_file: str = "./hierarchy_structure.json") -> Dict[str, Any]:
