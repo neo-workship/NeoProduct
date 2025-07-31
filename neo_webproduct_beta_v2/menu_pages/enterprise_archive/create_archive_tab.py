@@ -63,16 +63,18 @@ def create_archive_content():
                 # 状态标签
                 status_label = ui.label('').classes('text-caption')
         
+        ui.separator()
+        
         # ==================== 第二部分：功能卡片区域 ====================
         with ui.row().classes('w-full gap-6'):
             
             # ========== 左侧卡片：文档生成器 ==========
             with ui.card().classes('flex-1 p-4'):
-                ui.label('文档生成器').classes('text-h6 font-medium mb-4')
+                ui.label('全量同步').classes('text-h6 font-medium mb-4')
                 
                 with ui.row().classes('w-full gap-4'):
                     # 左侧：控制区域
-                    with ui.column().classes('w-1/2 gap-3'):
+                    with ui.column().classes('w-full gap-3'):
                         doc_input = ui.input(
                             label='文档名称',
                             placeholder='输入自定义文档名称'
@@ -85,18 +87,18 @@ def create_archive_content():
                         ).classes('w-full')
                     
                     # 右侧：日志区域
-                    with ui.column().classes('w-1/2'):
-                        ui.label('生成日志').classes('text-subtitle2 mb-2')
-                        doc_log = ui.log().classes('w-full h-32 border rounded')
+                    with ui.column().classes('w-full'):
+                        ui.label('同步日志').classes('text-subtitle2 mb-2')
+                        doc_log = ui.log().classes('w-full h-32 border rounded overflow-y-auto scrollbar-hide')
             
             # ========== 右侧卡片：层级选择器与数据源 ==========
             with ui.card().classes('flex-1 p-4'):
-                ui.label('数据源配置').classes('text-h6 font-medium mb-4')
+                ui.label('字段同步').classes('text-h6 font-medium mb-4')
                 
                 # 层级选择器 - 使用现有组件
                 ui.label('数据分类选择').classes('text-subtitle2 mb-2')
                 hierarchy_selector = HierarchySelector()
-                hierarchy_selector.render_column()
+                hierarchy_selector.render_row()
                 
                 # 数据源输入
                 ui.label('数据源URL').classes('text-subtitle2 mt-4 mb-2')
@@ -107,7 +109,7 @@ def create_archive_content():
                 
                 # 配置按钮
                 config_button = ui.button(
-                    '应用配置',
+                    '字段同步',
                     icon='settings',
                     color='accent'
                 ).classes('w-full mt-3')
@@ -253,5 +255,4 @@ def create_archive_content():
     config_button.on_click(apply_config)
     
     # 初始化日志
-    doc_log.push('🚀 文档生成器已就绪')
-    doc_log.push('📌 请先配置数据源和分类信息')
+    doc_log.push('🚀 准备就绪')

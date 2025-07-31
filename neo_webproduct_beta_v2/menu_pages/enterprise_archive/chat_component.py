@@ -11,16 +11,13 @@ from .hierarchy_selector_component import HierarchySelector
 def chat_page():
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
-    <style>
-        html, body {
+        <style>
+        /* 聊天组件专用样式 - 只影响聊天组件内部，不影响全局 */
+        .chat-container {
             overflow: hidden !important;
-            height: 100vh !important;
+            height: calc(100vh - 145px) !important;
             margin: 0 !important;
             padding: 0 !important;
-        }
-        .nicegui-content {
-            height: 100vh !important;
-            overflow: hidden !important;
         }
         .sidebar {
             border-right: 1px solid #e5e7eb;
@@ -57,7 +54,7 @@ def chat_page():
     ''')
     
     # 主容器 - 使用水平布局
-    with ui.row().classes('w-full h-full').style('overflow: hidden; height: calc(100vh - 120px); margin: 0; padding: 0;'):   
+    with ui.row().classes('w-full h-full chat-container').style('overflow: hidden; height: calc(100vh - 120px); margin: 0; padding: 0;'):   
         
         # 侧边栏 - 固定宽度
         with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
@@ -116,7 +113,7 @@ def chat_page():
                                 ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
                     
             # 输入区域 - 固定在底部，距离底部10px
-            with ui.row().classes('w-full items-center gap-2 p-3 rounded ').style(
+            with ui.row().classes('w-full items-center gap-2 p-1 rounded ').style(
                 'position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 1000; '
                 'margin: 0 auto; max-width: calc(100% - 20px);'
             ):    
