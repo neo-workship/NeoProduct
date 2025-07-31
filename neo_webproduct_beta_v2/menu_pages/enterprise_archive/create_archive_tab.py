@@ -6,6 +6,8 @@ from nicegui import ui
 from .hierarchy_selector_component import HierarchySelector
 import aiohttp
 import asyncio
+import re
+from datetime import datetime
 from common.exception_handler import log_info, log_error, safe_protect
 from auth import auth_manager
 
@@ -31,11 +33,7 @@ def create_archive_content():
                 # 统一信用代码输入框
                 credit_code_input = ui.input(
                     label='统一信用代码',
-                    placeholder='请输入18位统一社会信用代码',
-                    validation={
-                        'pattern': r'^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$',
-                        'message': '请输入正确的18位统一社会信用代码'
-                    }
+                    placeholder='请输入18位统一社会信用代码'
                 ).classes('flex-1').props('clearable outlined')
                 
                 # 企业名称输入框
@@ -76,9 +74,9 @@ def create_archive_content():
                 with ui.row().classes('w-full gap-4'):
                     # 左侧：控制区域
                     with ui.column().classes('w-full gap-3'):
-                        doc_input = ui.input(
-                            label='文档名称',
-                            placeholder='输入自定义文档名称'
+                        code_input_right = ui.input(
+                            label='企业代码',
+                            placeholder='企业代码'
                         ).classes('w-full').props('outlined')
                         
                         generate_doc_button = ui.button(
@@ -96,6 +94,11 @@ def create_archive_content():
             with ui.card().classes('flex-1 p-4'):
                 ui.label('字段同步').classes('text-h6 font-medium mb-4')
                 
+                code_input_left = ui.input(
+                    label='企业代码',
+                    placeholder='企业代码'
+                ).classes('w-full').props('outlined')
+
                 # 层级选择器 - 使用现有组件
                 ui.label('数据分类选择').classes('text-subtitle2 mb-2')
                 hierarchy_selector = HierarchySelector()
@@ -109,11 +112,20 @@ def create_archive_content():
                 ).classes('w-full').props('outlined')
                 
                 # 配置按钮
-                config_button = ui.button(
-                    '字段同步',
-                    icon='settings',
-                    color='accent'
-                ).classes('w-full mt-3')
+                sync_filed_container = ui.row().classes('w-full mt-3 gap-4 items-center')
+                with sync_filed_container:
+                    sync_filed_button = ui.button(
+                        '字段同步',
+                        icon='settings',
+                        color='accent'
+                    ).classes('w-full mt-3')
+
+                    config_progress = ui.circular_progress(
+                        value=0,
+                        show_value=True,
+                        size='sm'
+                    ).classes('').style('display: none')
+                    config_status_label = ui.label('').classes('text-caption')
     
     # ==================== 事件处理函数 ====================
     @safe_protect(name="执行档案操作", error_msg="创建档案失败")
@@ -123,6 +135,10 @@ def create_archive_content():
             # 获取输入值
             credit_code = credit_code_input.value.strip() if credit_code_input.value else ""
             enterprise_name = enterprise_name_input.value.strip() if enterprise_name_input.value else ""
+
+            if credit_code and not re.match(r'^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$', credit_code):
+                ui.notify('请输入正确的18位统一社会信用代码', type='warning')
+                return
             
             # 验证输入
             if not credit_code:
@@ -180,6 +196,10 @@ def create_archive_content():
                             doc_log.push(f'📄 文档ID: {result.get("document_id")}')
                             doc_log.push(f'📊 创建字段数: {result.get("documents_count", 0)}')
                             
+                            # 自动填入文档名称
+                            code_input_right.set_value(credit_code)
+                            code_input_left.set_value(credit_code) 
+                            
                             # 清空输入框
                             credit_code_input.set_value('')
                             enterprise_name_input.set_value('')
@@ -210,9 +230,9 @@ def create_archive_content():
     
     def sync_document():
         """生成文档函数"""
-        doc_name = doc_input.value.strip() if doc_input.value else "默认文档"
+        doc_name = code_input_right.value.strip() if code_input_right.value else "默认文档"
         doc_log.push(f'📝 开始生成文档: {doc_name}')
-        doc_log.push(f'⏱️ 生成时间: {ui.context.client}')
+        doc_log.push(f'⏱️ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
         
         # 模拟文档生成过程
         ui.timer(1.0, lambda: doc_log.push('🔧 连接创建API...'), once=True)
@@ -221,19 +241,76 @@ def create_archive_content():
         
         ui.notify(f'开始生成文档: {doc_name}', type='info')
     
-    def sync_field():
-        """应用配置函数"""
-        # 获取层级选择器的值
-        selected_values = hierarchy_selector.selected_values
-        data_source = data_source_input.value.strip() if data_source_input.value else ""
+    @safe_protect(name="字段同步操作", error_msg="字段同步失败")
+    async def sync_field():
+        """字段同步函数"""
+        try:
+            # 获取层级选择器的值和数据源
+            selected_values = hierarchy_selector.selected_values
+            data_source = data_source_input.value.strip() if data_source_input.value else ""
+            
+            # 验证输入
+            if not data_source:
+                ui.notify('请输入数据源地址', type='warning')
+                return
+            
+            if not selected_values:
+                ui.notify('请选择数据分类', type='warning')
+                return
+            
+            # 显示进度指示器
+            config_progress.style('display: block')
+            config_progress.set_value(0)
+            config_status_label.set_text('正在连接数据源...')
+            sync_filed_button.set_enabled(False)
+            
+            log_info(f"开始字段同步", 
+                    extra_data=f'{{"data_source": "{data_source}", "selected_values": "{selected_values}"}}')
+            
+            # 模拟同步进度
+            for i in range(1, 5):
+                config_progress.set_value(i * 20)
+                if i == 1:
+                    config_status_label.set_text('验证数据源...')
+                elif i == 2:
+                    config_status_label.set_text('分析字段结构...')
+                elif i == 3:
+                    config_status_label.set_text('映射字段关系...')
+                elif i == 4:
+                    config_status_label.set_text('应用配置...')
+                
+                await asyncio.sleep(0.8)  # 模拟处理时间
+            
+            # 完成同步
+            config_progress.set_value(100)
+            config_status_label.set_text('同步完成！')
+            
+            ui.notify(f'字段同步成功！选择层级：{selected_values}', type='positive')
+            
+            # 可以在这里添加实际的同步逻辑
+            # await perform_actual_sync(selected_values, data_source)
+            
+            log_info("字段同步成功", 
+                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
+            
+        except Exception as e:
+            config_progress.set_value(0)
+            config_status_label.set_text('同步失败')
+            ui.notify('字段同步时发生错误', type='negative')
+            log_error("字段同步异常", exception=e)
         
-        ui.notify(f'选择的层级：{selected_values}', type='info')
+        finally:
+            # 恢复按钮状态，延迟隐藏进度指示器
+            sync_filed_button.set_enabled(True)
+            await asyncio.sleep(2)  # 显示结果2秒后隐藏
+            config_progress.style('display: none')
+            config_status_label.set_text('')
        
     
     # ==================== 绑定事件 ====================
-    create_button.on_click(lambda: asyncio.create_task(create_archive()))
-    generate_doc_button.on_click(lambda: asyncio.create_task(sync_document()))
-    config_button.on_click(sync_field)
+    create_button.on_click(create_archive)
+    generate_doc_button.on_click(sync_document)
+    sync_filed_button.on_click(sync_field)
     
     # 初始化日志
     doc_log.push('🚀 准备就绪')
