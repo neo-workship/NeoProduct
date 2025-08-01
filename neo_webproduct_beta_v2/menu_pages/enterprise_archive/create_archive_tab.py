@@ -80,7 +80,7 @@ def create_archive_content():
                         ).classes('w-full').props('outlined')
                         
                         generate_doc_button = ui.button(
-                            '生成文档',
+                            '档案同步',
                             icon='description',
                             color='secondary'
                         ).classes('w-full')
@@ -104,14 +104,14 @@ def create_archive_content():
                 hierarchy_selector = HierarchySelector()
                 hierarchy_selector.render_row()
                 
-                # 数据源输入
+                # 数据源
                 ui.label('数据源URL').classes('text-subtitle2 mt-4 mb-2')
                 data_source_input = ui.input(
-                    label='数据源地址',
+                    label='字段数据源地址',
                     placeholder='输入数据源URL或路径'
                 ).classes('w-full').props('outlined')
                 
-                # 配置按钮
+                # 字段同步按钮
                 sync_filed_container = ui.row().classes('w-full mt-3 gap-4 items-center')
                 with sync_filed_container:
                     sync_filed_button = ui.button(
@@ -128,7 +128,7 @@ def create_archive_content():
                     config_status_label = ui.label('').classes('text-caption')
     
     # ==================== 事件处理函数 ====================
-    @safe_protect(name="执行档案操作", error_msg="创建档案失败")
+    @safe_protect(name="执行创建档案操作", error_msg="创建档案失败")
     async def create_archive():
         """创建档案的主要函数"""
         try:

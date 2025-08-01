@@ -402,7 +402,8 @@ class FlatEnterpriseArchiveGenerator:
                     "field_code": field_code,
                     "field_name": field_name,
                     "full_path_code": full_path_code,
-                    "full_path_name": full_path_name
+                    "full_path_name": full_path_name,
+                    "data_url":data_url
                 }
                 l3_dict[current_l3["code"]]["fields"].append(field_data)
         
