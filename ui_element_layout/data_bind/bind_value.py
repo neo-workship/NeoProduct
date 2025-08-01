@@ -106,6 +106,7 @@ def create_advanced_binding_demo():
                                                       backward=lambda x: x / 100)
                 
                 with ui.row():
+                    ui.button("➕new", on_click=lambda: shared_data.__setitem__('counter', shared_data['counter'] + 1))
                     ui.button("➕", on_click=lambda: shared_data.update(counter=shared_data['counter'] + 1))
                     ui.button("➖", on_click=lambda: shared_data.update(counter=max(0, shared_data['counter'] - 1)))
                     ui.button("🔄", on_click=lambda: shared_data.update(counter=0))
