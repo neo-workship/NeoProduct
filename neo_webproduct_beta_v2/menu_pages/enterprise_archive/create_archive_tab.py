@@ -2,7 +2,7 @@
 创建档案Tab逻辑
 企业档案创建功能页面
 """
-from nicegui import ui
+from nicegui import ui,app
 from .hierarchy_selector_component import HierarchySelector
 import aiohttp
 import asyncio
@@ -88,7 +88,7 @@ def create_archive_content():
                     # 右侧：日志区域
                     with ui.column().classes('w-full'):
                         ui.label('同步日志').classes('text-subtitle2 mb-2')
-                        doc_log = ui.log().classes('w-full h-32 border rounded overflow-y-auto scrollbar-hide')
+                        doc_log = ui.log(max_lines=20).classes('w-full h-32 border rounded overflow-y-auto scrollbar-hide')
             
             # ========== 右侧卡片：层级选择器与数据源 ==========
             with ui.card().classes('flex-1 p-4'):
@@ -230,9 +230,12 @@ def create_archive_content():
             await asyncio.sleep(2)  # 显示结果2秒后隐藏进度条
             progress_bar.style('display: none')
     
-    def sync_document():
-        """生成文档函数"""
-        credit_code = code_input_right.value.strip() if code_input_right.value else "默认文档"
+    #============================ 2、同步文档 ===========================
+    @safe_protect(name="企业档案同步操作", error_msg="企业同步失败")
+    async def sync_document():
+        """生成文档函数 - 修改后的版本"""
+        credit_code = code_input_right.value.strip() if code_input_right.value else ""
+        
         # 验证输入
         if not credit_code:
             ui.notify('请输入统一信用代码', type='warning')
@@ -241,13 +244,176 @@ def create_archive_content():
         doc_log.push(f'📝 开始生成文档: {credit_code}')
         doc_log.push(f'⏱️ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
         
-        # 模拟文档生成过程
-        ui.timer(1.0, lambda: doc_log.push('🔧 连接创建API...'), once=True)
-        ui.timer(2.0, lambda: doc_log.push('📋 正在填充数据...'), once=True)
-        ui.timer(3.0, lambda: doc_log.push('✅ 文档生成完成'), once=True)
-        
-        ui.notify(f'开始生成文档: {credit_code}', type='info')
-    
+        # 启动异步同步流程
+        asyncio.create_task(perform_document_sync(credit_code))
+
+    async def perform_document_sync(credit_code: str):
+        """执行文档同步的异步函数"""
+        try:
+            # 1. 获取层级数据 - 从storage或API获取
+            hierarchy_data = await get_hierarchy_data()
+            if not hierarchy_data:
+                doc_log.push('❌ 无法获取层级数据,请检查API服务')
+                return
+            
+            doc_log.push('🔧 连接创建API...')
+            
+            # 2. 遍历hierarchy_selector中的各层级下的fields数组
+            fields_to_sync = []
+            
+            # 从hierarchy_data中提取所有字段
+            l1_categories = hierarchy_data.get('l1_categories', [])
+            
+            for l1 in l1_categories:
+                for l2 in l1.get('l2_categories', []):
+                    for l3 in l2.get('l3_categories', []):
+                        fields = l3.get('fields', [])
+                        for field in fields:
+                            # 获取字段信息
+                            full_path_code = field.get('full_path_code', '')
+                            data_url = field.get('data_url', '')
+                            field_name = field.get('field_name', '')
+                            
+                            if full_path_code and field_name:
+                                fields_to_sync.append({
+                                    'full_path_code': full_path_code,
+                                    'data_url': data_url,
+                                    'field_name': field_name
+                                })
+            
+            doc_log.push(f'📋 发现 {len(fields_to_sync)} 个字段需要同步')
+            
+            # 3. 遍历字段并执行同步
+            sync_success_count = 0
+            sync_error_count = 0
+            
+            for idx, field_info in enumerate(fields_to_sync):
+                full_path_code = field_info['full_path_code']
+                data_url = field_info['data_url']
+                field_name = field_info['field_name']
+                
+                # 显示当前同步信息
+                doc_log.push(f'🔄 [{idx+1}/{len(fields_to_sync)}] {data_url}{credit_code}')
+                
+                # 调用MongoDB服务的/api/v1/fields/update API
+                try:
+                    success = await call_fields_update_api(
+                        enterprise_code=credit_code,
+                        full_path_code=full_path_code,
+                        field_value=field_name  # 这里使用field_name作为默认值，您可能需要根据实际需求修改
+                    )
+                    
+                    if success:
+                        sync_success_count += 1
+                        doc_log.push(f'✅ {field_name} 同步成功')
+                    else:
+                        sync_error_count += 1
+                        doc_log.push(f'❌ {field_name} 同步失败')
+                        
+                except Exception as e:
+                    sync_error_count += 1
+                    doc_log.push(f'⚠️ {field_name} 同步异常: {str(e)}')
+                    log_error(f"字段同步异常: {field_name}", exception=e)
+                
+                # 添加短暂延迟，避免API调用过于频繁
+                await asyncio.sleep(0.1)
+            
+            # 4. 显示同步结果
+            doc_log.push(f'✅ 文档同步完成！成功: {sync_success_count}, 失败: {sync_error_count}')
+            
+            if sync_error_count == 0:
+                doc_log.push(f'✅ 文档同步成功！共同步 {sync_success_count} 个字段')
+            else:
+                doc_log.push(f'❌文档同步完成，成功: {sync_success_count}, 失败: {sync_error_count}')
+                
+        except Exception as e:
+            doc_log.push(f'❌ 同步过程发生异常: {str(e)}')
+            log_error("文档同步异常", exception=e)
+
+    async def get_hierarchy_data():
+        """获取层级数据 - 优先从app.storage.general获取，否则从API获取"""
+        try:
+            # 1. 首先尝试从app.storage.general获取
+            hierarchy_data = app.storage.general.get('hierarchy_data')
+            if hierarchy_data:
+                # 检查数据是否过期（可选，这里设置为1小时过期）
+                timestamp = app.storage.general.get('hierarchy_data_timestamp', 0)
+                current_time = asyncio.get_event_loop().time()
+                if current_time - timestamp < 3600:  # 1小时内的数据认为有效
+                    log_info("从存储获取层级数据成功")
+                    return hierarchy_data
+            
+            # 2. 如果存储中没有或已过期，从API获取
+            log_info("从API获取层级数据")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{MONGODB_SERVICE_URL}/api/v1/hierarchy") as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        # 检查响应格式
+                        if isinstance(data, dict) and data.get('success', False):
+                            hierarchy_data = data.get('data', {})
+                            
+                            # 缓存到storage
+                            app.storage.general['hierarchy_data'] = hierarchy_data
+                            app.storage.general['hierarchy_data_timestamp'] = asyncio.get_event_loop().time()
+                            
+                            log_info("API获取层级数据成功并已缓存")
+                            return hierarchy_data
+                        else:
+                            log_error("层级数据响应格式错误", extra_data=f'{{"response": {data}}}')
+                            return None
+                    else:
+                        error_text = await response.text()
+                        log_error("获取层级数据API失败", 
+                                extra_data=f'{{"status": {response.status}, "response": "{error_text}"}}')
+                        return None
+                        
+        except Exception as e:
+            log_error("获取层级数据异常", exception=e)
+            return None
+
+    async def call_fields_update_api(enterprise_code: str, full_path_code: str, field_value: str) -> bool:
+        """调用MongoDB服务的/api/v1/fields/update API"""
+        try:
+            # 构建API请求数据
+            request_data = {
+                "enterprise_code": enterprise_code,
+                "full_path_code": full_path_code,
+                "dict_fields": {
+                    "value": field_value
+                }
+            }
+            
+            # 调用API
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{MONGODB_SERVICE_URL}/api/v1/fields/update",
+                    json=request_data,
+                    headers={"Content-Type": "application/json"}
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if result.get('success', False):
+                            log_info(f"字段更新API调用成功", 
+                                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}"}}')
+                            return True
+                        else:
+                            log_error(f"字段更新API返回失败", 
+                                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}", "message": "{result.get("message", "")}"}}')
+                            return False
+                    else:
+                        error_text = await response.text()
+                        log_error(f"字段更新API调用失败", 
+                                extra_data=f'{{"status": {response.status}, "enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}", "response": "{error_text}"}}')
+                        return False
+                        
+        except Exception as e:
+            log_error("字段更新API调用异常", exception=e, 
+                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}"}}')
+            return False
+
+    # ============================ 3、同步字段 ===========================
     @safe_protect(name="字段同步操作", error_msg="字段同步失败")
     async def sync_field():
         """字段同步函数"""
