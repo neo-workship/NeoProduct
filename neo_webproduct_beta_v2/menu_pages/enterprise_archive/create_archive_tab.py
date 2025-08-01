@@ -232,8 +232,8 @@ def create_archive_content():
     
     def sync_document():
         """生成文档函数"""
-        doc_name = code_input_right.value.strip() if code_input_right.value else "默认文档"
-        doc_log.push(f'📝 开始生成文档: {doc_name}')
+        code_name = code_input_right.value.strip() if code_input_right.value else "默认文档"
+        doc_log.push(f'📝 开始生成文档: {code_name}')
         doc_log.push(f'⏱️ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
         
         # 模拟文档生成过程
@@ -241,7 +241,7 @@ def create_archive_content():
         ui.timer(2.0, lambda: doc_log.push('📋 正在填充数据...'), once=True)
         ui.timer(3.0, lambda: doc_log.push('✅ 文档生成完成'), once=True)
         
-        ui.notify(f'开始生成文档: {doc_name}', type='info')
+        ui.notify(f'开始生成文档: {code_name}', type='info')
     
     @safe_protect(name="字段同步操作", error_msg="字段同步失败")
     async def sync_field():
