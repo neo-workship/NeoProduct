@@ -18,9 +18,7 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 def create_archive_content():
     """创建档案内容页面"""
     # ==================== UI设计 ====================
-
     with ui.column().classes('w-full gap-6 p-4'):
-        
         # ==================== 第一部分：输入区域 ====================
         with ui.column().classes('w-full gap-4'):
             ui.label('创建企业档案').classes('text-h5 font-bold text-primary')
@@ -61,20 +59,17 @@ def create_archive_content():
                 
                 # 状态标签
                 status_label = ui.label('').classes('text-caption')
-        
         ui.separator()
         
         # ==================== 第二部分：功能卡片区域 ====================
-        with ui.row().classes('w-full gap-6'):
-            
+        with ui.row().classes('w-full gap-6'):  
             # ========== 左侧卡片：文档生成器 ==========
             with ui.card().classes('flex-1 p-4'):
                 ui.label('全量同步').classes('text-h6 font-medium mb-4')
-                
                 with ui.row().classes('w-full gap-4'):
                     # 左侧：控制区域
                     with ui.column().classes('w-full gap-3'):
-                        code_input_right = ui.input(
+                        code_input_left = ui.input(
                             label='企业代码',
                             placeholder='企业代码'
                         ).classes('w-full').props('outlined')
@@ -94,7 +89,7 @@ def create_archive_content():
             with ui.card().classes('flex-1 p-4'):
                 ui.label('字段同步').classes('text-h6 font-medium mb-4')
                 
-                code_input_left = ui.input(
+                code_input_right = ui.input(
                     label='企业代码',
                     placeholder='企业代码'
                 ).classes('w-full').props('outlined')
@@ -143,12 +138,8 @@ def create_archive_content():
                 return
             
             # 验证输入
-            if not credit_code:
-                ui.notify('请输入统一信用代码', type='warning')
-                return
-            
-            if not enterprise_name:
-                ui.notify('请输入企业名称', type='warning')
+            if not credit_code or not enterprise_name:
+                ui.notify('请输入统一信用代码与企业名称', type='warning')
                 return
             
             # 显示进度条和更新状态
@@ -234,7 +225,7 @@ def create_archive_content():
     @safe_protect(name="企业档案同步操作", error_msg="企业同步失败")
     async def sync_document():
         """生成文档函数 - 修改后的版本"""
-        credit_code = code_input_right.value.strip() if code_input_right.value else ""
+        credit_code = code_input_left.value.strip() if code_input_left.value else ""
         
         # 验证输入
         if not credit_code:
@@ -255,7 +246,6 @@ def create_archive_content():
             if not hierarchy_data:
                 doc_log.push('❌ 无法获取层级数据,请检查API服务')
                 return
-            
             doc_log.push('🔧 连接创建API...')
             
             # 2. 遍历hierarchy_selector中的各层级下的fields数组
@@ -420,44 +410,42 @@ def create_archive_content():
         try:
             # 获取层级选择器的值和数据源
             selected_values = hierarchy_selector.selected_values
-            # data_api_input.set_value(selected_values["data_url"])
             data_source = data_api_input.value.strip() if data_api_input.value else ""
-            
+            credit_code = code_input_right.value.strip() if code_input_right.value else ""
+
             # 验证输入
-            if not data_source:
-                ui.notify('请输入数据源地址', type='warning')
-                return
-            
-            if not selected_values:
-                ui.notify('请选择数据分类', type='warning')
+            if not data_source or not credit_code or not selected_values:
+                ui.notify('请选择数据分类与填写企业代码', type='warning')
                 return
             
             # 显示进度指示器
             config_progress.style('display: block')
             config_progress.set_value(0)
-            config_status_label.set_text('正在连接数据源...')
+            config_status_label.set_text('准备开始...')
             sync_filed_button.set_enabled(False)
             
             log_info(f"开始字段同步", 
                     extra_data=f'{{"data_source": "{data_source}", "selected_values": "{selected_values}"}}')
             
             # 模拟同步进度
-            for i in range(1, 5):
-                config_progress.set_value(i * 20)
-                if i == 1:
-                    config_status_label.set_text('验证数据源...')
-                elif i == 2:
-                    config_status_label.set_text('分析字段结构...')
-                elif i == 3:
-                    config_status_label.set_text('映射字段关系...')
-                elif i == 4:
-                    config_status_label.set_text('应用配置...')
-                
-                await asyncio.sleep(0.8)  # 模拟处理时间
-            
-            # 完成同步
-            config_progress.set_value(100)
-            config_status_label.set_text('同步完成！')
+            config_progress.set_value(20)
+            config_status_label.set_text(f'调用API:{data_source}{credit_code}')
+            await asyncio.sleep(0.5)
+
+            success = await call_fields_update_api(
+                enterprise_code=credit_code,
+                full_path_code=selected_values["full_path_code"],
+                field_value=f'更新值_{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'  # 这里使用field_name作为默认值，您可能需要根据实际需求修改
+            )
+            await asyncio.sleep(0.5)
+
+            if success:
+                # 完成同步
+                config_progress.set_value(100)
+                config_status_label.set_text('✅同步完成！')
+            else:
+                config_progress.set_value(100)
+                config_status_label.set_text('❌同步失败！')
             
             ui.notify(f'字段同步成功！选择层级：{selected_values}', type='positive')
             
@@ -480,7 +468,6 @@ def create_archive_content():
             config_progress.style('display: none')
             config_status_label.set_text('')
        
-    
     # ==================== 绑定事件 ====================
     create_button.on_click(create_archive)
     generate_doc_button.on_click(sync_document)
