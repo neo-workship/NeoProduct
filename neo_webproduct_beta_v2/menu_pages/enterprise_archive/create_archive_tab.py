@@ -106,10 +106,12 @@ def create_archive_content():
                 
                 # 数据源
                 ui.label('数据源URL').classes('text-subtitle2 mt-4 mb-2')
-                data_source_input = ui.input(
+                data_api_input = ui.input(
                     label='字段数据源地址',
                     placeholder='输入数据源URL或路径'
-                ).classes('w-full').props('outlined')
+                ).classes('w-full') \
+                 .props('outlined') \
+                 .bind_value_from(hierarchy_selector.selected_values,"data_url")
                 
                 # 字段同步按钮
                 sync_filed_container = ui.row().classes('w-full mt-3 gap-4 items-center')
@@ -247,7 +249,8 @@ def create_archive_content():
         try:
             # 获取层级选择器的值和数据源
             selected_values = hierarchy_selector.selected_values
-            data_source = data_source_input.value.strip() if data_source_input.value else ""
+            # data_api_input.set_value(selected_values["data_url"])
+            data_source = data_api_input.value.strip() if data_api_input.value else ""
             
             # 验证输入
             if not data_source:
