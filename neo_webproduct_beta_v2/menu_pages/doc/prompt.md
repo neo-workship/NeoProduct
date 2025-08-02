@@ -21,20 +21,28 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 
 ## UI 编写
 
-编写 \menu_pages\enterprise_archive\read_archive_tab.py UI，
+编写 \menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，
 
-伪代码如下，请按照布局及注释说明进行实现。
+伪代码如下，请按照布局及注释说明进行实现，不要私自添加其他布局和组件。
 
 ```py
+# 不要使用ui.card组件
 from .hierarchy_selector_component import HierarchySelector
+from common.exception_handler import log_info, log_error, safe_protect
 
 with ui.column():
     with column():
-        # 下拉列表：search_select
-        # 按下回车键，调用\services\mongodb_service\main.py 中的API:/api/v1/enterprises/search
-        # 使用API返回值，可查看\services\mongodb_service\schemas.py明确返回类型
-        # search_select 列表中展示 enterprise_code+enterprise_name ，实际要使用的是enterprise_code
-        search_select = ui.select(with_input=True).classes('w-full').on("按下回车键处理")
+        # search_input 和 search_select的宽度比例为1：4
+        with row():
+            # 搜索输入：search_input
+            # 按下回车键，调用\services\mongodb_service\main.py 中的API:/api/v1/enterprises/search
+
+            search_input = ui.input().on("keydown.enter")
+
+            # 下拉列表：search_select
+            # 使用API返回值，可查看\services\mongodb_service\schemas.py明确返回的数据模型；
+            # 列表中展示API返回数据 enterprise_code+enterprise_name ，实际要使用的是enterprise_code
+            search_select = ui.select()
 
         # hierarchy_selector组件展示
         hierarchy_selector = HierarchySelector(multiple=True)
