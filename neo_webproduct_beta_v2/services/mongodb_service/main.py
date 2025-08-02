@@ -13,8 +13,8 @@ from services.mongodb_service.config import get_connection_string, get_config
 from services.mongodb_service.mongodb_manager import MongoDBManager
 from services.mongodb_service.flat_enterprise_archive_generator_v2 import generate_doc
 from services.mongodb_service.hierarchy_data import hierarchy_data
-# from common.exception_handler import log_info, log_error, safe
 from mongo_exception_handler import log_info, log_error, safe
+from schemas import *
 
 # 全局MongoDB管理器实例
 mongodb_manager: Optional[MongoDBManager] = None
@@ -60,56 +60,6 @@ def get_mongodb_manager() -> MongoDBManager:
     if mongodb_manager is None:
         raise HTTPException(status_code=500, detail="MongoDB 服务未初始化")
     return mongodb_manager
-
-# ==================== 数据模型 ====================
-# 创建档案模型
-class CreateDocumentRequest(BaseModel):
-    """创建文档请求模型"""
-    enterprise_code: str = Field(..., description="企业代码", max_length=100)
-    enterprise_name: str = Field(..., description="企业名称", max_length=200)
-
-class CreateDocumentResponse(BaseModel):
-    """创建文档响应模型"""
-    success: bool = Field(..., description="是否成功")
-    message: str = Field(..., description="响应消息")
-    document_id: Optional[str] = Field(None, description="文档ID(enterprise_code)")
-    documents_count: Optional[int] = Field(None, description="创建的文档数量")
-
-# 字段更新模型
-class FieldUpdateDict(BaseModel):
-    """字段更新字典模型"""
-    value: str = Field(..., description="字段值，不能为空")
-    value_pic_url: Optional[str] = Field(None, description="图片URL")
-    value_doc_url: Optional[str] = Field(None, description="文档URL") 
-    value_video_url: Optional[str] = Field(None, description="视频URL")
-
-class UpdateFieldRequest(BaseModel):
-    """更新字段请求模型"""
-    enterprise_code: str = Field(..., description="企业代码", max_length=100)
-    full_path_code: str = Field(..., description="字段完整路径编码")
-    dict_fields: FieldUpdateDict = Field(..., description="要更新的字段值字典")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "enterprise_code": "TEST001",
-                "full_path_code": "L1_001.L2_001.L3_001.FIELD_001",
-                "dict_fields": {
-                    "value": "测试值",
-                    "value_pic_url": "http://get_pic_TEST001_L1_001.L2_001.L3_001.FIELD_001/pic",
-                    "value_doc_url": "http://get_pic_TEST001_L1_001.L2_001.L3_001.FIELD_001/doc",
-                    "value_video_url": "http://get_pic_TEST001_L1_001.L2_001.L3_001.FIELD_001/video"
-                }
-            }
-        }
-
-class UpdateFieldResponse(BaseModel):
-    """更新字段响应模型"""
-    success: bool = Field(..., description="是否成功")
-    message: str = Field(..., description="响应消息")
-    enterprise_code: Optional[str] = Field(None, description="企业代码")
-    full_path_code: Optional[str] = Field(None, description="字段路径")
-    updated_fields: Optional[List[str]] = Field(None, description="已更新的字段列表")
 
 # ==================== API路由 ====================
 
@@ -354,7 +304,83 @@ async def update_field_value(
             detail=f"更新字段值失败: {str(e)}"
         )
 
+@app.post("/api/v1/enterprises/search",
+          response_model=EnterpriseSearchResponse,
+          summary="企业模糊搜索")
+async def search_enterprises(
+    request: EnterpriseSearchRequest,
+    manager: MongoDBManager = Depends(get_mongodb_manager)
+) -> EnterpriseSearchResponse:
+    """
+    根据企业代码或企业名称进行模糊搜索
+    
+    - **enterprise_text**: 搜索关键词，支持企业代码和企业名称的模糊匹配
+    - **limit**: 返回结果数量限制，默认10条，最大100条
+    
+    该API会在MongoDB集合中搜索enterprise_code和enterprise_name字段，
+    使用正则表达式进行模糊匹配，返回匹配的企业列表。
+    """
+    try:
+        log_info(f"开始企业模糊搜索", 
+                 extra_data=f'{{"search_text": "{request.enterprise_text}", "limit": {request.limit}}}')
+        
+        # 使用MongoDBManager的专用搜索方法
+        documents, total_count = await manager.search_enterprises_by_text(
+            search_text=request.enterprise_text,
+            limit=request.limit
+        )
+        
+        # 构建结果列表
+        enterprises = []
+        for doc in documents:
+            enterprises.append(EnterpriseSearchItem(
+                enterprise_code=doc.get("enterprise_code", doc.get("_id", "")),
+                enterprise_name=doc.get("enterprise_name", "")
+            ))
+        
+        log_info(f"企业搜索完成", 
+                 extra_data=f'{{"search_text": "{request.enterprise_text}", "found_count": {len(enterprises)}, "total_count": {total_count}}}')
+        
+        return EnterpriseSearchResponse(
+            success=True,
+            message=f"找到 {len(enterprises)} 条匹配记录（共 {total_count} 条）",
+            total_count=total_count,
+            enterprises=enterprises
+        )
+            
+    except Exception as e:
+        log_error("企业搜索异常", exception=e,
+                 extra_data=f'{{"search_text": "{request.enterprise_text}"}}')
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索失败: {str(e)}"
+        ).append(EnterpriseSearchItem(
+                enterprise_code=doc.get("enterprise_code", doc.get("_id", "")),
+                enterprise_name=doc.get("enterprise_name", "")
+            ))
+        
+        log_info(f"企业搜索完成", 
+                 extra_data=f'{{"search_text": "{request.enterprise_text}", "found_count": {len(enterprises)}, "total_count": {total_count}}}')
+        
+        return EnterpriseSearchResponse(
+            success=True,
+            message=f"找到 {len(enterprises)} 条匹配记录（共 {total_count} 条）",
+            total_count=total_count,
+            enterprises=enterprises
+        )
+            
+    except Exception as e:
+        log_error("企业搜索异常", exception=e,
+                 extra_data=f'{{"search_text": "{request.enterprise_text}"}}')
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索失败: {str(e)}"
+        )
+
 # ==================== 错误处理 ====================
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """全局异常处理器"""

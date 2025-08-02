@@ -1,7 +1,7 @@
 # services/mongodb_service/mongodb_manager.py
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
 from pymongo.errors import DuplicateKeyError, ServerSelectionTimeoutError
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List,Tuple
 from datetime import datetime
 import sys
 import os
@@ -403,3 +403,53 @@ class MongoDBManager:
         except Exception as e:
             log_error("获取数据库统计信息失败", exception=e)
             return None
+        
+    async def search_enterprises_by_text(self, search_text: str, limit: int = 10) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        根据企业代码或企业名称进行模糊搜索
+        
+        Args:
+            search_text: 搜索关键词
+            limit: 返回结果数量限制
+            
+        Returns:
+            Tuple[List[Dict], int]: (匹配的文档列表, 总匹配数量)
+        """
+        try:
+            if self.collection is None:
+                log_error("MongoDB集合未初始化")
+                return [], 0
+            
+            # 构建模糊查询条件
+            search_pattern = {"$regex": search_text, "$options": "i"}  # i表示忽略大小写
+            
+            filter_dict = {
+                "$or": [
+                    {"enterprise_code": search_pattern},
+                    {"enterprise_name": search_pattern}
+                ]
+            }
+            
+            # 只返回需要的字段以提高性能
+            projection = {
+                "_id": 1,
+                "enterprise_code": 1,
+                "enterprise_name": 1
+            }
+            
+            # 执行查询
+            cursor = self.collection.find(filter_dict, projection).limit(limit)
+            documents = await cursor.to_list(length=limit)
+            
+            # 获取总数
+            total_count = await self.collection.count_documents(filter_dict)
+            
+            log_info(f"企业搜索查询完成", 
+                    extra_data=f'{{"search_text": "{search_text}", "found_count": {len(documents)}, "total_count": {total_count}}}')
+            
+            return documents, total_count
+            
+        except Exception as e:
+            log_error("企业搜索查询失败", exception=e,
+                    extra_data=f'{{"search_text": "{search_text}"}}')
+            return [], 0
