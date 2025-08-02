@@ -2,6 +2,7 @@
 层级选择器组件 - 类似Vue组件，可复用
 包含原有的4个select组件和所有相关逻辑
 优化版本：添加了 data_url、full_path_code、full_path_name 的自动计算逻辑
+多选版本：增加了multiple参数支持多选字段功能，完全保持原有逻辑不变
 """
 from nicegui import app, ui
 from common.exception_handler import log_info, log_error
@@ -15,13 +16,22 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 class HierarchySelector:
     """层级选择器组件，类似Vue组件"""
     
-    def __init__(self):
+    def __init__(self, multiple: bool = False):
+        """
+        初始化层级选择器
+        
+        Args:
+            multiple: 是否启用多选模式（仅对field字段生效）
+        """
+        self.multiple = multiple
+        
         # 存储选中的值 - 优化版本，添加了新字段
+        # 根据multiple参数决定field的数据类型
         self.selected_values = {
             'l1': None,
             'l2': None, 
             'l3': None,
-            'field': None,
+            'field': [] if multiple else None,  # 多选时为列表，单选时为单值
             # 新添加的优化字段
             'data_url': None,        # 如果field不为None，对应的值为field的data_url
             'full_path_code': None,  # 完整路径编码
@@ -70,7 +80,7 @@ class HierarchySelector:
                 self.selected_values['l1'] = event.value
                 self.selected_values['l2'] = None
                 self.selected_values['l3'] = None
-                self.selected_values['field'] = None
+                self.selected_values['field'] = [] if self.multiple else None
 
                 # 清空下级选择器
                 if 'l2' in self.selects:
@@ -78,7 +88,7 @@ class HierarchySelector:
                 if 'l3' in self.selects:
                     self.selects['l3'].set_value(None)
                 if 'field' in self.selects:
-                    self.selects['field'].set_value(None)
+                    self.selects['field'].set_value([] if self.multiple else None)
 
                 # 更新二级选择器选项
                 self._update_l2_options()
@@ -102,13 +112,13 @@ class HierarchySelector:
             def on_l2_change(event):
                 self.selected_values['l2'] = event.value
                 self.selected_values['l3'] = None
-                self.selected_values['field'] = None
+                self.selected_values['field'] = [] if self.multiple else None
                 
                 # 清空下级选择器
                 if 'l3' in self.selects:
                     self.selects['l3'].set_value(None)
                 if 'field' in self.selects:
-                    self.selects['field'].set_value(None)
+                    self.selects['field'].set_value([] if self.multiple else None)
                 
                 # 更新三级选择器选项
                 self._update_l3_options()
@@ -131,11 +141,11 @@ class HierarchySelector:
             
             def on_l3_change(event):
                 self.selected_values['l3'] = event.value
-                self.selected_values['field'] = None
+                self.selected_values['field'] = [] if self.multiple else None
                 
                 # 清空下级选择器
                 if 'field' in self.selects:
-                    self.selects['field'].set_value(None)
+                    self.selects['field'].set_value([] if self.multiple else None)
                 
                 # 更新字段选择器选项
                 self._update_field_options()
@@ -147,14 +157,25 @@ class HierarchySelector:
             self.selects['l3'] = l3_select
     
     def _create_field_select(self):
-        """创建字段选择器"""
+        """创建字段选择器 - 根据multiple参数决定是否多选"""
         with ui.column().classes('w-full h-10'):
-            field_select = ui.select(
-                options={},
-                with_input=True,
-                clearable=True,
-                label='请先选择三级分类'
-            ).classes('w-full').props('dense')
+            if self.multiple:
+                # 多选模式
+                field_select = ui.select(
+                    options={},
+                    with_input=True,
+                    clearable=True,
+                    multiple=True,  # 启用多选
+                    label='请先选择三级分类'
+                ).classes('w-full').props('dense use-chips')  # 添加use-chips属性
+            else:
+                # 单选模式（原有逻辑）
+                field_select = ui.select(
+                    options={},
+                    with_input=True,
+                    clearable=True,
+                    label='请先选择三级分类'
+                ).classes('w-full').props('dense')
             
             def on_field_change(event):
                 self.selected_values['field'] = event.value
@@ -188,12 +209,23 @@ class HierarchySelector:
             
             # 如果field不为空，优先使用field的信息
             if current_field_code:
-                field_info = self._find_field_info(hierarchy_data, current_field_code)
-                if field_info:
-                    self.selected_values['data_url'] = field_info.get('data_url')
-                    self.selected_values['full_path_code'] = field_info.get('full_path_code')
-                    self.selected_values['full_path_name'] = field_info.get('full_path_name')
-                    return
+                if self.multiple and isinstance(current_field_code, list) and current_field_code:
+                    # 多选模式：使用列表中的第一个值
+                    first_field_code = current_field_code[0]
+                    field_info = self._find_field_info(hierarchy_data, first_field_code)
+                    if field_info:
+                        self.selected_values['data_url'] = field_info.get('data_url')
+                        self.selected_values['full_path_code'] = field_info.get('full_path_code')
+                        self.selected_values['full_path_name'] = field_info.get('full_path_name')
+                        return
+                elif not self.multiple and current_field_code:
+                    # 单选模式：直接使用选中的值
+                    field_info = self._find_field_info(hierarchy_data, current_field_code)
+                    if field_info:
+                        self.selected_values['data_url'] = field_info.get('data_url')
+                        self.selected_values['full_path_code'] = field_info.get('full_path_code')
+                        self.selected_values['full_path_name'] = field_info.get('full_path_name')
+                        return
             
             # 如果field为空但l3不为空，使用l3的信息
             if current_l3_code:
@@ -304,7 +336,7 @@ class HierarchySelector:
             self.selects['field'].set_label('请选择数据字段' if options_dict else '暂无数据字段')
     
     def _load_hierarchy_data(self):
-        """同步加载层级数据并更新UI"""
+        """同步加载层级数据并更新UI - 保持原有逻辑不变"""
         async def do_load():
             if self.hierarchy_data_cache['loading']:
                 return
@@ -333,7 +365,7 @@ class HierarchySelector:
         asyncio.create_task(do_load())
     
     async def _fetch_hierarchy_data(self) -> Optional[Dict[str, Any]]:
-        """调用MongoDB服务的/api/v1/hierarchy接口获取4级层级数据"""
+        """调用MongoDB服务的/api/v1/hierarchy接口获取4级层级数据 - 保持原有API不变"""
         try:
             log_info("开始获取层级数据", extra_data='{"api": "/api/v1/hierarchy"}')
             
@@ -363,7 +395,7 @@ class HierarchySelector:
             return None
     
     async def _ensure_hierarchy_data_in_storage(self) -> Optional[Dict[str, Any]]:
-        """确保存储中有层级数据，如果没有则获取并存储"""
+        """确保存储中有层级数据，如果没有则获取并存储 - 保持原有逻辑不变"""
         try:
             # 尝试从缓存中获取
             if self.hierarchy_data_cache['data']:
@@ -394,7 +426,7 @@ class HierarchySelector:
             return None
     
     def _get_hierarchy_data_from_storage(self) -> Optional[Dict[str, Any]]:
-        """从app.storage.general中获取层级数据"""
+        """从app.storage.general中获取层级数据 - 保持原有逻辑不变"""
         try:
             hierarchy_data = app.storage.general.get('hierarchy_data')
             if hierarchy_data:
@@ -412,7 +444,7 @@ class HierarchySelector:
             return None
     
     def _extract_level_options(self, hierarchy_data: Dict[str, Any], level: str, parent_code: str = "") -> List[Dict[str, str]]:
-        """从层级数据中提取指定层级的选项"""
+        """从层级数据中提取指定层级的选项 - 保持原有逻辑不变"""
         options = []
         try:
             if not hierarchy_data:
@@ -469,7 +501,7 @@ class HierarchySelector:
     
     def get_selected_values(self) -> Dict[str, Any]:
         """
-        获取当前选中的所有值，包括优化字段
+        获取当前选中的所有值，包括优化字段 - 保持原有API不变
         
         Returns:
             Dict: 包含所有选中值的字典，包括新增的优化字段
@@ -477,14 +509,20 @@ class HierarchySelector:
         return self.selected_values.copy()
     
     def reset_all_selections(self):
-        """重置所有选择"""
+        """重置所有选择 - 针对多选做了适配"""
         # 重置选中值
         for key in self.selected_values:
-            self.selected_values[key] = None
+            if key == 'field' and self.multiple:
+                self.selected_values[key] = []
+            else:
+                self.selected_values[key] = None
         
         # 重置UI组件
-        for select in self.selects.values():
-            select.set_value(None)
+        for key, select in self.selects.items():
+            if key == 'field' and self.multiple:
+                select.set_value([])
+            else:
+                select.set_value(None)
         
         # 更新选项
         if 'l2' in self.selects:
@@ -496,3 +534,7 @@ class HierarchySelector:
         if 'field' in self.selects:
             self.selects['field'].set_options({})
             self.selects['field'].set_label('请先选择三级分类')
+
+    def get_is_multiple(self) -> bool:
+        """获取当前是否为多选模式"""
+        return self.multiple

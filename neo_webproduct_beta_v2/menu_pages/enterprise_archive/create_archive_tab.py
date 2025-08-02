@@ -394,6 +394,7 @@ def create_archive_content():
                             return False
                     else:
                         error_text = await response.text()
+                        ui.notify(error_text)
                         log_error(f"字段更新API调用失败", 
                                 extra_data=f'{{"status": {response.status}, "enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}", "response": "{error_text}"}}')
                         return False
@@ -443,18 +444,18 @@ def create_archive_content():
                 # 完成同步
                 config_progress.set_value(100)
                 config_status_label.set_text('✅同步完成！')
+                ui.notify(f'字段同步成功！选择层级：{selected_values}', type='positive')
+                log_info("字段同步成功", 
+                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
             else:
                 config_progress.set_value(100)
                 config_status_label.set_text('❌同步失败！')
-            
-            ui.notify(f'字段同步成功！选择层级：{selected_values}', type='positive')
+                # ui.notify(f'字段同步失败！选择层级：{selected_values}', type='negative')
+                log_info("字段同步成功", 
+                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
             
             # 可以在这里添加实际的同步逻辑
             # await perform_actual_sync(selected_values, data_source)
-            
-            log_info("字段同步成功", 
-                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
-            
         except Exception as e:
             config_progress.set_value(0)
             config_status_label.set_text('同步失败')

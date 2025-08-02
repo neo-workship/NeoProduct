@@ -226,7 +226,6 @@ async def create_document(
 async def get_hierarchy_data():
     return hierarchy_data.get_hierarchy_data()
 
-
 @app.post("/api/v1/fields/update", 
           response_model=UpdateFieldResponse,
           summary="更新字段值")
