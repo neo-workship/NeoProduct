@@ -63,21 +63,15 @@ with ui.column():
         hierarchy_selector.render_row()
 ```
 
-补充\menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，切记不要对现有逻辑修改，只依据需求内容
+补充\menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，切记不要对现有逻辑修改，只据需求内容完成新内容：
+请以下需求进行实现，不要私自添加其他布局和组件。
 
-伪代码如下，请按照布局及注释说明进行实现，不要私自添加其他布局和组件。
-
-```py
-def read_archive_content():
-    """查看档案内容页面"""
-    def read_archive_content():
-    """查看档案内容页面"""
-    
-    with ui.column().classes('w-full gap-6 p-4 items-center'):
-        with ui.column().classes('w-full gap-4'):
-          #已有代码保持不变
-
-        # 要添加的代码，展示搜索结果
-        with ui.row().classes('w-full gap-4'):
-            ui.separator()
-```
+实现on_query_enter函数：
+1、首先判断search_select、hierarchy_selector.selected_values["l3"]是否有值，有才执行，都是提示用户。
+2、调用\services\mongodb_service\main.py中的API：/api/v1/enterprises/query_fields ，传入的参数对应关系:
+search_select -> enterprise_code 、
+path_code_param -> hierarchy_selector.selected_values["l1"].hierarchy_selector.selected_values["l2"].hierarchy_selector.selected_values["l3"]
+fields_param -> hierarchy_selector.selected_values["field"]
+3、成功调用API后，首先判断返回结果是否正确，然后分2个左右布局的ui.card显示结果：
+3.1、左侧card展示：full_path_name（标题）、value（字段值）、value_pic_url（字段关联图片）、value_doc_url（字段关联文档）、value_video_url（字段关联视频）
+3.2、右侧card展示：data_url（数据API）、encoding（编码方式）、format（格式）、license（使用许可）、rights（使用权限）、update_frequency（更新频率）、value_dict（数据字典）
