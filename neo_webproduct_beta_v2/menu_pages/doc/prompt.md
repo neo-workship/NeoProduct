@@ -67,11 +67,13 @@ with ui.column():
 请以下需求进行实现，不要私自添加其他布局和组件。
 
 实现on_query_enter函数：
-1、首先判断search_select、hierarchy_selector.selected_values["l3"]是否有值，有才执行，都是提示用户。
-2、调用\services\mongodb_service\main.py中的API：/api/v1/enterprises/query_fields ，传入的参数对应关系:
-search_select -> enterprise_code 、
+1、首先判断search_select、hierarchy_selector.selected_values["l3"]是否有值，有才执行，否则提示用户。
+2、调用\services\mongodb_service\main.py中的API：/api/v1/enterprises/query_fields ，传入的参数的对应关系:
+enterprise_code  -> search_select 、
 path_code_param -> hierarchy_selector.selected_values["l1"].hierarchy_selector.selected_values["l2"].hierarchy_selector.selected_values["l3"]
 fields_param -> hierarchy_selector.selected_values["field"]
-3、成功调用API后，首先判断返回结果是否正确，然后分2个左右布局的ui.card显示结果：
-3.1、左侧card展示：full_path_name（标题）、value（字段值）、value_pic_url（字段关联图片）、value_doc_url（字段关联文档）、value_video_url（字段关联视频）
-3.2、右侧card展示：data_url（数据API）、encoding（编码方式）、format（格式）、license（使用许可）、rights（使用权限）、update_frequency（更新频率）、value_dict（数据字典）
+
+UI展示数据
+成功调用API后，首先判断返回结果是否正确，然后在 with ui.row().classes('w-full gap-4') 下添加2个左右布局的ui.card显示结果：
+左侧card展示：full_path_name（标题）、value（字段值）、value_pic_url（字段关联图片）、value_doc_url（字段关联文档）、value_video_url（字段关联视频）
+右侧card展示：data_url（数据API）、encoding（编码方式）、format（格式）、license（使用许可）、rights（使用权限）、update_frequency（更新频率）、value_dict（数据字典）
