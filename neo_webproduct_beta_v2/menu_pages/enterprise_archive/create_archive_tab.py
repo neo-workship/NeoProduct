@@ -385,29 +385,37 @@ def create_archive_content():
                     if response.status == 200:
                         result = await response.json()
                         if result.get('success', False):
-                            log_info(f"字段更新API调用成功", 
+                            # 使用API返回的message内容
+                            api_message = result.get('message', '字段更新成功')
+                            log_info(f"字段更新API调用成功: {api_message}", 
                                     extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}"}}')
                             return True
                         else:
-                            log_error(f"字段更新API返回失败", 
-                                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}", "message": "{result.get("message", "")}"}}')
+                            # 使用API返回的message内容
+                            api_message = result.get('message', '字段更新失败')
+                            log_error(f"字段更新API返回失败: {api_message}", 
+                                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}"}}')
+                            # 显示API返回的具体错误信息
+                            ui.notify(f'字段更新失败: {api_message}', type='negative')
                             return False
                     else:
                         error_text = await response.text()
-                        ui.notify(error_text)
                         log_error(f"字段更新API调用失败", 
                                 extra_data=f'{{"status": {response.status}, "enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}", "response": "{error_text}"}}')
+                        # 显示HTTP错误信息
+                        ui.notify(f'API调用失败 (状态码: {response.status}): {error_text}', type='negative')
                         return False
-                        
+                            
         except Exception as e:
             log_error("字段更新API调用异常", exception=e, 
                     extra_data=f'{{"enterprise_code": "{enterprise_code}", "full_path_code": "{full_path_code}"}}')
+            ui.notify(f'API调用异常: {str(e)}', type='negative')
             return False
 
     # ============================ 3、同步字段 ===========================
     @safe_protect(name="字段同步操作", error_msg="字段同步失败")
     async def sync_field():
-        """字段同步函数"""
+        """字段同步函数 - 修复版本"""
         try:
             # 获取层级选择器的值和数据源
             selected_values = hierarchy_selector.selected_values
@@ -436,7 +444,7 @@ def create_archive_content():
             success = await call_fields_update_api(
                 enterprise_code=credit_code,
                 full_path_code=selected_values["full_path_code"],
-                field_value=f'更新值_{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'  # 这里使用field_name作为默认值，您可能需要根据实际需求修改
+                field_value=f'更新值_{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
             )
             await asyncio.sleep(0.5)
 
@@ -444,22 +452,21 @@ def create_archive_content():
                 # 完成同步
                 config_progress.set_value(100)
                 config_status_label.set_text('✅同步完成！')
-                ui.notify(f'字段同步成功！选择层级：{selected_values}', type='positive')
+                # 使用更具体的成功信息
+                ui.notify(f'字段同步成功！企业代码：{credit_code}, 字段路径：{selected_values["full_path_code"]}', type='positive')
                 log_info("字段同步成功", 
-                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
+                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}", "enterprise_code": "{credit_code}"}}')
             else:
                 config_progress.set_value(100)
                 config_status_label.set_text('❌同步失败！')
-                ui.notify(f'字段同步失败！选择层级：{selected_values}', type='negative')
-                log_info("字段同步错误", 
-                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
+                # 错误信息已在call_fields_update_api函数中显示，这里不重复显示
+                log_error("字段同步失败", 
+                    extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}", "enterprise_code": "{credit_code}"}}')
             
-            # 可以在这里添加实际的同步逻辑
-            # await perform_actual_sync(selected_values, data_source)
         except Exception as e:
             config_progress.set_value(0)
             config_status_label.set_text('同步失败')
-            ui.notify('字段同步时发生错误', type='negative')
+            ui.notify(f'字段同步时发生错误: {str(e)}', type='negative')
             log_error("字段同步异常", exception=e)
         
         finally:
