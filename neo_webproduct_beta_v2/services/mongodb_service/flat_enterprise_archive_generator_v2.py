@@ -178,13 +178,13 @@ class FlatEnterpriseArchiveGenerator:
                 "remark": remark,
                 "data_url": data_url,
                 "is_required": self._is_required_field(field_name, remark),
-                "data_source": self._extract_data_source(remark),
+                "data_source": data_url,
                 "encoding": "UTF-8",
                 "format": "text/plain",
                 "license": "企业数据使用许可",
                 "rights": "企业内部使用，受数据保护法规约束",
                 "update_frequency":"更新频率",
-                "value_dict":"{xx,xx,xx}",
+                "value_dict":"{'字典值1','字典值2','字典值3'}",
                 
                 # 排序和显示
                 "l1_order": l1_order,
