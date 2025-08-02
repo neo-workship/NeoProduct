@@ -63,7 +63,7 @@ with ui.column():
         hierarchy_selector.render_row()
 ```
 
-补充\menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，切记不要对现有逻辑修改，只据需求内容完成新内容：
+完善 \menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数新需求，切记不要对现有逻辑修改，只据需求内容完成新内容：
 请以下需求进行实现，不要私自添加其他布局和组件。
 
 实现on_query_enter函数：
