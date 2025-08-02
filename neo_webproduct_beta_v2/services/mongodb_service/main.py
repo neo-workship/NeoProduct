@@ -379,6 +379,109 @@ async def search_enterprises(
             detail=f"搜索失败: {str(e)}"
         )
 
+
+@app.post("/api/v1/enterprises/query_fields",
+          response_model=QueryFieldsResponse,
+          summary="查询企业字段数据")
+async def query_enterprise_fields(
+    request: QueryFieldsRequest,
+    manager: MongoDBManager = Depends(get_mongodb_manager)
+) -> QueryFieldsResponse:
+    """
+    根据企业代码和路径代码查询字段数据
+    
+    - **enterprise_code**: 企业代码，用于定位企业文档
+    - **path_code_param**: 层级路径代码，用于匹配fields数组中的path_code字段
+    - **fields_param**: 字段代码列表（可选）
+        - 如果为空，返回指定路径下的所有字段
+        - 如果不为空，只返回指定field_code的字段
+    
+    返回的字段包括：full_path_name、value、value_pic_url、value_doc_url、
+    value_video_url、data_url、encoding、format、license、rights、
+    update_frequency、value_dict等信息。
+    """
+    try:
+        log_info(f"开始查询企业字段数据", 
+                extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code": "{request.path_code_param}", "fields_param": {request.fields_param}}}')
+        
+        # 1. 检查企业是否存在
+        enterprise_doc = await manager.find_document_by_id(request.enterprise_code)
+        if not enterprise_doc:
+            log_error(f"企业文档未找到", 
+                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}"}}')
+            return QueryFieldsResponse(
+                success=False,
+                message=f"企业代码 {request.enterprise_code} 对应的文档未找到",
+                enterprise_code=request.enterprise_code,
+                path_code=request.path_code_param,
+                total_count=0,
+                fields=[]
+            )
+        
+        # 2. 查询字段数据
+        field_results, total_count = await manager.query_fields_by_path_and_codes(
+            enterprise_code=request.enterprise_code,
+            path_code=request.path_code_param,
+            field_codes=request.fields_param
+        )
+        
+        # 3. 转换为响应模型
+        field_models = []
+        for field_data in field_results:
+            field_model = FieldDataModel(
+                # field_code=field_data.get("field_code"),
+                # field_name=field_data.get("field_name"),
+                # full_path_code=field_data.get("full_path_code"),
+                full_path_name=field_data.get("full_path_name"),
+                # path_code=field_data.get("path_code"),
+                value=field_data.get("value"),
+                value_pic_url=field_data.get("value_pic_url"),
+                value_doc_url=field_data.get("value_doc_url"),
+                value_video_url=field_data.get("value_video_url"),
+                data_url=field_data.get("data_url"),
+                encoding=field_data.get("encoding"),
+                format=field_data.get("format"),
+                license=field_data.get("license"),
+                rights=field_data.get("rights"),
+                update_frequency=field_data.get("update_frequency"),
+                value_dict=field_data.get("value_dict")
+            )
+            field_models.append(field_model)
+        
+        # 4. 构建响应
+        if total_count > 0:
+            log_info(f"字段查询成功", 
+                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code": "{request.path_code_param}", "total_count": {total_count}}}')
+            
+            return QueryFieldsResponse(
+                success=True,
+                message=f"字段查询成功，共找到 {total_count} 个字段",
+                enterprise_code=request.enterprise_code,
+                path_code=request.path_code_param,
+                total_count=total_count,
+                fields=field_models
+            )
+        else:
+            log_info(f"未找到匹配的字段", 
+                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code": "{request.path_code_param}", "fields_param": {request.fields_param}}}')
+            
+            return QueryFieldsResponse(
+                success=True,
+                message="查询完成，但未找到匹配的字段",
+                enterprise_code=request.enterprise_code,
+                path_code=request.path_code_param,
+                total_count=0,
+                fields=[]
+            )
+            
+    except Exception as e:
+        log_error("查询企业字段异常", exception=e, 
+                extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code": "{request.path_code_param}"}}')
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"查询字段失败: {str(e)}"
+        )
 # ==================== 错误处理 ====================
 
 @app.exception_handler(Exception)

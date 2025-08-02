@@ -453,3 +453,90 @@ class MongoDBManager:
             log_error("企业搜索查询失败", exception=e,
                     extra_data=f'{{"search_text": "{search_text}"}}')
             return [], 0
+        
+    async def query_fields_by_path_and_codes(self, enterprise_code: str, path_code: str, field_codes: Optional[List[str]] = None) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        根据企业代码、路径代码和字段代码列表查询字段
+        
+        Args:
+            enterprise_code: 企业代码
+            path_code: 层级路径代码
+            field_codes: 字段代码列表，为空时查询路径下所有字段
+            
+        Returns:
+            Tuple[List[Dict], int]: (匹配的字段列表, 总匹配数量)
+        """
+        try:
+            if self.collection is None:
+                log_error("MongoDB集合未初始化")
+                return [], 0
+            
+            # 构建基础查询条件
+            base_filter = {
+                "_id": enterprise_code,
+            }
+            
+            # 构建聚合管道
+            pipeline = [
+                # 匹配企业文档
+                {"$match": base_filter},
+                
+                # 展开fields数组
+                {"$unwind": "$fields"},
+                
+                # 构建字段匹配条件
+                {
+                    "$match": {
+                        "fields.path_code": path_code
+                    }
+                }
+            ]
+            
+            # 如果指定了字段代码列表，则添加字段代码过滤条件
+            if field_codes and len(field_codes) > 0:
+                pipeline.append({
+                    "$match": {
+                        "fields.field_code": {"$in": field_codes}
+                    }
+                })
+            
+            # 投影需要的字段
+            pipeline.append({
+                "$project": {
+                    "_id": 0,
+                    "full_path_name": "$fields.full_path_name",
+                    "value": "$fields.value",
+                    "value_pic_url": "$fields.value_pic_url",
+                    "value_doc_url": "$fields.value_doc_url",
+                    "value_video_url": "$fields.value_video_url",
+                    "data_url": "$fields.data_url",
+                    "encoding": "$fields.encoding",
+                    "format": "$fields.format",
+                    "license": "$fields.license",
+                    "rights": "$fields.rights",
+                    "update_frequency": "$fields.update_frequency",
+                    "value_dict": "$fields.value_dict",
+                    # 额外包含一些可能有用的字段
+                    # "field_code": "$fields.field_code",
+                    # "field_name": "$fields.field_name",
+                    # "full_path_code": "$fields.full_path_code",
+                    # "path_code": "$fields.path_code"
+                }
+            })
+            
+            # 执行聚合查询
+            cursor = self.collection.aggregate(pipeline)
+            results = await cursor.to_list(length=None)
+            
+            # 统计总数
+            total_count = len(results)
+            
+            log_info(f"字段查询完成", 
+                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "path_code": "{path_code}", "field_codes": {field_codes}, "found_count": {total_count}}}')
+            
+            return results, total_count
+            
+        except Exception as e:
+            log_error("字段查询失败", exception=e,
+                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "path_code": "{path_code}", "field_codes": {field_codes}}}')
+            return [], 0

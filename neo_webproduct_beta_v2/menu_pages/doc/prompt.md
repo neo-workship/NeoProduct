@@ -26,11 +26,12 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 在 \services\mongodb_service\main.py 中添加一个 API: /api/v1/enterprises/query_fields：
 1、API 参数：字符串 enterprise_code 企业代码 ； 字符串 path_code_param 层级路径代码 ； 列表 fields_param 字段列表
 
-2、接收参数后，使用 enterprise_code 查询对应的企业。如果 fields_param 为空，API 的逻辑为：使用 path_code_param 匹配文档 fields 数组中的 path_code 字段， 匹配出所有文档，然后获取以下字段的值： value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict 。然后返回数据
+2、通过对fields是否为空的判断，控制两个并列的逻辑。
+2.1、接收参数后，首先使用 enterprise_code 查询到对应的文档。接下来，如果 fields_param 为空，处理逻辑为：使用 path_code_param 匹配文档中的 fields 数组中的 path_code 字段， 匹配出所有文档，然后获取以下字段的值： full_path_name、value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict 。最后返回数据
 
-3、接收参数后，使用 enterprise_code 查询对应的企业。如果 fields_param 不为空，API 的逻辑为:用 path_code_param 匹配文档 fields 数组中的 path_code 字段，并且要求匹配字段 field_code in fields_param 的文档，然后获取以下字段的值：value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict。然后返回数据
+2.2、接收参数后，首先使用 enterprise_code 查询到对应的文档。接下来，如果 fields_param 不为空，处理逻辑为:用 path_code_param 匹配文档中的 fields 数组中的 path_code 字段，并且要求fields 数组中的field_code in fields_param，然后获取以下字段的值：full_path_name、value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict。最后返回数据
 
-4、请编写高效、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
+3、请编写高效、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
 
 ## UI 编写
 
@@ -60,4 +61,23 @@ with ui.column():
         # hierarchy_selector组件展示
         hierarchy_selector = HierarchySelector(multiple=True)
         hierarchy_selector.render_row()
+```
+
+补充\menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，切记不要对现有逻辑修改，只依据需求内容
+
+伪代码如下，请按照布局及注释说明进行实现，不要私自添加其他布局和组件。
+
+```py
+def read_archive_content():
+    """查看档案内容页面"""
+    def read_archive_content():
+    """查看档案内容页面"""
+    
+    with ui.column().classes('w-full gap-6 p-4 items-center'):
+        with ui.column().classes('w-full gap-4'):
+          #已有代码保持不变
+
+        # 要添加的代码，展示搜索结果
+        with ui.row().classes('w-full gap-4'):
+            ui.separator()
 ```

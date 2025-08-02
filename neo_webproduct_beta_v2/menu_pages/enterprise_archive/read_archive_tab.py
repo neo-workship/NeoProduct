@@ -14,7 +14,7 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 def read_archive_content():
     """查看档案内容页面"""
     
-    with ui.column().classes('w-full gap-6 p-4'):
+    with ui.column().classes('w-full gap-6 p-4 items-center'):
         with ui.column().classes('w-full gap-4'):
             ui.label('查看企业档案').classes('text-h5 font-bold text-primary')
             # search_input 和 search_select的宽度比例为1：4
@@ -36,9 +36,13 @@ def read_archive_content():
             # 搜索结果状态标签
             search_status = ui.label('').classes('text-body2 text-grey-6')
 
-            # hierarchy_selector组件展示
-            hierarchy_selector = HierarchySelector(multiple=True)
-            hierarchy_selector.render_row()
+            with ui.column().classes('w-full').style('overflow-y: auto;'):
+                # hierarchy_selector组件展示
+                hierarchy_selector = HierarchySelector(multiple=True)
+                hierarchy_selector.render_row()
+
+            with ui.row().classes('w-max-3xl w-min-3xl'):
+                query_btn=ui.button('查询').classes('flex-1')
 
         # 展示搜索结果
         with ui.row().classes('w-full gap-4'):
@@ -47,8 +51,11 @@ def read_archive_content():
             
     # 监听回车键事件
     search_input.on('keydown.enter', lambda: asyncio.create_task(on_search_enter()))
-     # 监听输入值变化
+    # 监听输入值变化
     search_input.on_value_change(lambda: asyncio.create_task(on_input_change()))
+    # 触发查询按钮事件
+    query_btn.on('click', lambda: asyncio.create_task(on_query_enter()))
+    # 监听下拉选择事件
     # 可选：监听输入变化，实现实时搜索（防抖）
     search_timer = None
 
@@ -149,4 +156,6 @@ def read_archive_content():
             search_select.set_options({})
             search_status.set_text('')
     
-   
+    async def on_query_enter():
+        """触发查询按钮"""
+        pass
