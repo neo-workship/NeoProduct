@@ -22,6 +22,16 @@ class HierarchySelector:
         
         Args:
             multiple: 是否启用多选模式（仅对field字段生效）
+        # 多选模式
+        selector = HierarchySelector(multiple=True)
+        values = selector.get_selected_values()
+        field_list = values['field']  # 返回列表 ['field1', 'field2']
+        data_url = values['data_url']  # 使用第一个字段的data_url
+
+        # 单选模式  
+        selector = HierarchySelector(multiple=False)
+        values = selector.get_selected_values()
+        field_value = values['field']  # 返回单值 'field1'
         """
         self.multiple = multiple
         
