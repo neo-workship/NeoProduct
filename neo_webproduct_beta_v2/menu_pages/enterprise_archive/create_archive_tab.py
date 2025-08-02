@@ -450,8 +450,8 @@ def create_archive_content():
             else:
                 config_progress.set_value(100)
                 config_status_label.set_text('❌同步失败！')
-                # ui.notify(f'字段同步失败！选择层级：{selected_values}', type='negative')
-                log_info("字段同步成功", 
+                ui.notify(f'字段同步失败！选择层级：{selected_values}', type='negative')
+                log_info("字段同步错误", 
                     extra_data=f'{{"selected_values": "{selected_values}", "data_source": "{data_source}"}}')
             
             # 可以在这里添加实际的同步逻辑
