@@ -76,13 +76,12 @@ def chat_page():
                 
                 # 数据expansion组件
                 with ui.expansion('提示辅助', icon='tips_and_updates').classes('expansion-panel w-full'):
-                    with ui.column().classes('p-2'):
+                    with ui.column().classes('p-2 sidebar').style('flex-grow: 1; overflow-y: auto;'):
                         switch = ui.switch('启用')
-                        ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
-                        ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
-                        ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
-                        ui.select(options=[], with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
-                
+                        HierarchySelector
+                        hierarchy_selector = HierarchySelector(multiple=True)
+                        hierarchy_selector.render_column()
+                       
                 # 历史expansion组件
                 with ui.expansion('历史消息', icon='history').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
