@@ -13,7 +13,6 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 @safe_protect(name="查看档案页面", error_msg="查看档案页面加载失败")
 def read_archive_content():
     """查看档案内容页面"""
-    
     with ui.column().classes('w-full gap-6 p-4 items-center'):
         with ui.column().classes('w-full gap-4'):
             ui.label('查看企业档案').classes('text-h5 font-bold text-primary')
@@ -41,13 +40,14 @@ def read_archive_content():
                 hierarchy_selector = HierarchySelector(multiple=True)
                 hierarchy_selector.render_row()
 
-            with ui.row().classes('w-max-3xl w-min-3xl'):
-                query_btn=ui.button('查询').classes('flex-1')
+            with ui.row().classes('w-full'):
+                query_btn=ui.button('查询')
+                clear_btn=ui.button('清空')
                 query_status = ui.label('').classes('text-body2 text-grey-6')
         # 展示搜索结果
         with ui.row().classes('w-full gap-4'):
             ui.separator()
-        results_container = ui.column().classes('w-full gap-4')
+            results_container = ui.column().classes('w-full gap-4')
             
     # 监听回车键事件
     search_input.on('keydown.enter', lambda: asyncio.create_task(on_search_enter()))
@@ -55,7 +55,9 @@ def read_archive_content():
     search_input.on_value_change(lambda: asyncio.create_task(on_input_change()))
     # 触发查询按钮事件
     query_btn.on('click', lambda: asyncio.create_task(on_query_enter()))
-    # 监听下拉选择事件
+    # 清空事件触发
+    clear_btn.on('click',lambda: on_clear_enter())
+
     # 可选：监听输入变化，实现实时搜索（防抖）
     search_timer = None
 
@@ -156,6 +158,12 @@ def read_archive_content():
             search_select.set_options({})
             search_status.set_text('')
 
+    # 清空内容
+    async def on_clear_enter():
+        search_input.set_value('')
+        results_container.clear()
+        hierarchy_selector.reset_all_selections()
+
     # 新增的查询档案数据函数
     @safe_protect(name="查询档案数据", error_msg="查询档案数据失败")
     async def on_query_enter():
@@ -208,7 +216,6 @@ def read_archive_content():
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
-                        print(data)
                         if data.get('success', False):
                             # 4. 成功调用API后，首先判断返回结果是否正确
                             query_results = data.get('fields', [])
@@ -241,14 +248,13 @@ def read_archive_content():
             query_status.set_text('❌ 查询过程发生异常')
             log_error("档案数据查询异常", exception=e)
 
-    # 结果展示区域容器（移到函数顶部定义）
     # results_container 将在上面的布局中定义
     @safe_protect(name="显示档案数据", error_msg="显示档案数据")
     async def display_query_results(query_results):
         """显示查询结果"""
         # 清空结果容器
         results_container.clear()
-        print(query_results)
+
         # 为每个查询结果创建显示卡片
         with results_container:
             ui.label('查询结果').classes('text-h6 font-bold text-primary mb-4')
@@ -266,7 +272,7 @@ def read_archive_content():
                         # value（字段值）
                         value = result.get('value', '暂无数据') or '暂无数据'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('image').classes('text-blue-600')
+                            ui.icon('data_object').classes('text-blue-600')
                             ui.label('字段值:').classes('font-medium')
                             ui.label(str(value)).classes('text-body1')
                         

@@ -26,17 +26,16 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 在 \services\mongodb_service\main.py 中添加一个 API: /api/v1/enterprises/query_fields：
 1、API 参数：字符串 enterprise_code 企业代码 ； 字符串 path_code_param 层级路径代码 ； 列表 fields_param 字段列表
 
-2、通过对fields是否为空的判断，控制两个并列的逻辑。
+2、通过对 fields 是否为空的判断，控制两个并列的逻辑。
 2.1、接收参数后，首先使用 enterprise_code 查询到对应的文档。接下来，如果 fields_param 为空，处理逻辑为：使用 path_code_param 匹配文档中的 fields 数组中的 path_code 字段， 匹配出所有文档，然后获取以下字段的值： full_path_name、value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict 。最后返回数据
 
-2.2、接收参数后，首先使用 enterprise_code 查询到对应的文档。接下来，如果 fields_param 不为空，处理逻辑为:用 path_code_param 匹配文档中的 fields 数组中的 path_code 字段，并且要求fields 数组中的field_code in fields_param，然后获取以下字段的值：full_path_name、value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict。最后返回数据
+2.2、接收参数后，首先使用 enterprise_code 查询到对应的文档。接下来，如果 fields_param 不为空，处理逻辑为:用 path_code_param 匹配文档中的 fields 数组中的 path_code 字段，并且要求 fields 数组中的 field_code in fields_param，然后获取以下字段的值：full_path_name、value、value_pic_url、value_doc_url、value_video_url、data_url、encoding、format、license、rights、update_frequency、value_dict。最后返回数据
 
 3、请编写高效、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
 
 ## UI 编写
 
 编写 \menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，
-
 伪代码如下，请按照布局及注释说明进行实现，不要私自添加其他布局和组件。
 
 ```py
@@ -66,14 +65,14 @@ with ui.column():
 完善 \menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数新需求，切记不要对现有逻辑修改，只据需求内容完成新内容：
 请以下需求进行实现，不要私自添加其他布局和组件。
 
-实现on_query_enter函数：
-1、首先判断search_select、hierarchy_selector.selected_values["l3"]是否有值，有才执行，否则提示用户。
-2、调用\services\mongodb_service\main.py中的API：/api/v1/enterprises/query_fields ，传入的参数的对应关系:
-enterprise_code  -> search_select 、
+实现 on_query_enter 函数：
+1、首先判断 search_select、hierarchy_selector.selected_values["l3"]是否有值，有才执行，否则提示用户。
+2、调用\services\mongodb_service\main.py 中的 API：/api/v1/enterprises/query_fields ，传入的参数的对应关系:
+enterprise_code -> search_select 、
 path_code_param -> hierarchy_selector.selected_values["l1"].hierarchy_selector.selected_values["l2"].hierarchy_selector.selected_values["l3"]
 fields_param -> hierarchy_selector.selected_values["field"]
 
-UI展示数据
-成功调用API后，首先判断返回结果是否正确，然后在 with ui.row().classes('w-full gap-4') 下添加2个左右布局的ui.card显示结果：
-左侧card展示：full_path_name（标题）、value（字段值）、value_pic_url（字段关联图片）、value_doc_url（字段关联文档）、value_video_url（字段关联视频）
-右侧card展示：data_url（数据API）、encoding（编码方式）、format（格式）、license（使用许可）、rights（使用权限）、update_frequency（更新频率）、value_dict（数据字典）
+UI 展示数据
+成功调用 API 后，首先判断返回结果是否正确，然后在 with ui.row().classes('w-full gap-4') 下添加 2 个左右布局的 ui.card 显示结果：
+左侧 card 展示：full_path_name（标题）、value（字段值）、value_pic_url（字段关联图片）、value_doc_url（字段关联文档）、value_video_url（字段关联视频）
+右侧 card 展示：data_url（数据 API）、encoding（编码方式）、format（格式）、license（使用许可）、rights（使用权限）、update_frequency（更新频率）、value_dict（数据字典）
