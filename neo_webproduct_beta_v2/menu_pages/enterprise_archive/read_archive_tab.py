@@ -13,54 +13,6 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 @safe_protect(name="查看档案页面", error_msg="查看档案页面加载失败")
 def read_archive_content():
     """查看档案内容页面"""
-    with ui.column().classes('w-full gap-6 p-4 items-center'):
-        with ui.column().classes('w-full gap-4'):
-            ui.label('查看企业档案').classes('text-h5 font-bold text-primary')
-            # search_input 和 search_select的宽度比例为1：4
-            with ui.row().classes('w-full gap-4 items-end'):
-                # 搜索输入：search_input
-                search_input = ui.input(
-                    label='企业搜索',
-                    placeholder='输入企业代码或企业名称进行搜索'
-                ).classes('flex-1').props('clearable')
-                
-                # 下拉列表：search_select
-                search_select = ui.select(
-                    options={},
-                    with_input=True,
-                    clearable=True,
-                    label='选择企业'
-                ).classes('flex-[4]').props('dense')
-
-            # 搜索结果状态标签
-            search_status = ui.label('').classes('text-body2 text-grey-6')
-
-            with ui.column().classes('w-full').style('overflow-y: auto;'):
-                # hierarchy_selector组件展示
-                hierarchy_selector = HierarchySelector(multiple=True)
-                hierarchy_selector.render_row()
-
-            with ui.row().classes('w-full'):
-                query_btn=ui.button('查询')
-                clear_btn=ui.button('清空')
-                query_status = ui.label('').classes('text-body2 text-grey-6')
-        # 展示搜索结果
-        with ui.row().classes('w-full gap-4'):
-            ui.separator()
-            results_container = ui.column().classes('w-full gap-4')
-            
-    # 监听回车键事件
-    search_input.on('keydown.enter', lambda: asyncio.create_task(on_search_enter()))
-    # 监听输入值变化
-    search_input.on_value_change(lambda: asyncio.create_task(on_input_change()))
-    # 触发查询按钮事件
-    query_btn.on('click', lambda: asyncio.create_task(on_query_enter()))
-    # 清空事件触发
-    clear_btn.on('click',lambda: on_clear_enter())
-
-    # 可选：监听输入变化，实现实时搜索（防抖）
-    search_timer = None
-
     # 调用搜索API
     async def search_enterprises(search_text: str):
         """调用API搜索企业"""
@@ -248,17 +200,113 @@ def read_archive_content():
             query_status.set_text('❌ 查询过程发生异常')
             log_error("档案数据查询异常", exception=e)
 
+    # ----------------------------------------------------------------
+    # 在 read_archive_content 函数末尾添加初始化显示
+    def display_empty_state():
+        """显示空数据状态"""
+        # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
+        
+        with ui.row().classes('w-full gap-4'):
+            # 左侧card展示字段信息标题
+            with ui.card().classes('flex-1 p-4'):
+                ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('label').classes('text-primary')
+                    ui.label('字段名称:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('data_object').classes('text-blue-600')
+                    ui.label('字段值:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('image').classes('text-green-600')
+                    ui.label('关联图片:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('description').classes('text-orange-600')
+                    ui.label('关联文档:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('videocam').classes('text-red-600')
+                    ui.label('关联视频:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+            
+            # 右侧card展示数据元信息标题
+            with ui.card().classes('flex-1 p-4'):
+                ui.label('数据元信息').classes('text-subtitle1 font-medium mb-3')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('api').classes('text-purple-600')
+                    ui.label('数据API:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('code').classes('text-teal-600')
+                    ui.label('编码方式:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('settings').classes('text-grey-600')
+                    ui.label('格式:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('gavel').classes('text-amber-600')
+                    ui.label('使用许可:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('security').classes('text-red-500')
+                    ui.label('使用权限:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('update').classes('text-blue-500')
+                    ui.label('更新频率:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                
+                with ui.row().classes('gap-2 items-center mb-2'):
+                    ui.icon('book').classes('text-green-500')
+                    ui.label('数据字典:').classes('font-medium')
+                    ui.label('暂无数据').classes('text-body1 text-grey-6') 
+    
+    def initialize_results_display():
+        """初始化结果显示区域 - 显示空数据状态"""
+        with results_container:
+            display_empty_state()
+    
     # results_container 将在上面的布局中定义
     @safe_protect(name="显示档案数据", error_msg="显示档案数据")
     async def display_query_results(query_results):
-        """显示查询结果"""
+        """显示查询结果 - 根据数据条数选择不同的显示方式"""
         # 清空结果容器
         results_container.clear()
+        
+        # 根据数据条数选择显示方式
+        if len(query_results) <= 1:
+            # 无数据或只有一条数据时，使用卡片方式显示
+            await display_results_as_cards(query_results)
+        else:
+            # 多条数据时，使用表格分页方式显示
+            await display_results_as_table(query_results)
 
-        # 为每个查询结果创建显示卡片
+    @safe_protect(name="卡片方式显示档案数据", error_msg="卡片方式显示档案数据")
+    async def display_results_as_cards(query_results):
+        """卡片方式显示查询结果（无数据或只有一条数据）"""
         with results_container:
-            ui.label('查询结果').classes('text-h6 font-bold text-primary mb-4')
+            # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
             
+            if not query_results:
+                # 无数据情况，显示空状态（与初始化状态相同）
+                display_empty_state()
+                return
+            
+            # 有一条数据时，按现有方式显示
             for i, result in enumerate(query_results):
                 with ui.row().classes('w-full gap-4'):
                     # 左侧card展示：full_path_name、value、value_pic_url、value_doc_url、value_video_url
@@ -277,87 +325,321 @@ def read_archive_content():
                             ui.label(str(value)).classes('text-body1')
                         
                         # value_pic_url（字段关联图片）
-                        value_pic_url = result.get('value_pic_url', '暂无数据') or '暂无数据'
-                        if value_pic_url:
-                            with ui.row().classes('gap-2 items-center mb-2'):
-                                ui.icon('image').classes('text-green-600')
-                                ui.label('关联图片:').classes('font-medium')
+                        value_pic_url = result.get('value_pic_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('image').classes('text-green-600')
+                            ui.label('关联图片:').classes('font-medium')
+                            if value_pic_url:
                                 ui.link(value_pic_url, new_tab=True).classes('text-blue-500 underline')
+                            else:
+                                ui.label('暂无数据').classes('text-body1 text-grey-6')
                         
                         # value_doc_url（字段关联文档）
-                        value_doc_url = result.get('value_doc_url', '暂无数据') or '暂无数据'
-                        if value_doc_url:
-                            with ui.row().classes('gap-2 items-center mb-2'):
-                                ui.icon('description').classes('text-orange-600')
-                                ui.label('关联文档:').classes('font-medium')
+                        value_doc_url = result.get('value_doc_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('description').classes('text-orange-600')
+                            ui.label('关联文档:').classes('font-medium')
+                            if value_doc_url:
                                 ui.link(value_doc_url, new_tab=True).classes('text-blue-500 underline')
+                            else:
+                                ui.label('暂无数据').classes('text-body1 text-grey-6')
                         
                         # value_video_url（字段关联视频）
-                        value_video_url = result.get('value_video_url', '暂无数据') or '暂无数据'
-                        if value_video_url:
-                            with ui.row().classes('gap-2 items-center mb-2'):
-                                ui.icon('videocam').classes('text-red-600')
-                                ui.label('关联视频:').classes('font-medium')
+                        value_video_url = result.get('value_video_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('videocam').classes('text-red-600')
+                            ui.label('关联视频:').classes('font-medium')
+                            if value_video_url:
                                 ui.link(value_video_url, new_tab=True).classes('text-blue-500 underline')
+                            else:
+                                ui.label('暂无数据').classes('text-body1 text-grey-6')
 
                     # 右侧card展示：data_url、encoding、format、license、rights、update_frequency、value_dict
                     with ui.card().classes('flex-1 p-4'):
                         ui.label('数据元信息').classes('text-subtitle1 font-medium mb-3')
                         
                         # data_url（数据API）
-                        data_url = result.get('data_url', '')
-                        if data_url:
-                            with ui.row().classes('gap-2 items-center mb-2'):
-                                ui.icon('api').classes('text-purple-600')
-                                ui.label('数据API:').classes('font-medium')
+                        data_url = result.get('data_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('api').classes('text-purple-600')
+                            ui.label('数据API:').classes('font-medium')
+                            if data_url:
                                 ui.link(data_url, new_tab=True).classes('text-blue-500 underline')
+                            else:
+                                ui.label('暂无数据').classes('text-body1 text-grey-6')
                         
                         # encoding（编码方式）
-                        encoding = result.get('encoding', '未指定')
+                        encoding = result.get('encoding', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('code').classes('text-indigo-600')
+                            ui.icon('code').classes('text-teal-600')
                             ui.label('编码方式:').classes('font-medium')
                             ui.label(str(encoding)).classes('text-body1')
                         
                         # format（格式）
-                        format_type = result.get('format', '未指定')
+                        format_info = result.get('format', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('format_align_left').classes('text-teal-600')
-                            ui.label('数据格式:').classes('font-medium')
-                            ui.label(str(format_type)).classes('text-body1')
+                            ui.icon('settings').classes('text-grey-600')
+                            ui.label('格式:').classes('font-medium')
+                            ui.label(str(format_info)).classes('text-body1')
                         
                         # license（使用许可）
-                        license_info = result.get('license', '未指定')
+                        license_info = result.get('license', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
                             ui.icon('gavel').classes('text-amber-600')
                             ui.label('使用许可:').classes('font-medium')
                             ui.label(str(license_info)).classes('text-body1')
                         
                         # rights（使用权限）
-                        rights = result.get('rights', '未指定')
+                        rights = result.get('rights', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
                             ui.icon('security').classes('text-red-500')
                             ui.label('使用权限:').classes('font-medium')
                             ui.label(str(rights)).classes('text-body1')
                         
                         # update_frequency（更新频率）
-                        update_frequency = result.get('update_frequency', '未指定')
+                        update_frequency = result.get('update_frequency', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
                             ui.icon('update').classes('text-blue-500')
                             ui.label('更新频率:').classes('font-medium')
                             ui.label(str(update_frequency)).classes('text-body1')
                         
                         # value_dict（数据字典）
-                        value_dict = result.get('value_dict', '')
-                        if value_dict:
-                            with ui.row().classes('gap-2 items-center mb-2'):
-                                ui.icon('book').classes('text-green-500')
-                                ui.label('数据字典:').classes('font-medium')
+                        value_dict = result.get('value_dict', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('book').classes('text-green-500')
+                            ui.label('数据字典:').classes('font-medium')
+                            if value_dict:
                                 if isinstance(value_dict, str):
                                     ui.label(value_dict).classes('text-body1')
                                 else:
                                     ui.label(str(value_dict)).classes('text-body1')
+                            else:
+                                ui.label('暂无数据').classes('text-body1 text-grey-6')
 
-                # 在每个结果之间添加分隔线（除了最后一个）
-                if i < len(query_results) - 1:
-                    ui.separator().classes('my-4')
+    @safe_protect(name="表格方式显示档案数据", error_msg="表格方式显示档案数据")
+    async def display_results_as_table(query_results):
+        """表格方式显示查询结果（多条数据，分页模式）"""
+        with results_container:
+            # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
+            ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
+            
+            # 准备表格数据
+            # 定义表格列
+            columns = [
+                {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
+                {'name': 'value', 'label': '字段值', 'field': 'value', 'sortable': True, 'align': 'left'},
+                {'name': 'encoding', 'label': '编码方式', 'field': 'encoding', 'sortable': True, 'align': 'left'},
+                {'name': 'format', 'label': '格式', 'field': 'format', 'sortable': True, 'align': 'left'},
+            ]
+            
+            # 准备行数据
+            rows = []
+            for i, result in enumerate(query_results):
+                row = {
+                    'id': i,
+                    'field_name': result.get('field_name', '未知字段'),
+                    'value': result.get('value', '暂无数据') or '暂无数据',
+                    'encoding': result.get('encoding', '未指定') or '未指定',
+                    'format': result.get('format', '未指定') or '未指定',
+                    # 保存完整的原始数据用于展开行
+                    '_raw_data': result
+                }
+                rows.append(row)
+            
+            # 创建表格
+            table = ui.table(
+                columns=columns, 
+                rows=rows, 
+                row_key='id',
+                pagination=10  # 每页显示10条
+            ).classes('w-full')
+            
+            # 添加表头（包含展开按钮列）
+            table.add_slot('header', r'''
+                <q-tr :props="props">
+                    <q-th auto-width />
+                    <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                        {{ col.label }}
+                    </q-th>
+                </q-tr>
+            ''')
+            
+            # 添加表格主体（包含展开功能）
+            table.add_slot('body', r'''
+                <q-tr :props="props">
+                    <q-td auto-width>
+                        <q-btn size="sm" color="accent" round dense
+                            @click="props.expand = !props.expand"
+                            :icon="props.expand ? 'remove' : 'add'" />
+                    </q-td>
+                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                        <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ col.value }}
+                        </div>
+                    </q-td>
+                </q-tr>
+                <q-tr v-show="props.expand" :props="props">
+                    <q-td colspan="100%">
+                        <div class="text-left q-pa-md">
+                            <div class="row q-col-gutter-md">
+                                <!-- 左侧：字段信息 -->
+                                <div class="col-6">
+                                    <div class="text-h6 text-primary q-mb-md">字段信息</div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="label" color="primary" class="q-mr-sm" />
+                                        <span class="text-weight-medium">字段名称：</span>
+                                        <span>{{ props.row._raw_data.full_path_name || '未知字段' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="data_object" color="blue-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">字段值：</span>
+                                        <span>{{ props.row._raw_data.value || '暂无数据' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_pic_url">
+                                        <q-icon name="image" color="green-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">关联图片：</span>
+                                        <a :href="props.row._raw_data.value_pic_url" target="_blank" class="text-blue-500">查看图片</a>
+                                    </div>
+                                    <div class="q-mb-sm" v-else>
+                                        <q-icon name="image" color="green-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">关联图片：</span>
+                                        <span class="text-grey-6">暂无数据</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_doc_url">
+                                        <q-icon name="description" color="orange-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">关联文档：</span>
+                                        <a :href="props.row._raw_data.value_doc_url" target="_blank" class="text-blue-500">查看文档</a>
+                                    </div>
+                                    <div class="q-mb-sm" v-else>
+                                        <q-icon name="description" color="orange-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">关联文档：</span>
+                                        <span class="text-grey-6">暂无数据</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_video_url">
+                                        <q-icon name="videocam" color="red-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">关联视频：</span>
+                                        <a :href="props.row._raw_data.value_video_url" target="_blank" class="text-blue-500">查看视频</a>
+                                    </div>
+                                    <div class="q-mb-sm" v-else>
+                                        <q-icon name="videocam" color="red-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">关联视频：</span>
+                                        <span class="text-grey-6">暂无数据</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- 右侧：数据元信息 -->
+                                <div class="col-6">
+                                    <div class="text-h6 text-primary q-mb-md">数据元信息</div>
+                                    
+                                    <div class="q-mb-sm" v-if="props.row._raw_data.data_url">
+                                        <q-icon name="api" color="purple-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">数据API：</span>
+                                        <a :href="props.row._raw_data.data_url" target="_blank" class="text-blue-500">查看API</a>
+                                    </div>
+                                    <div class="q-mb-sm" v-else>
+                                        <q-icon name="api" color="purple-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">数据API：</span>
+                                        <span class="text-grey-6">暂无数据</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="code" color="teal-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">编码方式：</span>
+                                        <span>{{ props.row._raw_data.encoding || '未指定' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="settings" color="grey-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">格式：</span>
+                                        <span>{{ props.row._raw_data.format || '未指定' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="gavel" color="amber-6" class="q-mr-sm" />
+                                        <span class="text-weight-medium">使用许可：</span>
+                                        <span>{{ props.row._raw_data.license || '未指定' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="security" color="red-5" class="q-mr-sm" />
+                                        <span class="text-weight-medium">使用权限：</span>
+                                        <span>{{ props.row._raw_data.rights || '未指定' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm">
+                                        <q-icon name="update" color="blue-5" class="q-mr-sm" />
+                                        <span class="text-weight-medium">更新频率：</span>
+                                        <span>{{ props.row._raw_data.update_frequency || '未指定' }}</span>
+                                    </div>
+                                    
+                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_dict">
+                                        <q-icon name="book" color="green-5" class="q-mr-sm" />
+                                        <span class="text-weight-medium">数据字典：</span>
+                                        <span>{{ props.row._raw_data.value_dict }}</span>
+                                    </div>
+                                    <div class="q-mb-sm" v-else>
+                                        <q-icon name="book" color="green-5" class="q-mr-sm" />
+                                        <span class="text-weight-medium">数据字典：</span>
+                                        <span class="text-grey-6">暂无数据</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </q-td>
+                </q-tr>
+            ''')         
+
+    with ui.column().classes('w-full gap-6 p-4 items-center'):
+        with ui.column().classes('w-full gap-4'):
+            ui.label('查看企业档案').classes('text-h5 font-bold text-primary')
+            # search_input 和 search_select的宽度比例为1：4
+            with ui.row().classes('w-full gap-4 items-end'):
+                # 搜索输入：search_input
+                search_input = ui.input(
+                    label='企业搜索',
+                    placeholder='输入企业代码或企业名称进行搜索'
+                ).classes('flex-1').props('clearable')
+                
+                # 下拉列表：search_select
+                search_select = ui.select(
+                    options={},
+                    with_input=True,
+                    clearable=True,
+                    label='选择企业'
+                ).classes('flex-[4]').props('dense')
+
+            # 搜索结果状态标签
+            search_status = ui.label('').classes('text-body2 text-grey-6')
+
+            with ui.column().classes('w-full').style('overflow-y: auto;'):
+                # hierarchy_selector组件展示
+                hierarchy_selector = HierarchySelector(multiple=True)
+                hierarchy_selector.render_row()
+
+            with ui.row().classes('w-full'):
+                query_btn=ui.button('查询')
+                clear_btn=ui.button('清空')
+                query_status = ui.label('').classes('text-body2 text-grey-6')
+        # 展示搜索结果
+        with ui.row().classes('w-full gap-4'):
+            ui.separator()
+            results_container = ui.column().classes('w-full gap-4')
+        
+        initialize_results_display()
+            
+    # 监听回车键事件
+    search_input.on('keydown.enter', lambda: asyncio.create_task(on_search_enter()))
+    # 监听输入值变化
+    search_input.on_value_change(lambda: asyncio.create_task(on_input_change()))
+    # 触发查询按钮事件
+    query_btn.on('click', lambda: asyncio.create_task(on_query_enter()))
+    # 清空事件触发
+    clear_btn.on('click',lambda: on_clear_enter())
+
+    # 可选：监听输入变化，实现实时搜索（防抖）
+    search_timer = None
