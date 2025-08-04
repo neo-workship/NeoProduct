@@ -62,7 +62,7 @@ def create_archive_content():
         ui.separator()
         
         # ==================== 第二部分：功能卡片区域 ====================
-        with ui.row().classes('w-full gap-6'):  
+        with ui.row().classes('w-full gap-6 items-stretch'):  
             # ========== 左侧卡片：文档生成器 ==========
             with ui.card().classes('flex-1 p-4'):
                 ui.label('全量同步').classes('text-h6 font-medium mb-4')
@@ -83,7 +83,7 @@ def create_archive_content():
                     # 右侧：日志区域
                     with ui.column().classes('w-full'):
                         ui.label('同步日志').classes('text-subtitle2 mb-2')
-                        doc_log = ui.log(max_lines=20).classes('w-full h-32 border rounded overflow-y-auto scrollbar-hide')
+                        doc_log = ui.log(max_lines=20).classes('w-full h-52 border rounded overflow-y-auto scrollbar-hide')
             
             # ========== 右侧卡片：层级选择器与数据源 ==========
             with ui.card().classes('flex-1 p-4'):

@@ -115,6 +115,7 @@ def read_archive_content():
         search_input.set_value('')
         results_container.clear()
         hierarchy_selector.reset_all_selections()
+        search_status.set_text('')
 
     # 新增的查询档案数据函数
     @safe_protect(name="查询档案数据", error_msg="查询档案数据失败")
@@ -206,74 +207,74 @@ def read_archive_content():
         """显示空数据状态"""
         # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
         
-        with ui.row().classes('w-full gap-4'):
+        with ui.row().classes('w-full gap-4 items-stretch'):
             # 左侧card展示字段信息标题
             with ui.card().classes('flex-1 p-4'):
                 ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('label').classes('text-primary')
-                    ui.label('字段名称:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('label').classes('text-lg text-primary')
+                    ui.label('字段名称:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('data_object').classes('text-blue-600')
-                    ui.label('字段值:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('data_object').classes('text-lg text-blue-600')
+                    ui.label('字段值:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('image').classes('text-green-600')
-                    ui.label('关联图片:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('image').classes('text-lg text-green-600')
+                    ui.label('关联图片:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('description').classes('text-orange-600')
-                    ui.label('关联文档:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('description').classes('text-lg text-orange-600')
+                    ui.label('关联文档:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('videocam').classes('text-red-600')
-                    ui.label('关联视频:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('videocam').classes('text-lg text-red-600')
+                    ui.label('关联视频:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
             
             # 右侧card展示数据元信息标题
             with ui.card().classes('flex-1 p-4'):
                 ui.label('数据元信息').classes('text-subtitle1 font-medium mb-3')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('api').classes('text-purple-600')
-                    ui.label('数据API:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('api').classes('text-lg text-purple-600')
+                    ui.label('数据API:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('code').classes('text-teal-600')
-                    ui.label('编码方式:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('code').classes('text-lg text-teal-600')
+                    ui.label('编码方式:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('settings').classes('text-grey-600')
-                    ui.label('格式:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('settings').classes('text-lg text-grey-600')
+                    ui.label('格式:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('gavel').classes('text-amber-600')
-                    ui.label('使用许可:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('gavel').classes('text-lg text-amber-600')
+                    ui.label('使用许可:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('security').classes('text-red-500')
-                    ui.label('使用权限:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('security').classes('text-lg text-red-500')
+                    ui.label('使用权限:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('update').classes('text-blue-500')
-                    ui.label('更新频率:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6')
+                    ui.icon('update').classes('text-lg text-blue-500')
+                    ui.label('更新频率:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6')
                 
                 with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon('book').classes('text-green-500')
-                    ui.label('数据字典:').classes('font-medium')
-                    ui.label('暂无数据').classes('text-body1 text-grey-6') 
+                    ui.icon('book').classes('text-lg text-green-500')
+                    ui.label('数据字典:').classes('text-lg font-medium')
+                    ui.label('暂无数据').classes('text-lg text-grey-6') 
     
     # 初始化空数据
     def initialize_results_display():
@@ -309,51 +310,51 @@ def read_archive_content():
             
             # 有一条数据时，按现有方式显示
             for i, result in enumerate(query_results):
-                with ui.row().classes('w-full gap-4'):
+                with ui.row().classes('w-full gap-4 items-stretch'):
                     # 左侧card展示：full_path_name、value、value_pic_url、value_doc_url、value_video_url
                     with ui.card().classes('flex-1 p-4'):
                         ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
                         
                         # full_path_name（标题）
                         full_path_name = result.get('full_path_name', '未知字段')
-                        ui.label(full_path_name).classes('text-h6 font-bold text-primary mb-2')
+                        ui.label(full_path_name).classes('text-base font-bold text-primary mb-2')
                         
                         # value（字段值）
                         value = result.get('value', '暂无数据') or '暂无数据'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('data_object').classes('text-blue-600')
-                            ui.label('字段值:').classes('font-medium')
-                            ui.label(str(value)).classes('text-body1')
+                            ui.icon('data_object').classes('text-lg text-blue-600')
+                            ui.label('字段值:').classes('text-lg font-medium')
+                            ui.label(str(value)).classes('text-lg')
                         
                         # value_pic_url（字段关联图片）
                         value_pic_url = result.get('value_pic_url', '') or ''
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('image').classes('text-green-600')
-                            ui.label('关联图片:').classes('font-medium')
+                            ui.icon('image').classes('text-lg text-green-600')
+                            ui.label('关联图片:').classes('text-lg font-medium')
                             if value_pic_url:
-                                ui.link(value_pic_url, new_tab=True).classes('text-blue-500 underline')
+                                ui.link(value_pic_url, new_tab=True).classes('text-lg text-blue-500 underline')
                             else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
                         
                         # value_doc_url（字段关联文档）
                         value_doc_url = result.get('value_doc_url', '') or ''
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('description').classes('text-orange-600')
-                            ui.label('关联文档:').classes('font-medium')
+                            ui.icon('description').classes('text-lg text-orange-600')
+                            ui.label('关联文档:').classes('text-lg font-medium')
                             if value_doc_url:
-                                ui.link(value_doc_url, new_tab=True).classes('text-blue-500 underline')
+                                ui.link(value_doc_url, new_tab=True).classes('text-lg text-blue-500 underline')
                             else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
                         
                         # value_video_url（字段关联视频）
                         value_video_url = result.get('value_video_url', '') or ''
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('videocam').classes('text-red-600')
-                            ui.label('关联视频:').classes('font-medium')
+                            ui.icon('videocam').classes('text-lg text-red-600')
+                            ui.label('关联视频:').classes('text-lg font-medium')
                             if value_video_url:
-                                ui.link(value_video_url, new_tab=True).classes('text-blue-500 underline')
+                                ui.link(value_video_url, new_tab=True).classes('text-lg text-blue-500 underline')
                             else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
 
                     # 右侧card展示：data_url、encoding、format、license、rights、update_frequency、value_dict
                     with ui.card().classes('flex-1 p-4'):
@@ -362,60 +363,60 @@ def read_archive_content():
                         # data_url（数据API）
                         data_url = result.get('data_url', '') or ''
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('api').classes('text-purple-600')
-                            ui.label('数据API:').classes('font-medium')
+                            ui.icon('api').classes('text-lg text-purple-600')
+                            ui.label('数据API:').classes('text-lg font-medium')
                             if data_url:
-                                ui.link(data_url, new_tab=True).classes('text-blue-500 underline')
+                                ui.link(data_url, new_tab=True).classes('text-lg text-blue-500 underline')
                             else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
                         
                         # encoding（编码方式）
                         encoding = result.get('encoding', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('code').classes('text-teal-600')
-                            ui.label('编码方式:').classes('font-medium')
-                            ui.label(str(encoding)).classes('text-body1')
+                            ui.icon('code').classes('text-lg text-teal-600')
+                            ui.label('编码方式:').classes('text-lg font-medium')
+                            ui.label(str(encoding)).classes('text-lg')
                         
                         # format（格式）
                         format_info = result.get('format', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('settings').classes('text-grey-600')
-                            ui.label('格式:').classes('font-medium')
-                            ui.label(str(format_info)).classes('text-body1')
+                            ui.icon('settings').classes('text-lg text-grey-600')
+                            ui.label('格式:').classes('text-lg font-medium')
+                            ui.label(str(format_info)).classes('text-lg')
                         
                         # license（使用许可）
                         license_info = result.get('license', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('gavel').classes('text-amber-600')
-                            ui.label('使用许可:').classes('font-medium')
-                            ui.label(str(license_info)).classes('text-body1')
+                            ui.icon('gavel').classes('text-lg text-amber-600')
+                            ui.label('使用许可:').classes('text-lg font-medium')
+                            ui.label(str(license_info)).classes('text-lg')
                         
                         # rights（使用权限）
                         rights = result.get('rights', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('security').classes('text-red-500')
-                            ui.label('使用权限:').classes('font-medium')
-                            ui.label(str(rights)).classes('text-body1')
+                            ui.icon('security').classes('text-lg text-red-500')
+                            ui.label('使用权限:').classes('text-lg font-medium')
+                            ui.label(str(rights)).classes('text-lg')
                         
                         # update_frequency（更新频率）
                         update_frequency = result.get('update_frequency', '未指定') or '未指定'
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('update').classes('text-blue-500')
-                            ui.label('更新频率:').classes('font-medium')
-                            ui.label(str(update_frequency)).classes('text-body1')
+                            ui.icon('update').classes('text-lg text-blue-500')
+                            ui.label('更新频率:').classes('text-lg font-medium')
+                            ui.label(str(update_frequency)).classes('text-lg')
                         
                         # value_dict（数据字典）
                         value_dict = result.get('value_dict', '') or ''
                         with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('book').classes('text-green-500')
-                            ui.label('数据字典:').classes('font-medium')
+                            ui.icon('book').classes('text-lg text-green-500')
+                            ui.label('数据字典:').classes('text-lg font-medium')
                             if value_dict:
                                 if isinstance(value_dict, str):
-                                    ui.label(value_dict).classes('text-body1')
+                                    ui.label(value_dict).classes('text-lg')
                                 else:
-                                    ui.label(str(value_dict)).classes('text-body1')
+                                    ui.label(str(value_dict)).classes('text-lg')
                             else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
 
     @safe_protect(name="表格方式显示要修改档案字段", error_msg="表格方式显示要修改的档案字段")
     async def display_results_as_table(query_results):
