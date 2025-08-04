@@ -62,7 +62,6 @@ def get_mongodb_manager() -> MongoDBManager:
     return mongodb_manager
 
 # ==================== API路由 ====================
-
 @app.get("/", summary="服务状态")
 async def root():
     """获取服务状态"""
@@ -379,7 +378,6 @@ async def search_enterprises(
             detail=f"搜索失败: {str(e)}"
         )
 
-
 @app.post("/api/v1/enterprises/query_fields",
           response_model=QueryFieldsResponse,
           summary="查询企业字段数据")
@@ -482,8 +480,8 @@ async def query_enterprise_fields(
             status_code=500,
             detail=f"查询字段失败: {str(e)}"
         )
-# ==================== 错误处理 ====================
 
+# ==================== 错误处理 ====================
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """全局异常处理器"""

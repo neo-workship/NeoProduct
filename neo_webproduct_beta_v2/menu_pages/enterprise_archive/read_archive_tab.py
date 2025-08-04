@@ -10,7 +10,7 @@ import asyncio
 # MongoDB服务API基础URL
 MONGODB_SERVICE_URL = "http://localhost:8001"
 
-@safe_protect(name="查看档案页面", error_msg="查看档案页面加载失败")
+@safe_protect(name="查看档案字段页面", error_msg="查看档案页面加载失败")
 def read_archive_content():
     """查看档案内容页面"""
     # 调用搜索API
@@ -275,6 +275,7 @@ def read_archive_content():
                     ui.label('数据字典:').classes('font-medium')
                     ui.label('暂无数据').classes('text-body1 text-grey-6') 
     
+    # 初始化空数据
     def initialize_results_display():
         """初始化结果显示区域 - 显示空数据状态"""
         with results_container:
@@ -295,7 +296,7 @@ def read_archive_content():
             # 多条数据时，使用表格分页方式显示
             await display_results_as_table(query_results)
 
-    @safe_protect(name="卡片方式显示档案数据", error_msg="卡片方式显示档案数据")
+    @safe_protect(name="卡片方式显示档案字段", error_msg="卡片方式显示档案字段")
     async def display_results_as_cards(query_results):
         """卡片方式显示查询结果（无数据或只有一条数据）"""
         with results_container:
@@ -416,14 +417,13 @@ def read_archive_content():
                             else:
                                 ui.label('暂无数据').classes('text-body1 text-grey-6')
 
-    @safe_protect(name="表格方式显示档案数据", error_msg="表格方式显示档案数据")
+    @safe_protect(name="表格方式显示要修改档案字段", error_msg="表格方式显示要修改的档案字段")
     async def display_results_as_table(query_results):
         """表格方式显示查询结果（多条数据，分页模式）"""
         with results_container:
             # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
             ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
             
-            # 准备表格数据
             # 定义表格列
             columns = [
                 {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
@@ -621,12 +621,12 @@ def read_archive_content():
                 hierarchy_selector = HierarchySelector(multiple=True)
                 hierarchy_selector.render_row()
 
-            with ui.row().classes('w-full'):
-                query_btn=ui.button('查询')
-                clear_btn=ui.button('清空')
+            with ui.row().classes('w-full justify-start'):
+                query_btn=ui.button('查询').classes('min-w-[100px]')
+                clear_btn=ui.button('清空').classes('min-w-[100px]')
                 query_status = ui.label('').classes('text-body2 text-grey-6')
         # 展示搜索结果
-        with ui.row().classes('w-full gap-4'):
+        with ui.column().classes('w-full gap-4'):
             ui.separator()
             results_container = ui.column().classes('w-full gap-4')
         
@@ -640,6 +640,5 @@ def read_archive_content():
     query_btn.on('click', lambda: asyncio.create_task(on_query_enter()))
     # 清空事件触发
     clear_btn.on('click',lambda: on_clear_enter())
-
     # 可选：监听输入变化，实现实时搜索（防抖）
     search_timer = None
