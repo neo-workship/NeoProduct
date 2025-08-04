@@ -33,7 +33,7 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 
 3、请编写高效、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
 
-### /api/v1/enterprises/edit_field_value
+### /api/v1/enterprises/edit_field_value 和 /api/v1/enterprises/edit_fields_value
 
 ## UI 编写
 

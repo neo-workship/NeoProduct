@@ -14,6 +14,7 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 @safe_protect(name="编辑档案页面", error_msg="编辑档案页面加载失败")
 def edit_archive_content():
     """编辑档案内容页面"""
+    # ----------------- 1、Search 逻辑 -----------------
     # 调用搜索API
     async def search_enterprises(search_text: str):
         """调用API搜索企业"""
@@ -182,7 +183,7 @@ def edit_archive_content():
                             log_info(f"档案数据查询成功: 找到 {len(query_results)} 条记录")
                             
                             # 显示要修改的查询结果
-                            await edit_query_results(query_results)
+                            await display_query_results(query_results)
                             
                         else:
                             error_msg = data.get('message', '查询失败')
@@ -197,7 +198,7 @@ def edit_archive_content():
             query_status.set_text('❌ 查询过程发生异常')
             log_error("档案数据查询异常", exception=e)
 
-    # ----------------------------------------------------------------
+    # ----------------- 2、Query 逻辑 -----------------
     # 在 edit_archive_content 函数末尾添加初始化显示
     def display_empty_state():
         """显示空数据状态"""
@@ -280,23 +281,21 @@ def edit_archive_content():
     
     # results_container 将在上面的布局中定义
     @safe_protect(name="显示要编辑的档案数据", error_msg="显示要编辑档案数据")
-    async def edit_query_results(query_results):
+    async def display_query_results(query_results):
         """显示要编辑的查询结果 - 根据数据条数选择不同的显示方式"""
         # 清空结果容器
         results_container.clear()
-        edit_all_btn.enable()
-        cancel_btn.enable()
         
         # 根据数据条数选择显示方式
         if len(query_results) <= 1:
             # 无数据或只有一条数据时，使用卡片方式显示
-            await edit_results_as_cards(query_results)
+            await display_results_as_cards(query_results)
         else:
             # 多条数据时，使用表格分页方式显示
-            await edit_results_as_table(query_results)
+            await display_results_as_table(query_results)
 
     @safe_protect(name="卡片方式显示要修改的档案数据", error_msg="卡片方式显示要修改的档案数据")
-    async def edit_results_as_cards(query_results):
+    async def display_results_as_cards(query_results):
         """卡片方式显示要修改的查询结果（无数据或只有一条数据）"""
         with results_container:
             # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
@@ -325,34 +324,25 @@ def edit_archive_content():
                             ui.input(str(value)).classes('').props('dense')
                         
                         # value_pic_url（字段关联图片）
-                        value_pic_url = result.get('value_pic_url', '') or ''
+                        value_pic_url = result.get('value_pic_url', '') or '暂无数据'
                         with ui.row().classes('gap-2 items-center mb-2'):
                             ui.icon('image').classes('text-green-600')
                             ui.label('关联图片:').classes('font-medium')
-                            if value_pic_url:
-                                ui.link(value_pic_url, new_tab=True).classes('text-blue-500 underline')
-                            else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                            ui.input(value_pic_url).classes('text-blue-500 underline')
                         
                         # value_doc_url（字段关联文档）
-                        value_doc_url = result.get('value_doc_url', '') or ''
+                        value_doc_url = result.get('value_doc_url', '') or '暂无数据'
                         with ui.row().classes('gap-2 items-center mb-2'):
                             ui.icon('description').classes('text-orange-600')
                             ui.label('关联文档:').classes('font-medium')
-                            if value_doc_url:
-                                ui.link(value_doc_url, new_tab=True).classes('text-blue-500 underline')
-                            else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                            ui.input(value_doc_url).classes('text-blue-500 underline')
                         
                         # value_video_url（字段关联视频）
-                        value_video_url = result.get('value_video_url', '') or ''
+                        value_video_url = result.get('value_video_url', '') or '暂无数据'
                         with ui.row().classes('gap-2 items-center mb-2'):
                             ui.icon('videocam').classes('text-red-600')
                             ui.label('关联视频:').classes('font-medium')
-                            if value_video_url:
-                                ui.link(value_video_url, new_tab=True).classes('text-blue-500 underline')
-                            else:
-                                ui.label('暂无数据').classes('text-body1 text-grey-6')
+                            ui.input(value_video_url).classes('text-blue-500 underline')
 
                     # 右侧card展示：data_url、encoding、format、license、rights、update_frequency、value_dict
                     with ui.card().classes('flex-1 p-4'):
@@ -417,7 +407,7 @@ def edit_archive_content():
                                 ui.label('暂无数据').classes('text-body1 text-grey-6')
 
     @safe_protect(name="表格方式显示要修改档案数据", error_msg="表格方式显示要修改的档案数据")
-    async def edit_results_as_table(query_results):
+    async def display_results_as_table(query_results):
         """表格方式显示要修改的查询结果（多条数据，分页模式）"""
         with results_container:
             ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
@@ -592,6 +582,13 @@ def edit_archive_content():
                 </q-tr>
             ''')         
 
+        # ----------------- 2、Query 逻辑 -----------------
+    
+    # ----------------- 3、修改逻辑 -----------------
+    async def on_edit_results(query_results):
+        pass
+
+    # ----------------- 4、UI布局 -----------------
     with ui.column().classes('w-full gap-6 p-4 items-center'):
         with ui.column().classes('w-full gap-4'):
             ui.label('编辑企业档案').classes('text-h5 font-bold text-primary')
@@ -628,8 +625,8 @@ def edit_archive_content():
         with ui.column().classes('w-full gap-4'):
             ui.separator()
             with ui.row().classes("w-full justify-end"):
-                edit_all_btn = ui.button("全部修改").classes('min-w-[100px] disabled')
-                cancel_btn = ui.button("取消修改").classes('min-w-[100px] disabled')
+                edit_btn = ui.button("全部修改").classes('min-w-[100px]')
+                cancel_btn = ui.button("取消修改").classes('min-w-[100px]')
             results_container = ui.column().classes('w-full gap-4')
         
         initialize_results_display()
@@ -642,6 +639,7 @@ def edit_archive_content():
     query_btn.on('click', lambda: asyncio.create_task(on_query_enter()))
     # 清空事件触发
     clear_btn.on('click',lambda: on_clear_enter())
-
+    # 编辑事件触发
+    edit_btn.on('click',lambda: on_edit_results())
     # 可选：监听输入变化，实现实时搜索（防抖）
     search_timer = None
