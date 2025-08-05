@@ -739,6 +739,7 @@ def edit_archive_content():
                         data = await response.json()
                         
                         if data.get('success', False):
+                            query_status.set_text(f'✅ 字段更新成功！更新了 {data.get("updated_count", 0)} 个字段')  
                             ui.notify(f'字段更新成功！更新了 {data.get("updated_count", 0)} 个字段', type='positive')
                             log_info(f"字段更新成功: 更新了 {data.get('updated_count', 0)} 个字段")
                             return True
