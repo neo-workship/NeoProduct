@@ -114,11 +114,11 @@ class QueryFieldsRequest(BaseModel):
 
 class FieldDataModel(BaseModel):
     """字段数据模型"""
-    # field_code: Optional[str] = Field(None, description="字段代码")
+    field_code: Optional[str] = Field(None, description="字段代码")
     field_name: Optional[str] = Field(None, description="字段名称")
-    # full_path_code: Optional[str] = Field(None, description="完整路径代码")
+    full_path_code: Optional[str] = Field(None, description="完整路径代码")
     full_path_name: Optional[str] = Field(None, description="完整路径名称")
-    # path_code: Optional[str] = Field(None, description="路径代码")
+    path_code: Optional[str] = Field(None, description="路径代码")
     value: Optional[str] = Field(None, description="字段值")
     value_pic_url: Optional[str] = Field(None, description="图片URL")
     value_doc_url: Optional[str] = Field(None, description="文档URL")

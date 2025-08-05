@@ -422,8 +422,7 @@ def read_archive_content():
     async def display_results_as_table(query_results):
         """表格方式显示查询结果（多条数据，分页模式）"""
         with results_container:
-            # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
-            ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
+            # ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
             
             # 定义表格列
             columns = [

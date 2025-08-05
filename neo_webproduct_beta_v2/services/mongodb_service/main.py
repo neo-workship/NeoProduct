@@ -427,11 +427,11 @@ async def query_enterprise_fields(
         field_models = []
         for field_data in field_results:
             field_model = FieldDataModel(
-                # field_code=field_data.get("field_code"),
+                field_code=field_data.get("field_code"),
                 field_name=field_data.get("field_name"),
-                # full_path_code=field_data.get("full_path_code"),
+                full_path_code=field_data.get("full_path_code"),
                 full_path_name=field_data.get("full_path_name"),
-                # path_code=field_data.get("path_code"),
+                path_code=field_data.get("path_code"),
                 value=field_data.get("value"),
                 value_pic_url=field_data.get("value_pic_url"),
                 value_doc_url=field_data.get("value_doc_url"),

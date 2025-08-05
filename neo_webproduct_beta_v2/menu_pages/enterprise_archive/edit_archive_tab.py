@@ -298,9 +298,7 @@ def edit_archive_content():
     @safe_protect(name="卡片方式显示要修改的档案数据", error_msg="卡片方式显示要修改的档案数据")
     async def display_results_as_cards(query_results):
         """卡片方式显示要修改的查询结果（无数据或只有一条数据）"""
-        with results_container:
-            # ui.label('查询结果').classes('text-sm font-bold text-primary mb-4')
-            
+        with results_container:            
             if not query_results:
                 # 无数据情况，显示空状态（与初始化状态相同）
                 display_empty_state()
@@ -405,8 +403,7 @@ def edit_archive_content():
     async def display_results_as_table(query_results):
         """表格方式显示要修改的查询结果（多条数据，分页模式）"""
         with results_container:
-            ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
-            
+            # ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
             # 定义表格列
             columns = [
                 {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
