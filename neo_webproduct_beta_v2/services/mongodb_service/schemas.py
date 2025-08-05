@@ -96,7 +96,7 @@ class EnterpriseSearchResponse(BaseModel):
             }
         }
 
-# --------------------------企业详情--------------------------
+# --------------------------查询企业信息--------------------------
 class QueryFieldsRequest(BaseModel):
     """查询字段请求模型"""
     enterprise_code: str = Field(..., description="企业代码", max_length=100)
@@ -167,5 +167,54 @@ class QueryFieldsResponse(BaseModel):
                         "value_dict": "{'值1','值2','值3'}"
                     }
                 ]
+            }
+        }
+# --------------------------编辑企业信息--------------------------
+class EditFieldValueRequest(BaseModel):
+    """批量编辑字段值请求模型"""
+    enterprise_code: str = Field(..., description="企业代码", max_length=100)
+    path_code_param: str = Field(..., description="层级路径代码")
+    dict_fields: List[Dict[str, Any]] = Field(..., description="字段更新字典列表")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "enterprise_code": "TEST001",
+                "path_code_param": "L1_001.L2_001.L3_001",
+                "dict_fields": [
+                    {
+                        "field_code": "FIELD_001",
+                        "value": "更新的值1",
+                        "value_pic_url": "http://example.com/pic1.jpg"
+                    },
+                    {
+                        "field_code": "FIELD_002",
+                        "value": "更新的值2",
+                        "encoding": "UTF-8"
+                    }
+                ]
+            }
+        }
+
+class EditFieldValueResponse(BaseModel):
+    """批量编辑字段值响应模型"""
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="响应消息")
+    enterprise_code: Optional[str] = Field(None, description="企业代码")
+    path_code: Optional[str] = Field(None, description="路径代码")
+    total_processed: Optional[int] = Field(None, description="处理的字段总数")
+    updated_count: Optional[int] = Field(None, description="实际更新的字段数量")
+    updated_fields: Optional[List[str]] = Field(None, description="已更新的字段代码列表")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "字段批量更新成功",
+                "enterprise_code": "TEST001",
+                "path_code": "L1_001.L2_001.L3_001",
+                "total_processed": 2,
+                "updated_count": 2,
+                "updated_fields": ["FIELD_001", "FIELD_002"]
             }
         }

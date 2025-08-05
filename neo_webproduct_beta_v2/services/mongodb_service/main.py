@@ -481,6 +481,151 @@ async def query_enterprise_fields(
             detail=f"查询字段失败: {str(e)}"
         )
 
+@app.post("/api/v1/enterprises/edit_field_value",
+          response_model=EditFieldValueResponse,
+          summary="批量编辑字段值")
+async def edit_field_value(
+    request: EditFieldValueRequest,
+    manager: MongoDBManager = Depends(get_mongodb_manager)
+) -> EditFieldValueResponse:
+    """
+    批量编辑企业档案中指定路径下的字段值
+    
+    - **enterprise_code**: 企业代码，用于定位企业文档
+    - **path_code_param**: 层级路径代码，用于匹配字段
+    - **dict_fields**: 字段更新字典列表，每个字典包含要更新的字段信息
+    
+    该API会通过enterprise_code查询文档，然后用path_code_param匹配fields数组中的path_code字段，
+    最后使用dict_fields中的key-value对更新匹配字段的值。
+    """
+    try:
+        log_info(f"开始批量编辑字段值", 
+                extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code_param": "{request.path_code_param}", "fields_count": {len(request.dict_fields)}}}')
+        
+        # 1. 检查参数
+        if not request.dict_fields:
+            return EditFieldValueResponse(
+                success=False,
+                message="dict_fields 不能为空"
+            )
+        
+        # 2. 查找企业文档
+        enterprise_doc = await manager.find_document_by_id(request.enterprise_code)
+        if not enterprise_doc:
+            log_error(f"企业文档未找到", 
+                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}"}}')
+            return EditFieldValueResponse(
+                success=False,
+                message=f"企业代码 {request.enterprise_code} 对应的文档未找到"
+            )
+        
+        # 3. 在fields数组中查找匹配path_code的字段
+        fields_array = enterprise_doc.get("fields", [])
+        matched_fields_indices = []
+        
+        for index, field in enumerate(fields_array):
+            if field.get("path_code") == request.path_code_param:
+                matched_fields_indices.append((index, field))
+        
+        if not matched_fields_indices:
+            log_error(f"未找到匹配的字段", 
+                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code_param": "{request.path_code_param}"}}')
+            return EditFieldValueResponse(
+                success=False,
+                message=f"路径代码 {request.path_code_param} 未匹配到任何字段"
+            )
+        
+        # 4. 准备批量更新数据
+        update_fields = {}
+        updated_field_codes = []
+        total_processed = 0
+        updated_count = 0
+        
+        # 将dict_fields转换为以field_code为key的字典，便于查找
+        field_updates_map = {}
+        for field_dict in request.dict_fields:
+            if "field_code" in field_dict:
+                field_updates_map[field_dict["field_code"]] = field_dict
+        
+        # 遍历匹配的字段，应用更新
+        for field_index, field in matched_fields_indices:
+            field_code = field.get("field_code")
+            total_processed += 1
+            
+            # 检查是否有针对该字段的更新
+            if field_code in field_updates_map:
+                field_update = field_updates_map[field_code]
+                field_updated = False
+                
+                # 遍历更新字典中的所有字段
+                for update_key, update_value in field_update.items():
+                    # 跳过field_code，因为它只是用于匹配的
+                    if update_key == "field_code":
+                        continue
+                    
+                    # 检查字段是否存在于FieldDataModel中
+                    if update_key in FieldDataModel.__fields__:
+                        update_fields[f"fields.{field_index}.{update_key}"] = update_value
+                        field_updated = True
+                
+                # 如果有字段被更新，记录并更新时间戳
+                if field_updated:
+                    update_fields[f"fields.{field_index}.update_time"] = manager.get_current_timestamp()
+                    updated_field_codes.append(field_code)
+                    updated_count += 1
+        
+        # 5. 执行数据库更新操作
+        if update_fields:
+            success = await manager.update_document(request.enterprise_code, update_fields)
+            
+            if success:
+                log_info(f"字段批量更新成功", 
+                        extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code_param": "{request.path_code_param}", "updated_count": {updated_count}, "updated_fields": {updated_field_codes}}}')
+                
+                return EditFieldValueResponse(
+                    success=True,
+                    message="字段批量更新成功",
+                    enterprise_code=request.enterprise_code,
+                    path_code=request.path_code_param,
+                    total_processed=total_processed,
+                    updated_count=updated_count,
+                    updated_fields=updated_field_codes
+                )
+            else:
+                log_error(f"数据库更新失败", 
+                        extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code_param": "{request.path_code_param}"}}')
+                
+                return EditFieldValueResponse(
+                    success=False,
+                    message="数据库更新操作失败",
+                    enterprise_code=request.enterprise_code,
+                    path_code=request.path_code_param,
+                    total_processed=total_processed,
+                    updated_count=0
+                )
+        else:
+            log_info(f"没有找到需要更新的字段", 
+                    extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code_param": "{request.path_code_param}"}}')
+            
+            return EditFieldValueResponse(
+                success=True,
+                message="没有找到需要更新的字段",
+                enterprise_code=request.enterprise_code,
+                path_code=request.path_code_param,
+                total_processed=total_processed,
+                updated_count=0,
+                updated_fields=[]
+            )
+            
+    except Exception as e:
+        log_error("批量编辑字段值异常", exception=e, 
+                extra_data=f'{{"enterprise_code": "{request.enterprise_code}", "path_code_param": "{request.path_code_param}"}}')
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"批量编辑字段值失败: {str(e)}"
+        )
+
 # ==================== 错误处理 ====================
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):

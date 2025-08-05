@@ -36,7 +36,8 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 ### /api/v1/enterprises/edit_field_value
 
 在 \services\mongodb_service\main.py 中添加一个 API: /api/v1/enterprises/edit_field_value。
-1、API 参数：字符串 enterprise_code 企业代码 ； 字符串 path_code_param 层级路径代码 ； 列表 dict_fields 字典列表，字典完整的数据可复用：\services\mongodb_service\schemas.py 中的 FieldDataModel。
+1、API 参数：字符串 enterprise_code 企业代码 ； 字符串 path_code_param 层级路径代码 ； 列表 dict_fields 字典列表，字典对应数据模型可复用：\services\mongodb_service\schemas.py 中的 FieldDataModel。
+
 2、接受参数后，首先使用 enterprise_code 查询到对应的文档。接下来，如果 dict_fields 不为空，用 path_code_param 匹配文档中的 fields 数组中的 path_code 字段，匹配出所有文档。在匹配的文档中，用字典 dict_fields 的 key 值匹配出对应字段，然后用 dict_fields 中 value 更新文档中字段的值
 
 3、请编写高效、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
