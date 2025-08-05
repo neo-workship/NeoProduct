@@ -15,8 +15,7 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 def edit_archive_content():
     """编辑档案内容页面"""
     # ----------------- 1、Search 逻辑 -----------------
-    # 调用搜索API
-    
+    # 调用搜索API 
     async def search_enterprises(search_text: str):
         """调用API搜索企业"""
         if not search_text or len(search_text.strip()) < 1:
@@ -85,13 +84,11 @@ def edit_archive_content():
             search_status.set_text('❌ 搜索过程发生异常')
             search_select.set_options({})
             log_error("企业搜索异常", exception=e)
-
     # 绑定搜索输入框的回车事件
     async def on_search_enter():
         """按下回车键触发搜索"""
         search_text = search_input.value
         await search_enterprises(search_text)
-    
     # 输入值变化事件
     async def on_input_change():
         """输入变化时的防抖搜索"""
@@ -112,15 +109,13 @@ def edit_archive_content():
             # 清空输入时清空选项
             search_select.set_options({})
             search_status.set_text('')
-
     # 清空内容
     async def on_clear_enter():
         search_input.set_value('')
         results_container.clear()
         hierarchy_selector.reset_all_selections()
         search_status.set_text('')
-
-    # 新增的查询档案数据函数
+    # 调用查询API
     @safe_protect(name="查询档案数据", error_msg="查询档案数据失败")
     async def on_query_enter():
         """查询档案数据函数"""
@@ -620,7 +615,8 @@ def edit_archive_content():
             await edit_table_results() 
 
     async def edit_card_results():
-        # 1. 验证必要的选择信息
+            global current_edit_data, current_input_refs
+            # 1. 验证必要的选择信息
             if not search_select.value:
                 ui.notify('请先选择企业', type='warning')
                 return
@@ -700,6 +696,7 @@ def edit_archive_content():
                 if has_changes:
                     dict_fields.append(field_updates)
             
+            print(dict_fields)
             # 4. 验证是否有修改的数据
             if not dict_fields:
                 ui.notify('没有检测到任何修改的数据', type='info')
@@ -708,48 +705,10 @@ def edit_archive_content():
             # 5. 调用API进行更新
             try:
                 # 显示加载状态
-                query_status.set_text('🔄 正在提交修改...')
-                
-                # 准备API请求数据
-                request_data = {
-                    "enterprise_code": enterprise_code,
-                    "path_code_param": path_code,
-                    "dict_fields": dict_fields
-                }
-                
+                query_status.set_text('🔄 正在提交修改...')               
                 log_info(f"开始提交字段编辑: enterprise_code={enterprise_code}, path_code={path_code}, fields_count={len(dict_fields)}")
-                
                 # 调用API
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f'{MONGODB_SERVICE_URL}/api/v1/enterprises/edit_field_value',
-                        json=request_data,
-                        headers={'Content-Type': 'application/json'}
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            if data.get('success', False):
-                                # 成功
-                                updated_count = data.get('updated_count', 0)
-                                query_status.set_text(f'✅ 修改成功，更新了 {updated_count} 个字段')
-                                ui.notify(f'修改成功！更新了 {updated_count} 个字段', type='positive')
-                                log_info(f"字段编辑成功: updated_count={updated_count}")
-                                
-                                # 可选：重新查询显示最新数据
-                                # await on_query_enter()
-                                
-                            else:
-                                error_msg = data.get('message', '更新失败')
-                                query_status.set_text(f'❌ {error_msg}')
-                                ui.notify(f'更新失败: {error_msg}', type='negative')
-                                log_error(f"字段编辑API返回失败: {error_msg}")
-                        else:
-                            error_text = await response.text()
-                            query_status.set_text('❌ 更新服务异常')
-                            ui.notify('更新服务异常，请稍后重试', type='negative')
-                            log_error(f"字段编辑API请求失败: status={response.status}, response={error_text}")
-                            
+                await call_edit_field_api(enterprise_code,path_code,dict_fields)
             except Exception as e:
                 query_status.set_text('❌ 提交过程发生异常')
                 ui.notify('提交过程发生异常，请稍后重试', type='negative')
@@ -758,6 +717,46 @@ def edit_archive_content():
     async def edit_table_results():
         ui.notify("table model")
     
+    async def call_edit_field_api(enterprise_code: str, path_code_param: str, dict_fields: list):
+        """调用编辑字段API的独立函数"""
+        try:
+            log_info(f"开始调用编辑字段API", 
+                    extra_data=f'{{"enterprise_code": "{enterprise_code}", "path_code_param": "{path_code_param}", "fields_count": {len(dict_fields)}}}')
+            
+            async with aiohttp.ClientSession() as session:
+                request_data = {
+                    "enterprise_code": enterprise_code,
+                    "path_code_param": path_code_param,
+                    "dict_fields": dict_fields
+                }
+                
+                async with session.post(
+                    f"{MONGODB_SERVICE_URL}/api/v1/enterprises/edit_field_value",
+                    json=request_data,
+                    headers={'Content-Type': 'application/json'}
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        if data.get('success', False):
+                            ui.notify(f'字段更新成功！更新了 {data.get("updated_count", 0)} 个字段', type='positive')
+                            log_info(f"字段更新成功: 更新了 {data.get('updated_count', 0)} 个字段")
+                            return True
+                        else:
+                            error_msg = data.get('message', '更新失败')
+                            ui.notify(f'更新失败: {error_msg}', type='negative')
+                            log_error(f"字段更新API返回失败: {error_msg}")
+                            return False
+                    else:
+                        error_text = await response.text()
+                        ui.notify(f'服务器错误 (状态码: {response.status})', type='negative')
+                        log_error(f"字段更新API请求失败: status={response.status}, response={error_text}")
+                        return False
+                        
+        except Exception as e:
+            ui.notify(f'API调用异常: {str(e)}', type='negative')
+            log_error("字段更新API调用异常", exception=e)
+
     # ----------------- 4、UI布局 -----------------
     with ui.column().classes('w-full gap-6 p-4 items-center'):
         with ui.column().classes('w-full gap-4'):
