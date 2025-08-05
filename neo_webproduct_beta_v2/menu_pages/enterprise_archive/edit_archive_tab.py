@@ -16,6 +16,7 @@ def edit_archive_content():
     """编辑档案内容页面"""
     # ----------------- 1、Search 逻辑 -----------------
     # 调用搜索API
+    
     async def search_enterprises(search_text: str):
         """调用API搜索企业"""
         if not search_text or len(search_text.strip()) < 1:
@@ -281,21 +282,22 @@ def edit_archive_content():
             display_empty_state()
     
     # results_container 将在上面的布局中定义
+    display_model = ""
     @safe_protect(name="显示要编辑的档案数据", error_msg="显示要编辑档案数据")
     async def display_query_results(query_results):
         """显示要编辑的查询结果 - 根据数据条数选择不同的显示方式"""
+        global display_model
         # 清空结果容器
         results_container.clear()
-        
         # 根据数据条数选择显示方式
         if len(query_results) <= 2:
+            display_model = "card"
             # 无数据或只有一条数据时，使用卡片方式显示
             await display_results_as_cards(query_results)
         else:
+            display_model = "table"
             # 多条数据时，使用表格分页方式显示
             await display_results_as_table(query_results)
-
-    # 在 edit_archive_tab.py 中添加/修改以下代码
 
     # 全局变量用于存储当前UI组件引用（仅为了数据收集，不是状态管理）
     current_edit_data = {}
@@ -605,151 +607,157 @@ def edit_archive_content():
                         </div>
                     </q-td>
                 </q-tr>
-            ''')         
-
-        # ----------------- 2、Query 逻辑 -----------------
+            ''')
     
     # ----------------- 3、修改逻辑 -----------------
     @safe_protect(name="提交编辑结果", error_msg="提交编辑结果失败")
     async def on_edit_results():
         """处理编辑结果提交 - 简化版，直接检查UI组件是否有值"""
-        global current_edit_data, current_input_refs
-        
+        global current_edit_data, current_input_refs,display_model
+        if display_model == "card":            
+            await edit_card_results()
+        elif display_model == "table":
+            await edit_table_results() 
+
+    async def edit_card_results():
         # 1. 验证必要的选择信息
-        if not search_select.value:
-            ui.notify('请先选择企业', type='warning')
-            return
-        
-        # 2. 获取层级路径
-        selected_values = hierarchy_selector.selected_values
-        if not (selected_values.get("l1") and selected_values.get("l2") and selected_values.get("l3")):
-            ui.notify('请先选择完整的层级路径（L1、L2、L3）', type='warning')
-            return
-        
-        # 构建path_code
-        path_code = f"{selected_values['l1']}.{selected_values['l2']}.{selected_values['l3']}"
-        enterprise_code = search_select.value
-        
-        # 3. 收集有数据的UI组件 - 简化版
-        dict_fields = []
-        
-        # 遍历每个记录
-        for record_index, input_refs in current_input_refs.items():
-            # 获取该记录的原始数据
-            original_data = current_edit_data.get(record_index, {})
-            field_code = original_data.get('field_code', '')
-            print(f"edit:{original_data}")
-            if not field_code:
-                continue
+            if not search_select.value:
+                ui.notify('请先选择企业', type='warning')
+                return
             
-            # 构建该记录的更新字段
-            field_updates = {'field_code': field_code}
-            has_changes = False
+            # 2. 获取层级路径
+            selected_values = hierarchy_selector.selected_values
+            if not (selected_values.get("l1") and selected_values.get("l2") and selected_values.get("l3")):
+                ui.notify('请先选择完整的层级路径（L1、L2、L3）', type='warning')
+                return
             
-            # 直接检查每个输入框是否有值
-            if input_refs.get('value') and input_refs['value'].value.strip():
-                field_updates['value'] = input_refs['value'].value.strip()
-                has_changes = True
+            # 构建path_code
+            path_code = f"{selected_values['l1']}.{selected_values['l2']}.{selected_values['l3']}"
+            enterprise_code = search_select.value
+            
+            # 3. 收集有数据的UI组件 - 简化版
+            dict_fields = []
+            
+            # 遍历每个记录
+            for record_index, input_refs in current_input_refs.items():
+                # 获取该记录的原始数据
+                original_data = current_edit_data.get(record_index, {})
+                field_code = original_data.get('field_code', '')
+                print(f"edit:{original_data}")
+                if not field_code:
+                    continue
                 
-            if input_refs.get('value_pic_url') and input_refs['value_pic_url'].value.strip():
-                field_updates['value_pic_url'] = input_refs['value_pic_url'].value.strip()
-                has_changes = True
+                # 构建该记录的更新字段
+                field_updates = {'field_code': field_code}
+                has_changes = False
                 
-            if input_refs.get('value_doc_url') and input_refs['value_doc_url'].value.strip():
-                field_updates['value_doc_url'] = input_refs['value_doc_url'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('value_video_url') and input_refs['value_video_url'].value.strip():
-                field_updates['value_video_url'] = input_refs['value_video_url'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('data_url') and input_refs['data_url'].value.strip():
-                field_updates['data_url'] = input_refs['data_url'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('encoding') and input_refs['encoding'].value.strip():
-                field_updates['encoding'] = input_refs['encoding'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('format') and input_refs['format'].value.strip():
-                field_updates['format'] = input_refs['format'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('license') and input_refs['license'].value.strip():
-                field_updates['license'] = input_refs['license'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('rights') and input_refs['rights'].value.strip():
-                field_updates['rights'] = input_refs['rights'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('update_frequency') and input_refs['update_frequency'].value.strip():
-                field_updates['update_frequency'] = input_refs['update_frequency'].value.strip()
-                has_changes = True
-                
-            if input_refs.get('value_dict') and input_refs['value_dict'].value.strip():
-                field_updates['value_dict'] = input_refs['value_dict'].value.strip()
-                has_changes = True
+                # 直接检查每个输入框是否有值
+                if input_refs.get('value') and input_refs['value'].value.strip():
+                    field_updates['value'] = input_refs['value'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('value_pic_url') and input_refs['value_pic_url'].value.strip():
+                    field_updates['value_pic_url'] = input_refs['value_pic_url'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('value_doc_url') and input_refs['value_doc_url'].value.strip():
+                    field_updates['value_doc_url'] = input_refs['value_doc_url'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('value_video_url') and input_refs['value_video_url'].value.strip():
+                    field_updates['value_video_url'] = input_refs['value_video_url'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('data_url') and input_refs['data_url'].value.strip():
+                    field_updates['data_url'] = input_refs['data_url'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('encoding') and input_refs['encoding'].value.strip():
+                    field_updates['encoding'] = input_refs['encoding'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('format') and input_refs['format'].value.strip():
+                    field_updates['format'] = input_refs['format'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('license') and input_refs['license'].value.strip():
+                    field_updates['license'] = input_refs['license'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('rights') and input_refs['rights'].value.strip():
+                    field_updates['rights'] = input_refs['rights'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('update_frequency') and input_refs['update_frequency'].value.strip():
+                    field_updates['update_frequency'] = input_refs['update_frequency'].value.strip()
+                    has_changes = True
+                    
+                if input_refs.get('value_dict') and input_refs['value_dict'].value.strip():
+                    field_updates['value_dict'] = input_refs['value_dict'].value.strip()
+                    has_changes = True
 
-            # 如果有修改的字段，添加到dict_fields
-            if has_changes:
-                dict_fields.append(field_updates)
-        
-        # 4. 验证是否有修改的数据
-        if not dict_fields:
-            ui.notify('没有检测到任何修改的数据', type='info')
-            return
-        
-        # 5. 调用API进行更新
-        try:
-            # 显示加载状态
-            query_status.set_text('🔄 正在提交修改...')
+                # 如果有修改的字段，添加到dict_fields
+                if has_changes:
+                    dict_fields.append(field_updates)
             
-            # 准备API请求数据
-            request_data = {
-                "enterprise_code": enterprise_code,
-                "path_code_param": path_code,
-                "dict_fields": dict_fields
-            }
+            # 4. 验证是否有修改的数据
+            if not dict_fields:
+                ui.notify('没有检测到任何修改的数据', type='info')
+                return
             
-            log_info(f"开始提交字段编辑: enterprise_code={enterprise_code}, path_code={path_code}, fields_count={len(dict_fields)}")
-            
-            # 调用API
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f'{MONGODB_SERVICE_URL}/api/v1/enterprises/edit_field_value',
-                    json=request_data,
-                    headers={'Content-Type': 'application/json'}
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if data.get('success', False):
-                            # 成功
-                            updated_count = data.get('updated_count', 0)
-                            query_status.set_text(f'✅ 修改成功，更新了 {updated_count} 个字段')
-                            ui.notify(f'修改成功！更新了 {updated_count} 个字段', type='positive')
-                            log_info(f"字段编辑成功: updated_count={updated_count}")
-                            
-                            # 可选：重新查询显示最新数据
-                            # await on_query_enter()
-                            
+            # 5. 调用API进行更新
+            try:
+                # 显示加载状态
+                query_status.set_text('🔄 正在提交修改...')
+                
+                # 准备API请求数据
+                request_data = {
+                    "enterprise_code": enterprise_code,
+                    "path_code_param": path_code,
+                    "dict_fields": dict_fields
+                }
+                
+                log_info(f"开始提交字段编辑: enterprise_code={enterprise_code}, path_code={path_code}, fields_count={len(dict_fields)}")
+                
+                # 调用API
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f'{MONGODB_SERVICE_URL}/api/v1/enterprises/edit_field_value',
+                        json=request_data,
+                        headers={'Content-Type': 'application/json'}
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data.get('success', False):
+                                # 成功
+                                updated_count = data.get('updated_count', 0)
+                                query_status.set_text(f'✅ 修改成功，更新了 {updated_count} 个字段')
+                                ui.notify(f'修改成功！更新了 {updated_count} 个字段', type='positive')
+                                log_info(f"字段编辑成功: updated_count={updated_count}")
+                                
+                                # 可选：重新查询显示最新数据
+                                # await on_query_enter()
+                                
+                            else:
+                                error_msg = data.get('message', '更新失败')
+                                query_status.set_text(f'❌ {error_msg}')
+                                ui.notify(f'更新失败: {error_msg}', type='negative')
+                                log_error(f"字段编辑API返回失败: {error_msg}")
                         else:
-                            error_msg = data.get('message', '更新失败')
-                            query_status.set_text(f'❌ {error_msg}')
-                            ui.notify(f'更新失败: {error_msg}', type='negative')
-                            log_error(f"字段编辑API返回失败: {error_msg}")
-                    else:
-                        error_text = await response.text()
-                        query_status.set_text('❌ 更新服务异常')
-                        ui.notify('更新服务异常，请稍后重试', type='negative')
-                        log_error(f"字段编辑API请求失败: status={response.status}, response={error_text}")
-                        
-        except Exception as e:
-            query_status.set_text('❌ 提交过程发生异常')
-            ui.notify('提交过程发生异常，请稍后重试', type='negative')
-            log_error("字段编辑提交异常", exception=e)
-
+                            error_text = await response.text()
+                            query_status.set_text('❌ 更新服务异常')
+                            ui.notify('更新服务异常，请稍后重试', type='negative')
+                            log_error(f"字段编辑API请求失败: status={response.status}, response={error_text}")
+                            
+            except Exception as e:
+                query_status.set_text('❌ 提交过程发生异常')
+                ui.notify('提交过程发生异常，请稍后重试', type='negative')
+                log_error("字段编辑提交异常", exception=e)
+    
+    async def edit_table_results():
+        ui.notify("table model")
+    
     # ----------------- 4、UI布局 -----------------
     with ui.column().classes('w-full gap-6 p-4 items-center'):
         with ui.column().classes('w-full gap-4'):
