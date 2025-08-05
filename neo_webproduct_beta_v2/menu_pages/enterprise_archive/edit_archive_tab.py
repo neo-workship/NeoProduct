@@ -745,6 +745,7 @@ def edit_archive_content():
                             return True
                         else:
                             error_msg = data.get('message', '更新失败')
+                            query_status.set_text(f'❌ 更新失败: {error_msg}')  
                             ui.notify(f'更新失败: {error_msg}', type='negative')
                             log_error(f"字段更新API返回失败: {error_msg}")
                             return False

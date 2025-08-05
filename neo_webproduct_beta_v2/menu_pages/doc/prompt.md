@@ -94,3 +94,7 @@ UI 展示数据
 1、先探讨一个问题：由于对 on_query_enter 函数中查询数据 query_results 进行修改，是否将 query_results 作为全局变量进行保存比较后（要跨函数使用），然后将其和 display_results_as_cards 和 display_results_as_table 中的 ui 组件进行双向绑定比较好。
 
 2、on_edit_results 中的逻辑为：检测 query_results 绑定的 UI 组件（主要是 ui.input）是否有数据，如果有数据将调用\services\mongodb_service\main.py 中的/api/v1/enterprises/edit_field_value，对应传递的对应关系为： query_results.enterprise_code -> enterprise_code 、query_results.path_code->path_code_param, 有数据的 UI 组件->dict_fields
+
+1、display_results_as_table 不在采用 Quasar 展示数据，在 table 中每行的右侧添加添加两个按钮：编辑、更新
+2、点击编辑后打开一个 ui.dialog 进行编辑修改（dialog 的布局可参考 display_results_as_cards）
+3、修改完毕后点击 更新 按钮后就调用 call_edit_field_api
