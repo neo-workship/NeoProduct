@@ -432,26 +432,33 @@ def edit_archive_content():
     @safe_protect(name="表格方式显示要修改档案数据", error_msg="表格方式显示要修改的档案数据")
     async def display_results_as_table(query_results):
         """表格方式显示要修改的查询结果（多条数据，分页模式）"""
+        global current_edit_data, current_input_refs
+        current_edit_data = {}
+        current_input_refs = {}
+        
         with results_container:
-            # ui.label(f'找到 {len(query_results)} 条数据').classes('text-body2 text-grey-7 mb-4')
-            # 定义表格列
+            # 定义表格列 - 添加操作列
             columns = [
                 {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
                 {'name': 'value', 'label': '字段值', 'field': 'value', 'sortable': True, 'align': 'left'},
                 {'name': 'encoding', 'label': '编码方式', 'field': 'encoding', 'sortable': True, 'align': 'left'},
                 {'name': 'format', 'label': '格式', 'field': 'format', 'sortable': True, 'align': 'left'},
+                {'name': 'actions', 'label': '操作', 'field': 'actions', 'sortable': False, 'align': 'center'},
             ]
             
             # 准备行数据
             rows = []
             for i, result in enumerate(query_results):
+                # 存储原始数据用于编辑
+                current_edit_data[i] = result
+                
                 row = {
                     'id': i,
                     'field_name': result.get('field_name', '未知字段'),
                     'value': result.get('value', '暂无数据') or '暂无数据',
                     'encoding': result.get('encoding', '未指定') or '未指定',
                     'format': result.get('format', '未指定') or '未指定',
-                    # 保存完整的原始数据用于展开行
+                    'actions': '',  # 操作列占位
                     '_raw_data': result
                 }
                 rows.append(row)
@@ -461,149 +468,248 @@ def edit_archive_content():
                 columns=columns, 
                 rows=rows, 
                 row_key='id',
-                pagination=10  # 每页显示10条
+                pagination=10,  # 每页显示10条
+                column_defaults={
+                    'align': 'left',
+                    'headerClasses': 'uppercase text-primary text-base font-bold',
+                }
             ).classes('w-full')
             
-            # 添加表头（包含展开按钮列）
-            table.add_slot('header', r'''
-                <q-tr :props="props">
-                    <q-th auto-width />
-                    <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                        {{ col.label }}
-                    </q-th>
-                </q-tr>
+            # 自定义操作列的槽
+            table.add_slot('body-cell-actions', '''
+                <q-td :props="props">
+                    <q-btn flat dense color="primary" icon="edit" size="base" 
+                        @click="$parent.$emit('edit-row', props.row)"
+                        class="q-mr-xs">
+                        <q-tooltip>编辑</q-tooltip>
+                    </q-btn>
+                    <q-btn flat dense color="positive" icon="sync" size="base"
+                        @click="$parent.$emit('update-row', props.row)">
+                        <q-tooltip>更新</q-tooltip>
+                    </q-btn>
+                </q-td>
             ''')
             
-            # 添加表格主体（包含展开功能）
-            table.add_slot('body', r'''
-                <q-tr :props="props">
-                    <q-td auto-width>
-                        <q-btn size="sm" color="accent" round dense
-                            @click="props.expand = !props.expand"
-                            :icon="props.expand ? 'remove' : 'add'" />
-                    </q-td>
-                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            {{ col.value }}
-                        </div>
-                    </q-td>
-                </q-tr>
-                <q-tr v-show="props.expand" :props="props">
-                    <q-td colspan="100%">
-                        <div class="text-left q-pa-md">
-                            <div class="row q-col-gutter-md">
-                                <!-- 左侧：字段信息 -->
-                                <div class="col-6">
-                                    <div class="text-h6 text-primary q-mb-md">字段信息</div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="label" color="primary" class="q-mr-sm" />
-                                        <span class="text-weight-medium">字段名称：</span>
-                                        <span>{{ props.row._raw_data.full_path_name || '未知字段' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="data_object" color="blue-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">字段值：</span>
-                                        <span>{{ props.row._raw_data.value || '暂无数据' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_pic_url">
-                                        <q-icon name="image" color="green-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">关联图片：</span>
-                                        <a :href="props.row._raw_data.value_pic_url" target="_blank" class="text-blue-500">查看图片</a>
-                                    </div>
-                                    <div class="q-mb-sm" v-else>
-                                        <q-icon name="image" color="green-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">关联图片：</span>
-                                        <span class="text-grey-6">暂无数据</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_doc_url">
-                                        <q-icon name="description" color="orange-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">关联文档：</span>
-                                        <a :href="props.row._raw_data.value_doc_url" target="_blank" class="text-blue-500">查看文档</a>
-                                    </div>
-                                    <div class="q-mb-sm" v-else>
-                                        <q-icon name="description" color="orange-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">关联文档：</span>
-                                        <span class="text-grey-6">暂无数据</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_video_url">
-                                        <q-icon name="videocam" color="red-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">关联视频：</span>
-                                        <a :href="props.row._raw_data.value_video_url" target="_blank" class="text-blue-500">查看视频</a>
-                                    </div>
-                                    <div class="q-mb-sm" v-else>
-                                        <q-icon name="videocam" color="red-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">关联视频：</span>
-                                        <span class="text-grey-6">暂无数据</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- 右侧：数据元信息 -->
-                                <div class="col-6">
-                                    <div class="text-h6 text-primary q-mb-md">数据元信息</div>
-                                    
-                                    <div class="q-mb-sm" v-if="props.row._raw_data.data_url">
-                                        <q-icon name="api" color="purple-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">数据API：</span>
-                                        <a :href="props.row._raw_data.data_url" target="_blank" class="text-blue-500">查看API</a>
-                                    </div>
-                                    <div class="q-mb-sm" v-else>
-                                        <q-icon name="api" color="purple-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">数据API：</span>
-                                        <span class="text-grey-6">暂无数据</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="code" color="teal-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">编码方式：</span>
-                                        <span>{{ props.row._raw_data.encoding || '未指定' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="settings" color="grey-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">格式：</span>
-                                        <span>{{ props.row._raw_data.format || '未指定' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="gavel" color="amber-6" class="q-mr-sm" />
-                                        <span class="text-weight-medium">使用许可：</span>
-                                        <span>{{ props.row._raw_data.license || '未指定' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="security" color="red-5" class="q-mr-sm" />
-                                        <span class="text-weight-medium">使用权限：</span>
-                                        <span>{{ props.row._raw_data.rights || '未指定' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm">
-                                        <q-icon name="update" color="blue-5" class="q-mr-sm" />
-                                        <span class="text-weight-medium">更新频率：</span>
-                                        <span>{{ props.row._raw_data.update_frequency || '未指定' }}</span>
-                                    </div>
-                                    
-                                    <div class="q-mb-sm" v-if="props.row._raw_data.value_dict">
-                                        <q-icon name="book" color="green-5" class="q-mr-sm" />
-                                        <span class="text-weight-medium">数据字典：</span>
-                                        <span>{{ props.row._raw_data.value_dict }}</span>
-                                    </div>
-                                    <div class="q-mb-sm" v-else>
-                                        <q-icon name="book" color="green-5" class="q-mr-sm" />
-                                        <span class="text-weight-medium">数据字典：</span>
-                                        <span class="text-grey-6">暂无数据</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </q-td>
-                </q-tr>
-            ''')
+            # 处理编辑和更新事件
+            # table.on('edit-row', lambda e: asyncio.create_task(open_edit_dialog(e.args['id'])))
+            table.on('edit-row', lambda e: open_edit_dialog(e.args['id']))
+            table.on('update-row', lambda e: asyncio.create_task(update_single_row(e.args['id'])))
     
+    async def open_edit_dialog(row_id: int):
+        """打开编辑对话框 - 参考 display_results_as_cards 的布局"""
+        global current_edit_data, current_input_refs
+        if row_id not in current_edit_data:
+            ui.notify('数据不存在', type='negative')
+            return
+        
+        result = current_edit_data[row_id]
+        
+        # 创建临时的输入组件引用字典
+        dialog_input_refs = {}
+        
+        def save_changes():
+            """保存修改到临时存储"""
+            # 将对话框中的输入值保存到全局引用中
+            if row_id not in current_input_refs:
+                current_input_refs[row_id] = {}
+            
+            # 复制对话框输入值到全局引用
+            for field_name, input_ref in dialog_input_refs.items():
+                if input_ref and input_ref.value and input_ref.value.strip():
+                    # 创建一个模拟的输入组件对象
+                    class MockInput:
+                        def __init__(self, value):
+                            self.value = value
+                    
+                    current_input_refs[row_id][field_name] = MockInput(input_ref.value.strip())
+            
+            dialog.close()
+            ui.notify('修改已保存，请点击更新按钮提交', type='positive')
+        
+        with ui.dialog() as dialog, ui.card().classes('w-full max-w-6xl'):
+            ui.label(f'编辑: {result.get("field_name", "未知字段")}').classes('text-h6 mb-4')
+            
+            with ui.column().classes('w-full gap-4 items-stretch'):
+                # 左侧卡片 - 字段信息
+                with ui.card().classes('flex-1 p-4'):
+                    ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
+                    
+                    # full_path_name（标题）- 只读显示
+                    full_path_name = result.get('full_path_name', '未知字段')
+                    ui.label(full_path_name).classes('text-sm font-bold text-primary mb-2')
+                    
+                    # value（字段值）- 可编辑
+                    value = result.get('value', '') or ''
+                    current_value_label = f" {value}" if value else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('data_object').classes('text-sm text-blue-600')
+                        ui.label('字段值:').classes('text-sm font-medium')
+                        value_input = ui.input(label=current_value_label, placeholder='请输入新的字段值').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['value'] = value_input
+                    
+                    # value_pic_url（字段关联图片）- 可编辑
+                    value_pic_url = result.get('value_pic_url', '') or ''
+                    current_pic_label = f"{value_pic_url}" if value_pic_url else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('image').classes('text-sm text-green-600')
+                        ui.label('关联图片:').classes('text-sm font-medium')
+                        pic_input = ui.input(label=current_pic_label, placeholder='请输入新的图片URL').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['value_pic_url'] = pic_input
+                    
+                    # value_doc_url（字段关联文档）- 可编辑
+                    value_doc_url = result.get('value_doc_url', '') or ''
+                    current_doc_label = f"{value_doc_url}" if value_doc_url else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('article').classes('text-sm text-orange-600')
+                        ui.label('关联文档:').classes('text-sm font-medium')
+                        doc_input = ui.input(label=current_doc_label, placeholder='请输入新的文档URL').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['value_doc_url'] = doc_input
+                    
+                    # value_video_url（字段关联视频）- 可编辑
+                    value_video_url = result.get('value_video_url', '') or ''
+                    current_video_label = f"{value_video_url}" if value_video_url else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('video_library').classes('text-sm text-red-600')
+                        ui.label('关联视频:').classes('text-sm font-medium')
+                        video_input = ui.input(label=current_video_label, placeholder='请输入新的视频URL').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['value_video_url'] = video_input
+                
+                # 右侧卡片 - 数据信息
+                with ui.card().classes('flex-1 p-4'):
+                    ui.label('元数据信息').classes('text-subtitle1 font-medium mb-3')
+                    
+                    # data_url（数据API）- 可编辑
+                    data_url = result.get('data_url', '') or ''
+                    current_data_url_label = f"{data_url}" if data_url else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('api').classes('text-sm text-purple-600')
+                        ui.label('数据API:').classes('text-sm font-medium')
+                        data_url_input = ui.input(label=current_data_url_label, placeholder='请输入新的数据API').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['data_url'] = data_url_input
+                    
+                    # encoding（编码方式）- 可编辑
+                    encoding = result.get('encoding', '') or ''
+                    current_encoding_label = f"{encoding}" if encoding else "未指定"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('code').classes('text-sm text-indigo-600')
+                        ui.label('编码方式:').classes('text-sm font-medium')
+                        encoding_input = ui.input(label=current_encoding_label, placeholder='请输入新的编码方式').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['encoding'] = encoding_input
+                    
+                    # format（格式）- 可编辑
+                    format_val = result.get('format', '') or ''
+                    current_format_label = f"{format_val}" if format_val  else "未指定"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('description').classes('text-sm text-teal-600')
+                        ui.label('格式:').classes('text-sm font-medium')
+                        format_input = ui.input(label=current_format_label, placeholder='请输入新的格式').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['format'] = format_input
+                    
+                    # license（使用许可）- 可编辑
+                    license_val = result.get('license', '') or ''
+                    current_license_label = f"{license_val}" if license_val else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('gavel').classes('text-sm text-amber-600')
+                        ui.label('使用许可:').classes('text-sm font-medium')
+                        license_input = ui.input(label=current_license_label, placeholder='请输入新的使用许可').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['license'] = license_input
+                    
+                    # rights（使用权限）- 可编辑
+                    rights = result.get('rights', '') or ''
+                    current_rights_label = f"{rights}" if rights else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('security').classes('text-sm text-red-500')
+                        ui.label('使用权限:').classes('text-sm font-medium')
+                        rights_input = ui.input(label=current_rights_label, placeholder='请输入新的使用权限').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['rights'] = rights_input
+                    
+                    # update_frequency（更新频率）- 可编辑
+                    update_frequency = result.get('update_frequency', '') or ''
+                    current_freq_label = f"{update_frequency}" if update_frequency else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('update').classes('text-sm text-blue-500')
+                        ui.label('更新频率:').classes('text-sm font-medium')
+                        freq_input = ui.input(label=current_freq_label, placeholder='请输入新的更新频率').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['update_frequency'] = freq_input
+                    
+                    # value_dict（数据字典）- 可编辑
+                    value_dict = result.get('value_dict', '') or ''
+                    current_dict_label = f"{value_dict}" if value_dict else "暂无数据"
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('book').classes('text-sm text-green-500')
+                        ui.label('数据字典:').classes('text-sm font-medium')
+                        dict_input = ui.input(label=current_dict_label, placeholder='请输入新的数据字典').classes('text-sm flex-grow').props('dense')
+                        dialog_input_refs['value_dict'] = dict_input
+            
+            # 对话框底部按钮
+            with ui.row().classes('w-full justify-end gap-2 mt-4'):
+                ui.button('取消', on_click=lambda: dialog.close()).classes('min-w-[80px]')
+                ui.button('保存', on_click=save_changes).classes('min-w-[80px]').props('color=primary')
+        
+        dialog.open()
+                
+    async def update_single_row(row_id: int):
+        """更新单行数据"""
+        global current_edit_data, current_input_refs
+        if row_id not in current_edit_data:
+            ui.notify('数据不存在', type='negative')
+            return
+        
+        if row_id not in current_input_refs or not current_input_refs[row_id]:
+            ui.notify('该行没有修改的数据', type='info')
+            return
+        
+        try:
+            # 获取企业代码和路径
+            selected_values = hierarchy_selector.selected_values
+            if not (selected_values.get("l1") and selected_values.get("l2") and selected_values.get("l3")):
+                ui.notify('请先选择完整的层级路径（L1、L2、L3）', type='warning')
+                return
+            
+            path_code = f"{selected_values['l1']}.{selected_values['l2']}.{selected_values['l3']}"
+            enterprise_code = search_select.value
+            
+            # 构建该行的更新字段
+            original_data = current_edit_data[row_id]
+            field_code = original_data.get('field_code', '')
+            
+            if not field_code:
+                ui.notify('字段代码缺失', type='negative')
+                return
+            
+            field_updates = {'field_code': field_code}
+            input_refs = current_input_refs[row_id]
+            
+            # 收集有值的字段
+            for field_name, input_ref in input_refs.items():
+                if input_ref and hasattr(input_ref, 'value') and input_ref.value.strip():
+                    field_updates[field_name] = input_ref.value.strip()
+            
+            # 移除field_code，因为API不需要它作为更新字段
+            if 'field_code' in field_updates:
+                del field_updates['field_code']
+            
+            if not field_updates:
+                ui.notify('没有检测到修改的数据', type='info')
+                return
+            
+            # 调用API更新单行
+            query_status.set_text('🔄 正在更新单行数据...')
+            log_info(f"开始更新单行数据: row_id={row_id}, enterprise_code={enterprise_code}, path_code={path_code}")
+            
+            await call_edit_field_api(enterprise_code, path_code, [field_updates])
+            
+            # 清除该行的临时数据
+            if row_id in current_input_refs:
+                del current_input_refs[row_id]
+            
+            ui.notify(f'第 {row_id + 1} 行数据更新成功', type='positive')
+            
+        except Exception as e:
+            query_status.set_text('❌ 单行更新异常')
+            ui.notify('单行更新过程发生异常，请稍后重试', type='negative')
+            log_error(f"单行更新异常: row_id={row_id}", exception=e)
+
     # ----------------- 3、修改逻辑 -----------------
     @safe_protect(name="提交编辑结果", error_msg="提交编辑结果失败")
     async def on_edit_results():
