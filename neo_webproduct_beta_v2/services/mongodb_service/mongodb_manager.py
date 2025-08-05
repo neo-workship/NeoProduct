@@ -517,10 +517,10 @@ class MongoDBManager:
                     "update_frequency": "$fields.update_frequency",
                     "value_dict": "$fields.value_dict",
                     # 额外包含一些可能有用的字段
-                    # "field_code": "$fields.field_code",
+                    "field_code": "$fields.field_code",
                     "field_name": "$fields.field_name",
-                    # "full_path_code": "$fields.full_path_code",
-                    # "path_code": "$fields.path_code"
+                    "full_path_code": "$fields.full_path_code",
+                    "path_code": "$fields.path_code"
                 }
             })
             

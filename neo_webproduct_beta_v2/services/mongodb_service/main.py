@@ -253,19 +253,19 @@ async def update_field_value(
         # 更新可选的URL字段，如果未提供则使用默认格式
         pic_url = request.dict_fields.value_pic_url
         if pic_url is None:
-            pic_url = f"http://get_pic_{request.enterprise_code}_{request.full_path_code}/pic"
+            pic_url = f"http://get_pic_{request.enterprise_code}_{request.full_path_code.rsplit('.', 1)[-1]}/pic"
         update_fields[f"fields.{target_field_index}.value_pic_url"] = pic_url
         updated_field_names.append("value_pic_url")
         
         doc_url = request.dict_fields.value_doc_url
         if doc_url is None:
-            doc_url = f"http://get_pic_{request.enterprise_code}_{request.full_path_code}/doc"
+            doc_url = f"http://get_doc_{request.enterprise_code}_{request.full_path_code.rsplit('.', 1)[-1]}/doc"
         update_fields[f"fields.{target_field_index}.value_doc_url"] = doc_url
         updated_field_names.append("value_doc_url")
         
         video_url = request.dict_fields.value_video_url
         if video_url is None:
-            video_url = f"http://get_pic_{request.enterprise_code}_{request.full_path_code}/video"
+            video_url = f"http://get_video_{request.enterprise_code}_{request.full_path_code.rsplit('.', 1)[-1]}/video"
         update_fields[f"fields.{target_field_index}.value_video_url"] = video_url
         updated_field_names.append("value_video_url")
         

@@ -288,116 +288,149 @@ def edit_archive_content():
         results_container.clear()
         
         # 根据数据条数选择显示方式
-        if len(query_results) <= 1:
+        if len(query_results) <= 2:
             # 无数据或只有一条数据时，使用卡片方式显示
             await display_results_as_cards(query_results)
         else:
             # 多条数据时，使用表格分页方式显示
             await display_results_as_table(query_results)
 
+    # 在 edit_archive_tab.py 中添加/修改以下代码
+
+    # 全局变量用于存储当前UI组件引用（仅为了数据收集，不是状态管理）
+    current_edit_data = {}
+    current_input_refs = {}
     @safe_protect(name="卡片方式显示要修改的档案数据", error_msg="卡片方式显示要修改的档案数据")
     async def display_results_as_cards(query_results):
         """卡片方式显示要修改的查询结果（无数据或只有一条数据）"""
+        global current_edit_data, current_input_refs
+        current_edit_data = {}
+        current_input_refs = {}
+        
         with results_container:            
             if not query_results:
                 # 无数据情况，显示空状态（与初始化状态相同）
                 display_empty_state()
                 return
             
-            # 有一条数据时，按现有方式显示
+            # 有一条数据时，按现有方式显示，但改为可编辑的输入框
             for i, result in enumerate(query_results):
+                # 存储当前记录的原始数据
+                current_edit_data[i] = result
+                current_input_refs[i] = {}
+                print(f"display:{result}")
+
                 with ui.row().classes('w-full gap-4 items-stretch'):
                     # 左侧card展示：full_path_name、value、value_pic_url、value_doc_url、value_video_url
                     with ui.card().classes('flex-1 p-4'):
                         ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
                         
-                        # full_path_name（标题）
+                        # full_path_name（标题）- 只读显示
                         full_path_name = result.get('full_path_name', '未知字段')
                         ui.label(full_path_name).classes('text-base font-bold text-primary mb-2')
                         
-                        # value（字段值）
-                        value = result.get('value', '暂无数据') or '暂无数据'
+                        # value（字段值）- 可编辑
+                        value = result.get('value', '') or ''
+                        current_value_label = f"字段值: {value}" if value and value != '暂无数据' else "字段值"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('data_object').classes('text-lg text-blue-600')
                             ui.label('字段值:').classes('text-lg font-medium')
-                            ui.input(str(value)).classes('text-lg flex-grow').props('dense')
+                            value_input = ui.input(label=current_value_label, placeholder='请输入新的字段值').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['value'] = value_input
                         
-                        # value_pic_url（字段关联图片）
-                        value_pic_url = result.get('value_pic_url', '') or '暂无数据'
+                        # value_pic_url（字段关联图片）- 可编辑
+                        value_pic_url = result.get('value_pic_url', '') or ''
+                        current_pic_label = f"关联图片: {value_pic_url}" if value_pic_url and value_pic_url != '暂无数据' else "关联图片"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('image').classes('text-lg text-green-600')
                             ui.label('关联图片:').classes('text-lg font-medium')
-                            ui.input(value_pic_url).classes('text-lg flex-grow').props('dense')
+                            pic_input = ui.input(label=current_pic_label, placeholder='请输入新的图片URL').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['value_pic_url'] = pic_input
                         
-                        # value_doc_url（字段关联文档）
-                        value_doc_url = result.get('value_doc_url', '') or '暂无数据'
+                        # value_doc_url（字段关联文档）- 可编辑
+                        value_doc_url = result.get('value_doc_url', '') or ''
+                        current_doc_label = f"关联文档: {value_doc_url}" if value_doc_url and value_doc_url != '暂无数据' else "关联文档"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('description').classes('text-lg text-orange-600')
                             ui.label('关联文档:').classes('text-lg font-medium')
-                            ui.input(value_doc_url).classes('text-lg flex-grow').props('dense')
+                            doc_input = ui.input(label=current_doc_label, placeholder='请输入新的文档URL').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['value_doc_url'] = doc_input
                         
-                        # value_video_url（字段关联视频）
-                        value_video_url = result.get('value_video_url', '') or '暂无数据'
+                        # value_video_url（字段关联视频）- 可编辑
+                        value_video_url = result.get('value_video_url', '') or ''
+                        current_video_label = f"关联视频: {value_video_url}" if value_video_url and value_video_url != '暂无数据' else "关联视频"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
-                            ui.icon('videocam').classes('text-lg text-red-600')
+                            ui.icon('videocam').classes('text-lg text-purple-600')
                             ui.label('关联视频:').classes('text-lg font-medium')
-                            ui.input(value_video_url).classes('text-lg flex-grow').props('dense')
-
+                            video_input = ui.input(label=current_video_label, placeholder='请输入新的视频URL').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['value_video_url'] = video_input
+                    
                     # 右侧card展示：data_url、encoding、format、license、rights、update_frequency、value_dict
                     with ui.card().classes('flex-1 p-4'):
-                        ui.label('数据元信息').classes('text-subtitle1 font-medium mb-3')
+                        ui.label('字段属性').classes('text-subtitle1 font-medium mb-3')
                         
-                        # data_url（数据API）
-                        data_url = result.get('data_url', '') or '未指定'
+                        # data_url（数据API）- 可编辑
+                        data_url = result.get('data_url', '') or ''
+                        current_api_label = f"数据API: {data_url}" if data_url and data_url != '暂无数据' else "数据API"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
-                            ui.icon('api').classes('text-lg text-purple-600')
+                            ui.icon('api').classes('text-lg text-indigo-600')
                             ui.label('数据API:').classes('text-lg font-medium')
-                            ui.input(data_url).classes('flex-grow text-lg').props('dense')
+                            api_input = ui.input(label=current_api_label, placeholder='请输入新的API地址').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['data_url'] = api_input
                         
-                        # encoding（编码方式）
-                        encoding = result.get('encoding', '未指定') or '未指定'
+                        # encoding（编码方式）- 可编辑
+                        encoding = result.get('encoding', '') or ''
+                        current_encoding_label = f"编码方式: {encoding}" if encoding and encoding != '未指定' else "编码方式"
+                        with ui.row().classes('w-full gap-2 items-center mb-2'):
+                            ui.icon('code').classes('text-lg text-cyan-600')
+                            ui.label('编码方式:').classes('text-lg font-medium')
+                            encoding_input = ui.input(label=current_encoding_label, placeholder='请输入新的编码方式').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['encoding'] = encoding_input
+                        
+                        # format（格式）- 可编辑
+                        format_info = result.get('format', '') or ''
+                        current_format_label = f"格式: {format_info}" if format_info and format_info != '未指定' else "格式"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('code').classes('text-lg text-teal-600')
-                            ui.label('编码方式:').classes('text-lg font-medium')
-                            ui.input(str(encoding)).classes('flex-grow text-lg').props('dense')
-                        
-                        # format（格式）
-                        format_info = result.get('format', '未指定') or '未指定'
-                        with ui.row().classes('w-full gap-2 items-center mb-2'):
-                            ui.icon('settings').classes('text-lg text-grey-600')
                             ui.label('格式:').classes('text-lg font-medium')
-                            ui.input(str(format_info)).classes('flex-grow text-lg').props('dense')
+                            format_input = ui.input(label=current_format_label, placeholder='请输入新的数据格式').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['format'] = format_input
                         
-                        # license（使用许可）
-                        license_info = result.get('license', '未指定') or '未指定'
+                        # license（使用许可）- 可编辑
+                        license_info = result.get('license', '') or ''
+                        current_license_label = f"使用许可: {license_info}" if license_info and license_info != '未指定' else "使用许可"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('gavel').classes('text-lg text-amber-600')
                             ui.label('使用许可:').classes('text-lg font-medium')
-                            ui.input(str(license_info)).classes('flex-grow text-lg').props('dense')
+                            license_input = ui.input(label=current_license_label, placeholder='请输入新的使用许可').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['license'] = license_input
                         
-                        # rights（使用权限）
-                        rights = result.get('rights', '未指定') or '未指定'
+                        # rights（使用权限）- 可编辑
+                        rights = result.get('rights', '') or ''
+                        current_rights_label = f"使用权限: {rights}" if rights and rights != '未指定' else "使用权限"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('security').classes('text-lg text-red-500')
                             ui.label('使用权限:').classes('text-lg font-medium')
-                            ui.input(str(rights)).classes('flex-grow text-lg').props('dense')
+                            rights_input = ui.input(label=current_rights_label, placeholder='请输入新的使用权限').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['rights'] = rights_input
                         
-                        # update_frequency（更新频率）
-                        update_frequency = result.get('update_frequency', '未指定') or '未指定'
+                        # update_frequency（更新频率）- 可编辑
+                        update_frequency = result.get('update_frequency', '') or ''
+                        current_freq_label = f"更新频率: {update_frequency}" if update_frequency and update_frequency != '未指定' else "更新频率"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('update').classes('text-lg text-blue-500')
                             ui.label('更新频率:').classes('text-lg font-medium')
-                            ui.input(str(update_frequency)).classes('flex-grow text-lg').props('dense')
+                            freq_input = ui.input(label=current_freq_label, placeholder='请输入新的更新频率').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['update_frequency'] = freq_input
                         
-                        # value_dict（数据字典）
-                        value_dict = result.get('value_dict', '') or '未指定'
+                        # value_dict（数据字典）- 可编辑
+                        value_dict = result.get('value_dict', '') or ''
+                        current_dict_label = f"数据字典: {value_dict}" if value_dict and value_dict != '暂无数据' else "数据字典"
                         with ui.row().classes('w-full gap-2 items-center mb-2'):
                             ui.icon('book').classes('text-lg text-green-500')
                             ui.label('数据字典:').classes('text-lg font-medium')
-                            if isinstance(value_dict, str):
-                                ui.input(value_dict).classes('flex-grow text-lg').props('dense')
-                            else:
-                                ui.input(str(value_dict)).classes('flex-grow text-lg').props('dense')
+                            dict_input = ui.input(label=current_dict_label, placeholder='请输入新的数据字典').classes('text-lg flex-grow').props('dense')
+                            current_input_refs[i]['value_dict'] = dict_input
 
     @safe_protect(name="表格方式显示要修改档案数据", error_msg="表格方式显示要修改的档案数据")
     async def display_results_as_table(query_results):
@@ -577,8 +610,145 @@ def edit_archive_content():
         # ----------------- 2、Query 逻辑 -----------------
     
     # ----------------- 3、修改逻辑 -----------------
-    async def on_edit_results(query_results):
-        pass
+    @safe_protect(name="提交编辑结果", error_msg="提交编辑结果失败")
+    async def on_edit_results():
+        """处理编辑结果提交 - 简化版，直接检查UI组件是否有值"""
+        global current_edit_data, current_input_refs
+        
+        # 1. 验证必要的选择信息
+        if not search_select.value:
+            ui.notify('请先选择企业', type='warning')
+            return
+        
+        # 2. 获取层级路径
+        selected_values = hierarchy_selector.selected_values
+        if not (selected_values.get("l1") and selected_values.get("l2") and selected_values.get("l3")):
+            ui.notify('请先选择完整的层级路径（L1、L2、L3）', type='warning')
+            return
+        
+        # 构建path_code
+        path_code = f"{selected_values['l1']}.{selected_values['l2']}.{selected_values['l3']}"
+        enterprise_code = search_select.value
+        
+        # 3. 收集有数据的UI组件 - 简化版
+        dict_fields = []
+        
+        # 遍历每个记录
+        for record_index, input_refs in current_input_refs.items():
+            # 获取该记录的原始数据
+            original_data = current_edit_data.get(record_index, {})
+            field_code = original_data.get('field_code', '')
+            print(f"edit:{original_data}")
+            if not field_code:
+                continue
+            
+            # 构建该记录的更新字段
+            field_updates = {'field_code': field_code}
+            has_changes = False
+            
+            # 直接检查每个输入框是否有值
+            if input_refs.get('value') and input_refs['value'].value.strip():
+                field_updates['value'] = input_refs['value'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('value_pic_url') and input_refs['value_pic_url'].value.strip():
+                field_updates['value_pic_url'] = input_refs['value_pic_url'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('value_doc_url') and input_refs['value_doc_url'].value.strip():
+                field_updates['value_doc_url'] = input_refs['value_doc_url'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('value_video_url') and input_refs['value_video_url'].value.strip():
+                field_updates['value_video_url'] = input_refs['value_video_url'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('data_url') and input_refs['data_url'].value.strip():
+                field_updates['data_url'] = input_refs['data_url'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('encoding') and input_refs['encoding'].value.strip():
+                field_updates['encoding'] = input_refs['encoding'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('format') and input_refs['format'].value.strip():
+                field_updates['format'] = input_refs['format'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('license') and input_refs['license'].value.strip():
+                field_updates['license'] = input_refs['license'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('rights') and input_refs['rights'].value.strip():
+                field_updates['rights'] = input_refs['rights'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('update_frequency') and input_refs['update_frequency'].value.strip():
+                field_updates['update_frequency'] = input_refs['update_frequency'].value.strip()
+                has_changes = True
+                
+            if input_refs.get('value_dict') and input_refs['value_dict'].value.strip():
+                field_updates['value_dict'] = input_refs['value_dict'].value.strip()
+                has_changes = True
+
+            # 如果有修改的字段，添加到dict_fields
+            if has_changes:
+                dict_fields.append(field_updates)
+        
+        # 4. 验证是否有修改的数据
+        if not dict_fields:
+            ui.notify('没有检测到任何修改的数据', type='info')
+            return
+        
+        # 5. 调用API进行更新
+        try:
+            # 显示加载状态
+            query_status.set_text('🔄 正在提交修改...')
+            
+            # 准备API请求数据
+            request_data = {
+                "enterprise_code": enterprise_code,
+                "path_code_param": path_code,
+                "dict_fields": dict_fields
+            }
+            
+            log_info(f"开始提交字段编辑: enterprise_code={enterprise_code}, path_code={path_code}, fields_count={len(dict_fields)}")
+            
+            # 调用API
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f'{MONGODB_SERVICE_URL}/api/v1/enterprises/edit_field_value',
+                    json=request_data,
+                    headers={'Content-Type': 'application/json'}
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get('success', False):
+                            # 成功
+                            updated_count = data.get('updated_count', 0)
+                            query_status.set_text(f'✅ 修改成功，更新了 {updated_count} 个字段')
+                            ui.notify(f'修改成功！更新了 {updated_count} 个字段', type='positive')
+                            log_info(f"字段编辑成功: updated_count={updated_count}")
+                            
+                            # 可选：重新查询显示最新数据
+                            # await on_query_enter()
+                            
+                        else:
+                            error_msg = data.get('message', '更新失败')
+                            query_status.set_text(f'❌ {error_msg}')
+                            ui.notify(f'更新失败: {error_msg}', type='negative')
+                            log_error(f"字段编辑API返回失败: {error_msg}")
+                    else:
+                        error_text = await response.text()
+                        query_status.set_text('❌ 更新服务异常')
+                        ui.notify('更新服务异常，请稍后重试', type='negative')
+                        log_error(f"字段编辑API请求失败: status={response.status}, response={error_text}")
+                        
+        except Exception as e:
+            query_status.set_text('❌ 提交过程发生异常')
+            ui.notify('提交过程发生异常，请稍后重试', type='negative')
+            log_error("字段编辑提交异常", exception=e)
 
     # ----------------- 4、UI布局 -----------------
     with ui.column().classes('w-full gap-6 p-4 items-center'):

@@ -332,7 +332,7 @@ def read_archive_content():
                             ui.icon('image').classes('text-lg text-green-600')
                             ui.label('关联图片:').classes('text-lg font-medium')
                             if value_pic_url:
-                                ui.link(value_pic_url, new_tab=True).classes('text-lg text-blue-500 underline')
+                                ui.link(value_pic_url, new_tab=True).classes('text-base text-blue-500 underline')
                             else:
                                 ui.label('暂无数据').classes('text-lg text-grey-6')
                         
@@ -342,7 +342,7 @@ def read_archive_content():
                             ui.icon('description').classes('text-lg text-orange-600')
                             ui.label('关联文档:').classes('text-lg font-medium')
                             if value_doc_url:
-                                ui.link(value_doc_url, new_tab=True).classes('text-lg text-blue-500 underline')
+                                ui.link(value_doc_url, new_tab=True).classes('text-base text-blue-500 underline')
                             else:
                                 ui.label('暂无数据').classes('text-lg text-grey-6')
                         
@@ -352,7 +352,7 @@ def read_archive_content():
                             ui.icon('videocam').classes('text-lg text-red-600')
                             ui.label('关联视频:').classes('text-lg font-medium')
                             if value_video_url:
-                                ui.link(value_video_url, new_tab=True).classes('text-lg text-blue-500 underline')
+                                ui.link(value_video_url, new_tab=True).classes('text-base text-blue-500 underline')
                             else:
                                 ui.label('暂无数据').classes('text-lg text-grey-6')
 
@@ -484,7 +484,7 @@ def read_archive_content():
                             <div class="row q-col-gutter-md">
                                 <!-- 左侧：字段信息 -->
                                 <div class="col-6">
-                                    <div class="text-h6 text-primary q-mb-md">字段信息</div>
+                                    <div class="text-base text-primary q-mb-md">字段信息</div>
                                     
                                     <div class="q-mb-sm">
                                         <q-icon name="label" color="primary" class="q-mr-sm" />
@@ -534,7 +534,7 @@ def read_archive_content():
                                 
                                 <!-- 右侧：数据元信息 -->
                                 <div class="col-6">
-                                    <div class="text-h6 text-primary q-mb-md">数据元信息</div>
+                                    <div class="text-base text-primary q-mb-md">数据元信息</div>
                                     
                                     <div class="q-mb-sm" v-if="props.row._raw_data.data_url">
                                         <q-icon name="api" color="purple-6" class="q-mr-sm" />

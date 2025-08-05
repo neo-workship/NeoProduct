@@ -44,6 +44,8 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 
 ## UI 编写
 
+### read_archive_tab 页面
+
 编写 \menu_pages\enterprise_archive\read_archive_tab.py read_archive_content 函数代码，
 伪代码如下，请按照布局及注释说明进行实现，不要私自添加其他布局和组件。
 
@@ -85,3 +87,10 @@ UI 展示数据
 成功调用 API 后，首先判断返回结果是否正确，然后在 with ui.row().classes('w-full gap-4') 下添加 2 个左右布局的 ui.card 显示结果：
 左侧 card 展示：full_path_name（标题）、value（字段值）、value_pic_url（字段关联图片）、value_doc_url（字段关联文档）、value_video_url（字段关联视频）
 右侧 card 展示：data_url（数据 API）、encoding（编码方式）、format（格式）、license（使用许可）、rights（使用权限）、update_frequency（更新频率）、value_dict（数据字典）
+
+### edit_archive_tab 页面
+
+编写 \menu_pages\enterprise_archive\edit_archive_tab.py 中的 on_edit_results 函数。先评估以下方法是否有效，是否合理，先不要写代码。
+1、先探讨一个问题：由于对 on_query_enter 函数中查询数据 query_results 进行修改，是否将 query_results 作为全局变量进行保存比较后（要跨函数使用），然后将其和 display_results_as_cards 和 display_results_as_table 中的 ui 组件进行双向绑定比较好。
+
+2、on_edit_results 中的逻辑为：检测 query_results 绑定的 UI 组件（主要是 ui.input）是否有数据，如果有数据将调用\services\mongodb_service\main.py 中的/api/v1/enterprises/edit_field_value，对应传递的对应关系为： query_results.enterprise_code -> enterprise_code 、query_results.path_code->path_code_param, 有数据的 UI 组件->dict_fields
