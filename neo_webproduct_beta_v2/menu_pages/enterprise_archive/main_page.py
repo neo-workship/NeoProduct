@@ -28,7 +28,7 @@ def enterprise_archive_content():
                 create_archive = ui.tab('创建档案', icon='precision_manufacturing')
                 read_archive = ui.tab('查看档案', icon='plagiarism')
                 edit_archive = ui.tab('修改档案', icon='edit_note')
-                add_archive_filed = ui.tab('添加属性', icon='note_add')
+                # add_archive_filed = ui.tab('添加属性', icon='note_add')
                 delete_archive = ui.tab('删除档案', icon='delete_forever')
                 separate_line = ui.tab('________')
                 bi_analysis = ui.tab('BI分析',icon='auto_graph')
@@ -43,8 +43,8 @@ def enterprise_archive_content():
                     read_archive_content()
                 with ui.tab_panel(edit_archive).classes('w-full'):
                     edit_archive_content()
-                with ui.tab_panel(add_archive_filed).classes('w-full'):
-                    add_archive_filed_content()
+                # with ui.tab_panel(add_archive_filed).classes('w-full'):
+                #     add_archive_filed_content()
                 with ui.tab_panel(delete_archive).classes('w-full'):
                     delete_archive_content()
                 with ui.tab_panel(bi_analysis).classes('w-full'):

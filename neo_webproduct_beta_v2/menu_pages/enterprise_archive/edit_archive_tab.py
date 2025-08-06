@@ -677,13 +677,12 @@ def edit_archive_content():
                         current_input_refs['value_dict'] = dict_input
 
             async def handle_edit():
-                dialog_update_status.set_text('🔄 正在提交修改...')  
-                await on_edit_table_results(row_id)  
+                await on_edit_table_results(row_id) 
+
             # 对话框底部按钮
             with ui.row().classes('w-full justify-end gap-2 mt-4'):
-                dialog_update_status = ui.label('').classes('text-body2 text-grey-6')
                 ui.button('确认修改', on_click=handle_edit).classes('min-w-[80px]').props('color=primary')
-                ui.button('取消编辑', on_click=lambda: dialog.close()).classes('min-w-[80px]')
+                ui.button('关闭编辑', on_click=lambda: dialog.close()).classes('min-w-[80px]')
         dialog.open()
         
     # ----------------- 3、修改逻辑 -----------------
@@ -779,8 +778,6 @@ def edit_archive_content():
             # 显示加载状态
             query_status.set_text('🔄 正在提交修改...')               
             log_info(f"开始提交字段编辑: enterprise_code={enterprise_code}, path_code={path_code}, fields_count={len(dict_fields)}")
-            # 调用API
-            print(enterprise_code,path_code,field_updates)
             await call_edit_field_api(enterprise_code,path_code,dict_fields)
         except Exception as e:
             query_status.set_text('❌ 提交过程发生异常')
@@ -788,6 +785,7 @@ def edit_archive_content():
             log_error("字段编辑提交异常", exception=e)
     
     async def on_edit_table_results(row_id):
+
         global current_original_data, current_input_refs
 
         selected_values = hierarchy_selector.selected_values
@@ -857,8 +855,6 @@ def edit_archive_content():
         # 如果有修改的字段，添加到dict_fields
         if has_changes:
             dict_fields.append(field_updates)
-            # ui.notify(dict_fields)
-            print(enterprise_code,path_code,field_updates)
             await call_edit_field_api(enterprise_code,path_code,dict_fields)
         else:
             ui.notify("未检测到修改的数据",type='warning')
