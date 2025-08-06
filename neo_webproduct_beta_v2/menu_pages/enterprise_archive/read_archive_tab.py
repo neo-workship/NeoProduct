@@ -451,7 +451,11 @@ def read_archive_content():
                 columns=columns, 
                 rows=rows, 
                 row_key='id',
-                pagination=10  # 每页显示10条
+                pagination=10,  # 每页显示10条
+                column_defaults={
+                    'align': 'left',
+                    'headerClasses': 'uppercase text-primary text-base font-bold',
+                }
             ).classes('w-full')
             
             # 添加表头（包含展开按钮列）
