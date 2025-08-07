@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional,List
 
-
 # --------------------------创建档案模型--------------------------
 class CreateDocumentRequest(BaseModel):
     """创建文档请求模型"""
@@ -169,6 +168,7 @@ class QueryFieldsResponse(BaseModel):
                 ]
             }
         }
+
 # --------------------------编辑企业信息--------------------------
 class EditFieldValueRequest(BaseModel):
     """批量编辑字段值请求模型"""

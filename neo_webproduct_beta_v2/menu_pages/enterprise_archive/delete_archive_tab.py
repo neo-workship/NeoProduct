@@ -69,11 +69,13 @@ def delete_archive_content():
             with ui.row().classes('w-full gap-4 justify-end'):
                 # 搜索结果状态标签
                 search_status = ui.label('').classes('text-body2 text-grey-6')
-                ui.button("删除").classes('min-w-[100px]')
+                delete_btn = ui.button("删除").classes('min-w-[100px]')
+                clear_btn = ui.button("清空").classes('min-w-[100px]')
                 
             with ui.row().classes('w-full gap-4 justify-end'):
                 doc_log = ui.log(max_lines=20).classes('w-full h-80 border rounded overflow-y-auto scrollbar-hide')
-
+                doc_log.push('🚀 准备就绪......')
+                
     # 全局变量用于存储所有搜索过的企业数据，用于保持选项显示
     all_searched_enterprises = {}
     # 可选：监听输入变化，实现实时搜索（防抖）
@@ -257,6 +259,12 @@ def delete_archive_content():
         if not select_options:  # 只在首次初始化时设置
             select_options = []
 
+    async def on_delete_archive():
+        ui.notify("on_delete_archive")
+
+    async def on_cancel_config():
+        ui.notify("on_cancel_config")
+
     # 监听回车键事件
     search_input.on('keydown.enter', lambda: asyncio.create_task(on_search_enter()))
     # 监听输入值变化
@@ -265,3 +273,6 @@ def delete_archive_content():
     search_select.on_value_change(lambda: on_search_select_change())
     # 初始化选项
     initialize_select_options()
+    # 删除操作
+    delete_btn.on("click",lambda: on_delete_archive())
+    clear_btn.on("click",lambda: on_cancel_config())
