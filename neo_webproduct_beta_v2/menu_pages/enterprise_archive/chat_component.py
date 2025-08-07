@@ -87,8 +87,106 @@ def chat_page():
                 
         except Exception as e:
             ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
-    # ============= 功能逻辑区域 =============
+            
+    # =============
+    async def scroll_to_bottom_smooth():
+        """平滑滚动到底部，使用更可靠的方法"""
+        try:
+            # 方法1: 使用 scroll_area 的内置方法，设置 percent > 1 确保滚动到底部
+            scroll_area.scroll_to(percent=1.1)
+            # 添加小延迟确保滚动完成
+            await asyncio.sleep(0.05)
+        except Exception as e:
+            print(f"滚动出错: {e}")
 
+    async def handle_message(event=None):
+        user_message = input_ref['widget'].value.strip()
+        if not user_message:
+            return
+        
+        # 🔒 禁用输入框和发送按钮，防止重复发送
+        input_ref['widget'].set_enabled(False)
+        send_button_ref['widget'].set_enabled(False)
+        
+        # 清空输入框
+        input_ref['widget'].set_value('')
+
+        try:
+            # 删除欢迎消息
+            if welcome_message_container:
+                welcome_message_container.clear()
+
+            # 用户消息
+            with messages:
+                user_avatar = static_manager.get_fallback_path(
+                    static_manager.get_logo_path('user.svg'),
+                    'https://robohash.org/user'
+                )
+                with ui.chat_message(
+                    name='您',
+                    avatar=user_avatar,
+                    sent=True
+                ).classes('w-full'):
+                    ui.label(user_message).classes('whitespace-pre-wrap break-words')
+
+            # 添加用户消息后立即滚动到底部
+            await scroll_to_bottom_smooth()
+
+            # 机器人消息
+            with messages:
+                robot_avatar = static_manager.get_fallback_path(
+                    static_manager.get_logo_path('robot_txt.svg'),
+                    'https://robohash.org/ui'
+                )
+                with ui.chat_message(
+                    name='AI',
+                    avatar=robot_avatar
+                ).classes('w-full'):
+                    # 先放一个不可见的 label，用来做打字机动画
+                    stream_label = ui.label('').classes('whitespace-pre-wrap')
+
+                    full = f"我收到了您的消息：{user_message}。这是一个智能回复示例，包含更多内容来演示打字机效果。让我们看看这个功能如何工作..."  # 示例回复
+                    typed = ''
+                    for ch in full:
+                        typed += ch
+                        stream_label.text = typed
+                        # 打字过程中也滚动到底部
+                        await scroll_to_bottom_smooth()
+                        await asyncio.sleep(0.03)
+
+                    # 完成回复后最终滚动
+                    await scroll_to_bottom_smooth()
+        
+        finally:
+            # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
+            input_ref['widget'].set_enabled(True)
+            send_button_ref['widget'].set_enabled(True)
+            # 重新聚焦到输入框，提升用户体验
+            input_ref['widget'].run_method('focus')
+
+    def handle_keydown(e):
+        """处理键盘事件 - 使用NiceGUI原生方法"""
+        # 检查输入框是否已禁用，如果禁用则不处理按键事件
+        if not input_ref['widget'].enabled:
+            return
+            
+        # 获取事件详细信息
+        key = e.args.get('key', '')
+        shift_key = e.args.get('shiftKey', False)
+        
+        if key == 'Enter':
+            if shift_key:
+                # Shift+Enter: 允许换行，不做任何处理
+                # NiceGUI会自动处理换行，我们不需要阻止默认行为
+                pass
+            else:
+                # 单独的Enter: 发送消息
+                # 阻止默认的换行行为
+                ui.run_javascript('event.preventDefault();')
+                # 异步调用消息处理函数
+                ui.timer(0.01, lambda: handle_message(), once=True)
+
+    # ============= UI区域 =============
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
         <style>
@@ -135,7 +233,6 @@ def chat_page():
     
     # 主容器 - 使用水平布局
     with ui.row().classes('w-full h-full chat-container').style('overflow: hidden; height: calc(100vh - 120px); margin: 0; padding: 0;'):   
-        
         # 侧边栏 - 固定宽度
         with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
             # 侧边栏标题
@@ -188,7 +285,6 @@ def chat_page():
                     with ui.column().classes('p-2'):
                         for i in range(5):
                             ui.label(f'历史对话 {i+1}').classes('chat-history-item p-2 rounded cursor-pointer').on('click', lambda: ui.notify('加载历史对话'))
-
         # 主聊天区域 - 占据剩余空间
         with ui.column().classes('flex-grow h-full').style('position: relative; overflow: hidden;'):
             # 聊天消息区域 - 使用 scroll_area 提供更好的滚动体验
@@ -220,104 +316,6 @@ def chat_page():
                 # 提前声明可变对象，供内部嵌套函数读写
                 input_ref = {'widget': None}
 
-                async def scroll_to_bottom_smooth():
-                    """平滑滚动到底部，使用更可靠的方法"""
-                    try:
-                        # 方法1: 使用 scroll_area 的内置方法，设置 percent > 1 确保滚动到底部
-                        scroll_area.scroll_to(percent=1.1)
-                        # 添加小延迟确保滚动完成
-                        await asyncio.sleep(0.05)
-                    except Exception as e:
-                        print(f"滚动出错: {e}")
-
-                async def handle_message(event=None):
-                    user_message = input_ref['widget'].value.strip()
-                    if not user_message:
-                        return
-                    
-                    # 🔒 禁用输入框和发送按钮，防止重复发送
-                    input_ref['widget'].set_enabled(False)
-                    send_button_ref['widget'].set_enabled(False)
-                    
-                    # 清空输入框
-                    input_ref['widget'].set_value('')
-
-                    try:
-                        # 删除欢迎消息
-                        if welcome_message_container:
-                            welcome_message_container.clear()
-
-                        # 用户消息
-                        with messages:
-                            user_avatar = static_manager.get_fallback_path(
-                                static_manager.get_logo_path('user.svg'),
-                                'https://robohash.org/user'
-                            )
-                            with ui.chat_message(
-                                name='您',
-                                avatar=user_avatar,
-                                sent=True
-                            ).classes('w-full'):
-                                ui.label(user_message).classes('whitespace-pre-wrap break-words')
-
-                        # 添加用户消息后立即滚动到底部
-                        await scroll_to_bottom_smooth()
-
-                        # 机器人消息
-                        with messages:
-                            robot_avatar = static_manager.get_fallback_path(
-                                static_manager.get_logo_path('robot_txt.svg'),
-                                'https://robohash.org/ui'
-                            )
-                            with ui.chat_message(
-                                name='AI',
-                                avatar=robot_avatar
-                            ).classes('w-full'):
-                                # 先放一个不可见的 label，用来做打字机动画
-                                stream_label = ui.label('').classes('whitespace-pre-wrap')
-
-                                full = f"我收到了您的消息：{user_message}。这是一个智能回复示例，包含更多内容来演示打字机效果。让我们看看这个功能如何工作..."  # 示例回复
-                                typed = ''
-                                for ch in full:
-                                    typed += ch
-                                    stream_label.text = typed
-                                    # 打字过程中也滚动到底部
-                                    await scroll_to_bottom_smooth()
-                                    await asyncio.sleep(0.03)
-
-                                # 完成回复后最终滚动
-                                await scroll_to_bottom_smooth()
-                    
-                    finally:
-                        # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
-                        input_ref['widget'].set_enabled(True)
-                        send_button_ref['widget'].set_enabled(True)
-                        # 重新聚焦到输入框，提升用户体验
-                        input_ref['widget'].run_method('focus')
-
-                # 改进的事件处理方式
-                def handle_keydown(e):
-                    """处理键盘事件 - 使用NiceGUI原生方法"""
-                    # 检查输入框是否已禁用，如果禁用则不处理按键事件
-                    if not input_ref['widget'].enabled:
-                        return
-                        
-                    # 获取事件详细信息
-                    key = e.args.get('key', '')
-                    shift_key = e.args.get('shiftKey', False)
-                    
-                    if key == 'Enter':
-                        if shift_key:
-                            # Shift+Enter: 允许换行，不做任何处理
-                            # NiceGUI会自动处理换行，我们不需要阻止默认行为
-                            pass
-                        else:
-                            # 单独的Enter: 发送消息
-                            # 阻止默认的换行行为
-                            ui.run_javascript('event.preventDefault();')
-                            # 异步调用消息处理函数
-                            ui.timer(0.01, lambda: handle_message(), once=True)
-
                 # 为发送按钮创建引用容器
                 send_button_ref = {'widget': None}
 
@@ -328,14 +326,8 @@ def chat_page():
                     'min-height: 44px; max-height: 120px; resize: none;'
                 ).props('outlined dense rounded rows=3')
 
-                # 方法1: 使用.on()方法监听keydown事件（推荐）
+                # 使用.on()方法监听keydown事件
                 input_ref['widget'].on('keydown', handle_keydown)
-                
-                # 方法2: 备选方案 - 使用特定的事件修饰符
-                # input_ref['widget'].on('keydown.enter', lambda e: handle_enter_only(e))
-                
-                # 可选：添加on_change监听内容变化
-                # input_ref['widget'].on_change = lambda: print(f"内容变化: {input_ref['widget'].value}")
                 
                 send_button_ref['widget'] = ui.button(
                     icon='send',

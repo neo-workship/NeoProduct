@@ -67,7 +67,7 @@ def create_archive_content():
                 progress_bar = ui.linear_progress(
                     value=0,
                     show_value=True
-                ).classes('flex-1').style('display: none')
+                ).classes('flex-1').props('dense rounded').style('display: none')
                 
                 # 状态标签
                 status_label = ui.label('').classes('text-caption')
