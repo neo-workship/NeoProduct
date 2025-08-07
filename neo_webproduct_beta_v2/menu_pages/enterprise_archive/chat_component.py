@@ -7,8 +7,101 @@ from typing import Optional
 from component import static_manager
 import os
 from .hierarchy_selector_component import HierarchySelector
+from .config import (
+    get_model_options_for_select, 
+    get_model_config, 
+    get_default_model,
+    reload_llm_config,
+    get_config_info
+)
     
 def chat_page():
+    model_options = get_model_options_for_select()  # 返回 ['deepseek-chat', 'moonshot-v1-8k', 'qwen-plus', ...]
+    default_model = get_default_model() or 'deepseek-chat'
+    current_model_config = {'selected_model': default_model, 'config': None}
+    # 存储当前状态
+    current_state = {
+        'model_options': model_options,
+        'default_model': default_model,
+        'selected_model': default_model,
+        'model_select_widget': None
+    }
+
+    # ============= 功能逻辑区域 =============
+    def on_model_change(e):
+        """模型选择变化事件处理"""
+        selected_model_key = e.value
+        model_config = get_model_config(selected_model_key)
+        
+        # 更新当前模型配置
+        current_model_config['selected_model'] = selected_model_key
+        current_model_config['config'] = model_config
+        
+        # 显示选择的模型信息
+        if model_config:
+            ui.notify(f'已切换到模型: {model_config.get("name", selected_model_key)}')
+            print(f"模型配置: {model_config}")  # 用于调试
+        else:
+            ui.notify(f'已切换到模型: {selected_model_key}')
+
+    def refresh_model_config():
+        """刷新模型配置"""
+        try:
+            # 显示加载提示
+            ui.notify('正在刷新配置...', type='info')
+            
+            # 重新加载配置
+            success = reload_llm_config()
+            
+            if success:
+                # 获取新的配置数据
+                new_options = get_model_options_for_select()
+                new_default = get_default_model() or 'deepseek-chat'
+                
+                # 更新状态
+                current_state['model_options'] = new_options
+                current_state['default_model'] = new_default
+                
+                # 更新UI组件的选项
+                if current_state['model_select_widget']:
+                    # 保存当前选择的模型（如果仍然可用的话）
+                    current_selection = current_state['selected_model']
+                    if current_selection not in new_options:
+                        current_selection = new_default
+                    
+                    # 更新select组件
+                    current_state['model_select_widget'].set_options(new_options)
+                    current_state['model_select_widget'].set_value(current_selection)
+                    current_state['selected_model'] = current_selection
+                
+                # 显示刷新结果
+                config_info = get_config_info()
+                ui.notify(
+                    f'配置刷新成功！共加载 {config_info["total_models"]} 个模型，'
+                    f'其中 {config_info["enabled_models"]} 个已启用',
+                    type='positive'
+                )
+                
+            else:
+                ui.notify('配置刷新失败，请检查配置文件', type='negative')
+                
+        except Exception as e:
+            ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
+    
+    # def show_config_info():
+    #     """显示配置文件信息"""
+    #     config_info = get_config_info()
+        
+    #     info_text = f"""配置文件信息：
+    #     • 文件路径: {config_info['config_file_path']}
+    #     • 文件存在: {'是' if config_info['file_exists'] else '否'}
+    #     • 总模型数: {config_info['total_models']}
+    #     • 启用模型数: {config_info['enabled_models']}
+    #     • 提供商: {', '.join(config_info['providers'])}"""
+        
+    #     ui.notify(info_text, type='info')
+    # ============= 功能逻辑区域 =============
+
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
         <style>
@@ -70,9 +163,28 @@ def chat_page():
                 
                 # 设置expansion组件
                 with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
-                    with ui.column().classes('p-2'):
-                        continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
-                        ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus  dense')
+                    with ui.column().classes('p-1'):
+                        # 配置管理按钮行
+                        with ui.row().classes('w-full gap-1'):
+                            ui.button(
+                                '刷新配置', 
+                                icon='refresh',
+                                on_click=refresh_model_config
+                            ).classes('text-xs').props('dense flat color="primary"').style('min-width: 80px;')
+                            
+                            # ui.button(
+                            #     '配置信息',
+                            #     icon='info',
+                            #     on_click=show_config_info
+                            # ).classes('text-xs').props('dense flat color="grey"').style('min-width: 80px;')
+                        
+                        # 模型选择下拉框
+                        current_state['model_select_widget'] = ui.select(
+                            options=current_state['model_options'],
+                            value=current_state['default_model'],
+                            with_input=True,
+                            on_change=on_model_change
+                        ).props('autofocus dense')
                 
                  # 设置expansion组件
                 with ui.expansion('上下文模板', icon='pattern').classes('expansion-panel w-full'):

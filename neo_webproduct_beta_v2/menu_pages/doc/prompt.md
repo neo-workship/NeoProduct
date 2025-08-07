@@ -102,4 +102,11 @@ UI 展示数据
 
 ### delete_archive_tab 页面
 
+## 配置功能
 
+### chat 功能
+
+编写 \menu_pages\enterprise_archive\config.py 脚本功能，请按照以下说明添加功能，不要私自添加其他布局、组件、功能，更不要对现有代码造成负面影响。
+
+1、读取\config\yaml\llm_model_config.yaml 中的配置数据，以字典列表形式返回。
+2、\menu_pages\enterprise_archive\chat_component.py 中的 "选择模型 expansion"下的 ui.select 使用 字典中的 key 作为它的 value ，选择对应的 value 后就能获得模型的配置信息，供后续使用。

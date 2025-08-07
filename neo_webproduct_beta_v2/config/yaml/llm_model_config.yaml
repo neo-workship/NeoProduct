@@ -87,7 +87,7 @@ local:
     timeout: 120
     max_retries: 3
     stream: true
-    enabled: false # 默认禁用，需要手动启用
+    enabled: true # 默认禁用，需要手动启用
     description: "本地部署的 qwen3 8B 模型"
     tags: ["local", "qwen", "opensource"]
 
@@ -103,7 +103,7 @@ local:
     timeout: 120
     max_retries: 3
     stream: true
-    enabled: false # 默认禁用，需要手动启用
+    enabled: true # 默认禁用，需要手动启用
     description: "本地部署的 deepseek 8B 模型"
     tags: ["local", "deepseek", "opensource"]
 
