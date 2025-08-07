@@ -218,3 +218,39 @@ class EditFieldValueResponse(BaseModel):
                 "updated_fields": ["FIELD_001", "FIELD_002"]
             }
         }
+
+# --------------------------批量删除模型--------------------------
+class DeleteManyDocumentsRequest(BaseModel):
+    """批量删除文档请求模型"""
+    filter_query: Dict[str, Any] = Field(..., description="删除条件查询字典")
+    confirm_delete: bool = Field(False, description="确认删除标志，防止误操作")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "filter_query": {
+                    "enterprise_code": {"$in": ["COMPANY001", "COMPANY002"]},
+                    "created_at": {"$lt": "2024-01-01T00:00:00"}
+                },
+                "confirm_delete": True
+            }
+        }
+
+class DeleteManyDocumentsResponse(BaseModel):
+    """批量删除文档响应模型"""
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="响应消息")
+    deleted_count: int = Field(..., description="实际删除的文档数量")
+    filter_query: Optional[Dict[str, Any]] = Field(None, description="删除条件查询字典")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "成功删除 2 个文档",
+                "deleted_count": 2,
+                "filter_query": {
+                    "enterprise_code": {"$in": ["COMPANY001", "COMPANY002"]}
+                }
+            }
+        }

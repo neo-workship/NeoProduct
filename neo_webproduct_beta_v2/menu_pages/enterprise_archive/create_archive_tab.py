@@ -153,7 +153,8 @@ def create_archive_content():
             
             # 模拟进度更新
             for i in range(1, 4):
-                progress_bar.set_value(i * 25)
+                process = str(i * 25) + "%"
+                progress_bar.set_value(process)
                 status_label.set_text(f'正在处理... ({i * 25}%)')
                 await asyncio.sleep(0.5)
             
@@ -170,7 +171,7 @@ def create_archive_content():
                     headers={"Content-Type": "application/json"}
                 ) as response:
                     
-                    progress_bar.set_value(100)
+                    progress_bar.set_value("100%")
                     
                     if response.status == 200:
                         result = await response.json()

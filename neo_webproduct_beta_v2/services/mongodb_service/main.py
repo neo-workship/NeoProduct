@@ -626,7 +626,84 @@ async def edit_field_value(
             detail=f"批量编辑字段值失败: {str(e)}"
         )
 
+
+@app.delete("/api/v1/documents/batch", 
+            response_model=DeleteManyDocumentsResponse, 
+            summary="批量删除MongoDB文档")
+async def delete_many_documents(
+    request: DeleteManyDocumentsRequest,
+    manager: MongoDBManager = Depends(get_mongodb_manager)
+) -> DeleteManyDocumentsResponse:
+    """
+    批量删除企业档案MongoDB文档
+    
+    - **filter_query**: 删除条件查询字典，支持MongoDB查询语法
+    - **confirm_delete**: 确认删除标志，必须设置为true才能执行删除操作
+    
+    该API使用deleteMany方法批量删除符合条件的文档。
+    为了防止误操作，必须设置confirm_delete为true。
+    
+    常用查询条件示例：
+    - 按企业代码删除: {"enterprise_code": "COMPANY001"}
+    - 按多个企业代码删除: {"enterprise_code": {"$in": ["COMPANY001", "COMPANY002"]}}
+    - 按时间范围删除: {"created_at": {"$lt": "2024-01-01T00:00:00"}}
+    - 按字段值删除: {"enterprise_name": {"$regex": "测试", "$options": "i"}}
+    """
+    try:
+        log_info(f"开始批量删除文档", 
+                 extra_data=f'{{"filter_query": {request.filter_query}, "confirm_delete": {request.confirm_delete}}}')
+        
+        # 安全检查：必须确认删除
+        if not request.confirm_delete:
+            log_error("未确认删除操作")
+            return DeleteManyDocumentsResponse(
+                success=False,
+                message="为防止误操作，请设置 confirm_delete 为 true",
+                deleted_count=0,
+                filter_query=request.filter_query
+            )
+        
+        # 安全检查：防止删除所有文档
+        if not request.filter_query or request.filter_query == {}:
+            log_error("删除条件为空，拒绝执行")
+            return DeleteManyDocumentsResponse(
+                success=False,
+                message="删除条件不能为空，以防止误删除所有文档",
+                deleted_count=0,
+                filter_query=request.filter_query
+            )
+        
+        # 调用MongoDB管理器的批量删除方法
+        delete_result = await manager.delete_many_documents(request.filter_query)
+        
+        # 构建响应
+        response = DeleteManyDocumentsResponse(
+            success=delete_result["success"],
+            message=delete_result["message"],
+            deleted_count=delete_result["deleted_count"],
+            filter_query=request.filter_query if delete_result["success"] else None
+        )
+        
+        if delete_result["success"]:
+            log_info(f"批量删除文档完成", 
+                    extra_data=f'{{"deleted_count": {delete_result["deleted_count"]}, "filter_query": {request.filter_query}}}')
+        else:
+            log_error(f"批量删除文档失败", 
+                     extra_data=f'{{"message": "{delete_result["message"]}", "filter_query": {request.filter_query}}}')
+        
+        return response
+        
+    except Exception as e:
+        log_error("批量删除文档API异常", exception=e, 
+                 extra_data=f'{{"filter_query": {request.filter_query}}}')
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"批量删除文档失败: {str(e)}"
+        )
+
 # ==================== 错误处理 ====================
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """全局异常处理器"""

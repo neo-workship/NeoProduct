@@ -337,7 +337,77 @@ class MongoDBManager:
             log_error("文档删除失败", exception=e, 
                      extra_data=f'{{"document_id": "{document_id}"}}')
             return False
-    
+
+    async def delete_many_documents(self, filter_query: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        批量删除多个文档
+        
+        Args:
+            filter_query: 删除条件查询字典
+            
+        Returns:
+            Dict[str, Any]: 删除结果信息，包含成功状态、删除数量等
+        """
+        try:
+            if self.collection is None:
+                log_error("MongoDB集合未初始化")
+                return {
+                    "success": False,
+                    "deleted_count": 0,
+                    "message": "MongoDB集合未初始化"
+                }
+            
+            # 验证查询条件
+            if not filter_query:
+                log_error("删除条件不能为空")
+                return {
+                    "success": False,
+                    "deleted_count": 0,
+                    "message": "删除条件不能为空"
+                }
+            
+            # 先查询要删除的文档数量（用于日志记录）
+            count_before = await self.collection.count_documents(filter_query)
+            
+            if count_before == 0:
+                log_info("没有找到符合条件的文档", 
+                        extra_data=f'{{"filter_query": {filter_query}}}')
+                return {
+                    "success": True,
+                    "deleted_count": 0,
+                    "message": "没有找到符合条件的文档"
+                }
+            
+            # 执行批量删除
+            result = await self.collection.delete_many(filter_query)
+            deleted_count = result.deleted_count
+            
+            if deleted_count > 0:
+                log_info(f"批量删除文档成功", 
+                        extra_data=f'{{"deleted_count": {deleted_count}, "filter_query": {filter_query}}}')
+                return {
+                    "success": True,
+                    "deleted_count": deleted_count,
+                    "message": f"成功删除 {deleted_count} 个文档"
+                }
+            else:
+                log_info("没有文档被删除", 
+                        extra_data=f'{{"filter_query": {filter_query}}}')
+                return {
+                    "success": True,
+                    "deleted_count": 0,
+                    "message": "没有文档被删除"
+                }
+                
+        except Exception as e:
+            log_error("批量删除文档失败", exception=e, 
+                    extra_data=f'{{"filter_query": {filter_query}}}')
+            return {
+                "success": False,
+                "deleted_count": 0,
+                "message": f"批量删除失败: {str(e)}"
+            } 
+        
     def get_current_timestamp(self) -> str:
         """
         获取当前时间戳字符串

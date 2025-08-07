@@ -21,8 +21,8 @@ def delete_archive_content():
         with ui.column().classes('w-full gap-4'):
             ui.label('删除企业档案').classes('text-h5 font-bold text-primary')
             with ui.card().classes('w-full'):
-                ui.label("删除企业档案操作指南").classes('text-base font-bold mb-2')
-                ui.separator().classes('mb-3')
+                # ui.label("删除企业档案操作指南").classes('text-base font-bold mb-2')
+                # ui.separator().classes('mb-3')
                 
                 with ui.column().classes('gap-2'):
                     # ui.label("📋 删除企业档案操作指南：").classes('text-subtitle1 font-medium')
