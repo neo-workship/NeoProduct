@@ -44,7 +44,7 @@ def chat_page():
         else:
             ui.notify(f'已切换到模型: {selected_model_key}')
 
-    def refresh_model_config():
+    def on_refresh_model_config():
         """刷新模型配置"""
         try:
             # 显示加载提示
@@ -87,19 +87,6 @@ def chat_page():
                 
         except Exception as e:
             ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
-    
-    # def show_config_info():
-    #     """显示配置文件信息"""
-    #     config_info = get_config_info()
-        
-    #     info_text = f"""配置文件信息：
-    #     • 文件路径: {config_info['config_file_path']}
-    #     • 文件存在: {'是' if config_info['file_exists'] else '否'}
-    #     • 总模型数: {config_info['total_models']}
-    #     • 启用模型数: {config_info['enabled_models']}
-    #     • 提供商: {', '.join(config_info['providers'])}"""
-        
-    #     ui.notify(info_text, type='info')
     # ============= 功能逻辑区域 =============
 
     # 添加全局样式，保持原有样式并添加scroll_area优化
@@ -165,18 +152,12 @@ def chat_page():
                 with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
                     with ui.column().classes('p-1'):
                         # 配置管理按钮行
-                        with ui.row().classes('w-full gap-1'):
+                        with ui.row().classes('w-full'):
                             ui.button(
                                 '刷新配置', 
                                 icon='refresh',
-                                on_click=refresh_model_config
+                                on_click=on_refresh_model_config
                             ).classes('text-xs').props('dense flat color="primary"').style('min-width: 80px;')
-                            
-                            # ui.button(
-                            #     '配置信息',
-                            #     icon='info',
-                            #     on_click=show_config_info
-                            # ).classes('text-xs').props('dense flat color="grey"').style('min-width: 80px;')
                         
                         # 模型选择下拉框
                         current_state['model_select_widget'] = ui.select(
