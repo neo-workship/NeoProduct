@@ -106,7 +106,6 @@ UI 展示数据
 
 ### chat 功能
 
-编写 \menu_pages\enterprise_archive\config.py 脚本功能，请按照以下说明添加功能，不要私自添加其他布局、组件、功能，更不要对现有代码造成负面影响。
-
-1、读取\config\yaml\llm_model_config.yaml 中的配置数据，以字典列表形式返回。
-2、\menu_pages\enterprise_archive\chat_component.py 中的 "选择模型 expansion"下的 ui.select 使用 字典中的 key 作为它的 value ，选择对应的 value 后就能获得模型的配置信息，供后续使用。
+1、在 \menu_pages\enterprise_archive\chat_component.py 中的没有保存多轮聊天的内容，请添加一个记录当前聊天中的消息的变量current_chat_messages。
+2、然后在\database_models\business_models中添加一张记录聊天记录的表：chat_history_model,用于存储current_chat_messages中的聊天记录（需要关联到当前聊天的用户），具体如何按规范新建表，可查看\database_models\doc\数据模型开发模式.md，当代码尽量写的精简、精简、精简！！
+3、编写chat_component.py中的on_create_new_chat函数的逻辑，就将current_chat_messages聊天记录插入到表中，然后清空current_chat_messages的内容，页面恢复到初始状态有

@@ -26,7 +26,6 @@ def chat_page():
         'selected_model': default_model,
         'model_select_widget': None
     }
-
     # ============= 功能逻辑区域 =============
     def on_model_change(e):
         """模型选择变化事件处理"""
@@ -186,6 +185,9 @@ def chat_page():
                 # 异步调用消息处理函数
                 ui.timer(0.01, lambda: handle_message(), once=True)
 
+    async def on_create_new_chat():
+        ui.notify("create new chat")
+        
     # ============= UI区域 =============
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
@@ -243,7 +245,7 @@ def chat_page():
             # 侧边栏内容 - 完全按照原有结构
             with ui.column().classes('w-full p-3'):
                 # 添加按钮
-                ui.button('新建对话', icon='add').classes('w-full mb-3').props('outlined')
+                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-full mb-3').props('outlined')
                 
                 # 选择模型expansion组件
                 with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
