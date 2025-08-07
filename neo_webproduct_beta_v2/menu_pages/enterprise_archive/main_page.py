@@ -32,6 +32,9 @@ def enterprise_archive_content():
                 delete_archive = ui.tab('删除档案', icon='delete_forever')
                 separate_line = ui.tab('________')
                 bi_analysis = ui.tab('BI分析',icon='auto_graph')
+                dynamic_analysis = ui.tab("动态分析",icon="stacked_bar_chart")
+                analysis_report = ui.tab("智能报告",icon="auto_fix_high")
+
 
         with splitter.after:
             with ui.tab_panels(tabs, value=ai_query).props('vertical').classes('w-full h-full'):    

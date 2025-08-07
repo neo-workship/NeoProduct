@@ -17,6 +17,18 @@ MONGODB_SERVICE_URL = "http://localhost:8001"
 @safe_protect(name="创建档案页面", error_msg="创建档案页面加载失败")
 def create_archive_content():
     """创建档案内容页面"""
+    ui.add_head_html('''
+            <style>
+            .createarchive-log-hide-scrollbar {
+                overflow-y: auto;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+            }
+            .createarchive-log-hide-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+            </style>
+        ''')
     # ==================== UI设计 ====================
     with ui.column().classes('w-full gap-6 p-4'):
         # ==================== 第一部分：输入区域 ====================
@@ -83,7 +95,7 @@ def create_archive_content():
                     # 右侧：日志区域
                     with ui.column().classes('w-full'):
                         ui.label('同步日志').classes('text-subtitle2 mb-2')
-                        doc_log = ui.log(max_lines=20).classes('w-full h-52 border rounded overflow-y-auto scrollbar-hide')
+                        doc_log = ui.log(max_lines=20).classes('w-full h-52 border rounded createarchive-log-hide-scrollbar')
             
             # ========== 右侧卡片：层级选择器与数据源 ==========
             with ui.card().classes('flex-1 p-4'):

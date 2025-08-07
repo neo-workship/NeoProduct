@@ -66,16 +66,22 @@ def chat_page():
             # 侧边栏内容 - 完全按照原有结构
             with ui.column().classes('w-full p-3'):
                 # 添加按钮
-                ui.button('添加按钮', icon='add').classes('w-full mb-3').props('outlined')
+                ui.button('新建对话', icon='add').classes('w-full mb-3').props('outlined')
                 
                 # 设置expansion组件
-                with ui.expansion('选择模型', icon='settings').classes('expansion-panel w-full'):
+                with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
                         continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
-                        ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus outlined dense')
+                        ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus  dense')
                 
+                 # 设置expansion组件
+                with ui.expansion('上下文模板', icon='pattern').classes('expansion-panel w-full'):
+                    with ui.column().classes('p-2'):
+                        continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
+                        ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus dense')
+
                 # 数据expansion组件
-                with ui.expansion('提示辅助', icon='tips_and_updates').classes('expansion-panel w-full'):
+                with ui.expansion('提示数据', icon='tips_and_updates').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2 sidebar').style('flex-grow: 1; overflow-y: auto;'):
                         switch = ui.switch('启用')
                         HierarchySelector
