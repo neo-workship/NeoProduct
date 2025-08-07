@@ -42,7 +42,7 @@ moonshot:
 # 阿里通义千问系列
 alibaba:
   qwen-plus:
-    name: "通义千问 Plus"
+    name: "通义千问Plus"
     provider: "alibaba"
     model_name: "qwen-plus-2025-07-28"
     api_key: "sk-282660fdc8cc4460943f2da2a86d3d01"
