@@ -148,7 +148,7 @@ def chat_page():
                 # 添加按钮
                 ui.button('新建对话', icon='add').classes('w-full mb-3').props('outlined')
                 
-                # 设置expansion组件
+                # 选择模型expansion组件
                 with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
                     with ui.column().classes('p-1'):
                         # 配置管理按钮行
@@ -168,6 +168,8 @@ def chat_page():
                         ).props('autofocus dense')
                 
                  # 设置expansion组件
+                
+                # 上下文模板expansion组件
                 with ui.expansion('上下文模板', icon='pattern').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
                         continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
