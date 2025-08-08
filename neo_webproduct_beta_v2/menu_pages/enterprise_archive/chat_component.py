@@ -126,6 +126,9 @@ def chat_page():
                     messages=current_chat_messages
                 )
                 
+                # 🔥 新增：更新消息统计信息
+                chat_history.update_message_stats()
+                
                 # 设置审计字段
                 AuditHelper.set_audit_fields(chat_history, current_user.id)
                 
@@ -139,7 +142,7 @@ def chat_page():
             ui.notify(f'保存聊天记录失败: {str(e)}', type='negative')
             print(f"保存聊天记录错误: {e}")
             return False
-            
+                
     # =============
     async def scroll_to_bottom_smooth():
         """平滑滚动到底部，使用更可靠的方法"""
@@ -299,6 +302,7 @@ def chat_page():
                         ui.chip('翻译', icon='translate').classes('text-yellow-600 text-lg')
                         ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
                         ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
+    
         
     # ============= UI区域 =============
     # 添加全局样式，保持原有样式并添加scroll_area优化
