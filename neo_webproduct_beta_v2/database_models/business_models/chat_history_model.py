@@ -132,7 +132,7 @@ class ChatHistory(BusinessBaseModel):
         if not include_deleted:
             query = query.filter(cls.is_deleted == False, cls.is_active == True)
         
-        return query.order_by(cls.created_at.desc()).limit(limit).all()
+        return query.order_by(cls.updated_at.desc()).limit(limit).all()
     
     @classmethod
     def get_user_active_chat_count(cls, db_session, user_id: int) -> int:
