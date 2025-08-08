@@ -390,7 +390,7 @@ def chat_page():
                         continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
                         ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus dense')
 
-                # 数据expansion组件
+                # select数据expansion组件
                 with ui.expansion('提示数据', icon='tips_and_updates').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2 sidebar').style('flex-grow: 1; overflow-y: auto;'):
                         switch = ui.switch('启用')
@@ -398,7 +398,7 @@ def chat_page():
                         hierarchy_selector = HierarchySelector(multiple=True)
                         hierarchy_selector.render_column()
                        
-                # 历史expansion组件
+                # 聊天历史expansion组件
                 with ui.expansion('历史消息', icon='history').classes('expansion-panel w-full'):
                     with ui.column().classes('p-2'):
                         for i in range(5):
