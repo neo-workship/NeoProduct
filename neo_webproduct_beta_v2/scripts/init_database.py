@@ -97,13 +97,9 @@ class DatabaseInitializer:
             self.logger.info("✅ OpenAI业务模型导入成功")
             
             # 在这里添加其他业务模型的导入
-            # 例如：未来添加MongoDB模型时
             # from database_models.business_models.mongodb_models import MongoDBConfig, MongoDBQuery
-            # self.logger.info("✅ MongoDB业务模型导入成功")
             from database_models.business_models.mongodb_models import MongoDBConfig
-            
-            # 例如：未来添加审计模型时
-            # from database_models.business_models.audit_models import AuditRecord
+            from database_models.business_models.chat_history_model import ChatHistory
             # self.logger.info("✅ 审计业务模型导入成功")
             
             self.logger.info("✅ 所有模型导入完成")
@@ -117,6 +113,7 @@ class DatabaseInitializer:
                 'OpenAIConfig': OpenAIConfig,
                 'OpenAIRequest': OpenAIRequest,
                 'MongoDBConfig': MongoDBConfig,
+                'ChatHistory': ChatHistory
             }
             
         except ImportError as e:

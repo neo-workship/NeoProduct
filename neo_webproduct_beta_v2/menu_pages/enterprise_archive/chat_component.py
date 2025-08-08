@@ -2,8 +2,9 @@
 聊天组件 - 类似Vue组件，可复用的聊天UI
 """
 import asyncio
+from datetime import datetime
 from nicegui import ui, app
-from typing import Optional
+from typing import Optional, List, Dict
 from component import static_manager
 import os
 from .hierarchy_selector_component import HierarchySelector
@@ -19,6 +20,7 @@ def chat_page():
     model_options = get_model_options_for_select()  # 返回 ['deepseek-chat', 'moonshot-v1-8k', 'qwen-plus', ...]
     default_model = get_default_model() or 'deepseek-chat'
     current_model_config = {'selected_model': default_model, 'config': None}
+    
     # 存储当前状态
     current_state = {
         'model_options': model_options,
@@ -26,6 +28,10 @@ def chat_page():
         'selected_model': default_model,
         'model_select_widget': None
     }
+    
+    # 🔥 新增：记录当前聊天中的消息
+    current_chat_messages: List[Dict] = []
+    
     # ============= 功能逻辑区域 =============
     def on_model_change(e):
         """模型选择变化事件处理"""
@@ -86,6 +92,53 @@ def chat_page():
                 
         except Exception as e:
             ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
+    
+    def save_chat_to_database():
+        """保存聊天记录到数据库"""
+        try:
+            from auth import auth_manager
+            from database_models.business_models.chat_history_model import ChatHistory
+            from database_models.business_utils import AuditHelper
+            from auth.database import get_db
+            
+            current_user = auth_manager.current_user
+            if not current_user:
+                ui.notify('用户未登录，无法保存聊天记录', type='warning')
+                return False
+            
+            if not current_chat_messages:
+                ui.notify('没有聊天记录需要保存', type='info')
+                return False
+            
+            # 生成聊天标题（使用第一条用户消息的前20个字符）
+            title = "新对话"
+            for msg in current_chat_messages:
+                if msg.get('role') == 'user':
+                    content = msg.get('content', '')
+                    title = content[:20] + ('...' if len(content) > 20 else '')
+                    break
+            
+            with get_db() as db:
+                # 创建聊天历史记录
+                chat_history = ChatHistory(
+                    title=title,
+                    model_name=current_state['selected_model'],
+                    messages=current_chat_messages
+                )
+                
+                # 设置审计字段
+                AuditHelper.set_audit_fields(chat_history, current_user.id)
+                
+                db.add(chat_history)
+                db.commit()
+                
+                ui.notify(f'聊天记录已保存: {title}', type='positive')
+                return True
+                
+        except Exception as e:
+            ui.notify(f'保存聊天记录失败: {str(e)}', type='negative')
+            print(f"保存聊天记录错误: {e}")
+            return False
             
     # =============
     async def scroll_to_bottom_smooth():
@@ -115,6 +168,14 @@ def chat_page():
             if welcome_message_container:
                 welcome_message_container.clear()
 
+            # 🔥 记录用户消息到聊天历史
+            from datetime import datetime
+            current_chat_messages.append({
+                'role': 'user',
+                'content': user_message,
+                'timestamp': datetime.now().isoformat()
+            })
+
             # 用户消息
             with messages:
                 user_avatar = static_manager.get_fallback_path(
@@ -131,6 +192,17 @@ def chat_page():
             # 添加用户消息后立即滚动到底部
             await scroll_to_bottom_smooth()
 
+            # 机器人回复
+            assistant_reply = f"我收到了您的消息：{user_message}。这是一个智能回复示例，包含更多内容来演示打字机效果。让我们看看这个功能如何工作..."  # 示例回复
+            
+            # 🔥 记录AI回复到聊天历史
+            current_chat_messages.append({
+                'role': 'assistant', 
+                'content': assistant_reply,
+                'timestamp': datetime.now().isoformat(),
+                'model': current_state['selected_model']
+            })
+
             # 机器人消息
             with messages:
                 robot_avatar = static_manager.get_fallback_path(
@@ -144,9 +216,8 @@ def chat_page():
                     # 先放一个不可见的 label，用来做打字机动画
                     stream_label = ui.label('').classes('whitespace-pre-wrap')
 
-                    full = f"我收到了您的消息：{user_message}。这是一个智能回复示例，包含更多内容来演示打字机效果。让我们看看这个功能如何工作..."  # 示例回复
                     typed = ''
-                    for ch in full:
+                    for ch in assistant_reply:
                         typed += ch
                         stream_label.text = typed
                         # 打字过程中也滚动到底部
@@ -186,7 +257,48 @@ def chat_page():
                 ui.timer(0.01, lambda: handle_message(), once=True)
 
     async def on_create_new_chat():
-        ui.notify("create new chat")
+        """新建对话 - 保存当前聊天记录并清空界面"""
+        try:
+            # 如果有聊天记录，先保存到数据库
+            if current_chat_messages:
+                save_success = save_chat_to_database()
+                if save_success:
+                    # 清空当前聊天记录
+                    current_chat_messages.clear()
+                    
+                    # 清空聊天界面
+                    messages.clear()
+                    
+                    # 恢复欢迎消息
+                    restore_welcome_message()
+                    
+                    # 滚动到顶部
+                    scroll_area.scroll_to(percent=0)
+                    
+                    ui.notify('新对话已创建', type='positive')
+                else:
+                    ui.notify('保存当前对话失败', type='negative')
+            else:
+                ui.notify('当前没有对话内容', type='info')
+                
+        except Exception as e:
+            ui.notify(f'创建新对话失败: {str(e)}', type='negative')
+            print(f"创建新对话错误: {e}")
+    
+    def restore_welcome_message():
+        """恢复欢迎消息"""
+        with welcome_message_container:
+            with ui.card().classes('w-full max-w-3xl mx-auto shadow-lg'):
+                with ui.column().classes('p-6 text-center'):
+                    ui.icon('tips_and_updates', size='3xl').classes('text-blue-500 mb-4 text-3xl')
+                    ui.label('欢迎使用一企一档智能助手').classes('text-2xl font-bold mb-2')
+                    ui.label('请输入您的问题，我将为您提供帮助').classes('text-lg text-gray-600 mb-4')
+                    
+                    with ui.row().classes('justify-center gap-4'):
+                        ui.chip('问答', icon='help_outline').classes('text-blue-600 text-lg')
+                        ui.chip('翻译', icon='translate').classes('text-yellow-600 text-lg')
+                        ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
+                        ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
         
     # ============= UI区域 =============
     # 添加全局样式，保持原有样式并添加scroll_area优化
@@ -287,6 +399,7 @@ def chat_page():
                     with ui.column().classes('p-2'):
                         for i in range(5):
                             ui.label(f'历史对话 {i+1}').classes('chat-history-item p-2 rounded cursor-pointer').on('click', lambda: ui.notify('加载历史对话'))
+        
         # 主聊天区域 - 占据剩余空间
         with ui.column().classes('flex-grow h-full').style('position: relative; overflow: hidden;'):
             # 聊天消息区域 - 使用 scroll_area 提供更好的滚动体验
@@ -298,17 +411,7 @@ def chat_page():
                 # 欢迎消息（可能会被删除）
                 welcome_message_container = ui.column().classes('w-full')
                 with welcome_message_container:
-                    with ui.card().classes('w-full max-w-3xl mx-auto shadow-lg'):
-                        with ui.column().classes('p-6 text-center'):
-                            ui.icon('tips_and_updates', size='3xl').classes('text-blue-500 mb-4 text-3xl')
-                            ui.label('欢迎使用一企一档智能助手').classes('text-2xl font-bold mb-2')
-                            ui.label('请输入您的问题，我将为您提供帮助').classes('text-lg text-gray-600 mb-4')
-                            
-                            with ui.row().classes('justify-center gap-4'):
-                                ui.chip('问答', icon='help_outline').classes('text-blue-600 text-lg')
-                                ui.chip('翻译', icon='translate').classes('text-yellow-600 text-lg')
-                                ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
-                                ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
+                    restore_welcome_message()
                     
             # 输入区域 - 固定在底部，距离底部10px
             with ui.row().classes('w-full items-center gap-2 p-1 rounded ').style(

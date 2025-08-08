@@ -106,6 +106,6 @@ UI 展示数据
 
 ### chat 功能
 
-1、在 \menu_pages\enterprise_archive\chat_component.py 中的没有保存多轮聊天的内容，请添加一个记录当前聊天中的消息的变量current_chat_messages。
-2、然后在\database_models\business_models中添加一张记录聊天记录的表：chat_history_model,存储current_chat_messages内容，整个对话存储为一行，消息用JSON格式，（需要关联到当前聊天的用户）。具体如何按规范新建表，可查看\database_models\doc\数据模型开发模式.md，当代码尽量写的精简、精简！！
-3、编写chat_component.py中的on_create_new_chat函数的逻辑，就将current_chat_messages聊天记录插入到表中，然后清空current_chat_messages的内容，页面恢复到初始状态
+1、在 \menu_pages\enterprise_archive\chat_component.py 中的没有保存多轮聊天的内容，请添加一个记录当前聊天中的消息的变量 current_chat_messages。
+2、然后在\database_models\business_models 中设计一张考虑周全的记录聊天内容的表：chat_history_model,其存储 current_chat_messages 内容，将整个对话存储为一行，消息用 JSON 格式，（需要关联到当前聊天的用户）。具体如何按规范新建表，可查看\database_models\doc\数据模型开发模式.md，当代码尽量写的精简、精简！！
+3、编写 chat_component.py 中的 on_create_new_chat 函数的逻辑，就将 current_chat_messages 聊天记录插入到表中，然后清空 current_chat_messages 的内容，页面恢复到初始状态(注意对欢迎消息的处理)
