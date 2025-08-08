@@ -32,7 +32,7 @@ def chat_page():
     # 🔥 新增：记录当前聊天中的消息
     current_chat_messages: List[Dict] = []
     
-    # ============= 功能逻辑区域 =============
+    # ============= 模型选择相关逻辑 =============
     def on_model_change(e):
         """模型选择变化事件处理"""
         selected_model_key = e.value
@@ -91,59 +91,8 @@ def chat_page():
                 ui.notify('配置刷新失败，请检查配置文件', type='negative')
                 
         except Exception as e:
-            ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
-    
-    def save_chat_to_database():
-        """保存聊天记录到数据库"""
-        try:
-            from auth import auth_manager
-            from database_models.business_models.chat_history_model import ChatHistory
-            from database_models.business_utils import AuditHelper
-            from auth.database import get_db
-            
-            current_user = auth_manager.current_user
-            if not current_user:
-                ui.notify('用户未登录，无法保存聊天记录', type='warning')
-                return False
-            
-            if not current_chat_messages:
-                ui.notify('没有聊天记录需要保存', type='info')
-                return False
-            
-            # 生成聊天标题（使用第一条用户消息的前20个字符）
-            title = "新对话"
-            for msg in current_chat_messages:
-                if msg.get('role') == 'user':
-                    content = msg.get('content', '')
-                    title = content[:20] + ('...' if len(content) > 20 else '')
-                    break
-            
-            with get_db() as db:
-                # 创建聊天历史记录
-                chat_history = ChatHistory(
-                    title=title,
-                    model_name=current_state['selected_model'],
-                    messages=current_chat_messages
-                )
-                
-                # 🔥 新增：更新消息统计信息
-                chat_history.update_message_stats()
-                
-                # 设置审计字段
-                AuditHelper.set_audit_fields(chat_history, current_user.id)
-                
-                db.add(chat_history)
-                db.commit()
-                
-                ui.notify(f'聊天记录已保存: {title}', type='positive')
-                return True
-                
-        except Exception as e:
-            ui.notify(f'保存聊天记录失败: {str(e)}', type='negative')
-            print(f"保存聊天记录错误: {e}")
-            return False
-                
-    # =============
+            ui.notify(f'刷新配置时出错: {str(e)}', type='negative')      
+    # ============= 输入提交相关逻辑 ============
     async def scroll_to_bottom_smooth():
         """平滑滚动到底部，使用更可靠的方法"""
         try:
@@ -259,35 +208,176 @@ def chat_page():
                 # 异步调用消息处理函数
                 ui.timer(0.01, lambda: handle_message(), once=True)
 
+    # ============= 新建会话相关逻辑 ============
     async def on_create_new_chat():
         """新建对话 - 保存当前聊天记录并清空界面"""
         try:
-            # 如果有聊天记录，先保存到数据库
+            # 🔥 新增：先判断是否已有聊天记录，执行插入或更新操作
             if current_chat_messages:
-                save_success = save_chat_to_database()
-                if save_success:
-                    # 清空当前聊天记录
-                    current_chat_messages.clear()
-                    
-                    # 清空聊天界面
-                    messages.clear()
-                    
-                    # 恢复欢迎消息
-                    restore_welcome_message()
-                    
-                    # 滚动到顶部
-                    scroll_area.scroll_to(percent=0)
-                    
-                    ui.notify('新对话已创建', type='positive')
+                # 检查当前是否为加载的历史对话（通过检查 current_chat_messages 是否与某个历史记录匹配）
+                existing_chat_id = get_current_loaded_chat_id()
+                
+                if existing_chat_id:
+                    # 更新现有聊天记录
+                    update_success = update_existing_chat_to_database(existing_chat_id)
+                    if update_success:
+                        ui.notify('对话已更新', type='positive')
+                    else:
+                        ui.notify('更新对话失败', type='negative')
+                        return
                 else:
-                    ui.notify('保存当前对话失败', type='negative')
+                    # 插入新的聊天记录
+                    save_success = save_chat_to_database()
+                    if save_success:
+                        ui.notify('对话已保存', type='positive')
+                    else:
+                        ui.notify('保存对话失败', type='negative')
+                        return
+                
+                # 清空当前聊天记录
+                current_chat_messages.clear()
+                
+                # 清空聊天界面
+                messages.clear()
+                
+                # 恢复欢迎消息
+                restore_welcome_message()
+                
+                # 🔥 新增：自动刷新聊天历史列表
+                refresh_chat_history_list()
+                
+                # 滚动到顶部
+                scroll_area.scroll_to(percent=0)
+                
+                # 重置当前加载的聊天ID
+                reset_current_loaded_chat_id()
+                
             else:
-                ui.notify('当前没有对话内容', type='info')
+                # 如果没有聊天内容，仅清空界面
+                messages.clear()
+                welcome_message_container.clear()
+                restore_welcome_message()
+                scroll_area.scroll_to(percent=0)
+                ui.notify('界面已重置', type='info')
                 
         except Exception as e:
             ui.notify(f'创建新对话失败: {str(e)}', type='negative')
             print(f"创建新对话错误: {e}")
     
+    def get_current_loaded_chat_id():
+        """获取当前加载的聊天记录ID"""
+        # 🔥 新增：通过全局变量跟踪当前加载的聊天ID
+        if hasattr(get_current_loaded_chat_id, 'current_chat_id'):
+            return get_current_loaded_chat_id.current_chat_id
+        return None
+
+    def set_current_loaded_chat_id(chat_id):
+        """设置当前加载的聊天记录ID"""
+        get_current_loaded_chat_id.current_chat_id = chat_id
+
+    def reset_current_loaded_chat_id():
+        """重置当前加载的聊天记录ID"""
+        get_current_loaded_chat_id.current_chat_id = None
+
+    def update_existing_chat_to_database(chat_id):
+        """更新现有的聊天记录到数据库"""
+        try:
+            from auth import auth_manager
+            from database_models.business_models.chat_history_model import ChatHistory
+            from auth.database import get_db
+            
+            current_user = auth_manager.current_user
+            if not current_user:
+                ui.notify('用户未登录，无法更新聊天记录', type='warning')
+                return False
+            
+            if not current_chat_messages:
+                ui.notify('没有聊天记录需要更新', type='info')
+                return False
+            
+            with get_db() as db:
+                # 查找现有聊天记录
+                chat_history = db.query(ChatHistory).filter(
+                    ChatHistory.id == chat_id,
+                    ChatHistory.created_by == current_user.id,
+                    ChatHistory.is_deleted == False
+                ).first()
+                
+                if not chat_history:
+                    ui.notify('聊天记录不存在或无权限', type='negative')
+                    return False
+                
+                # 更新聊天记录
+                chat_history.messages = current_chat_messages.copy()
+                chat_history.model_name = current_state['selected_model']
+                
+                # 🔥 使用模型的内置方法更新统计信息
+                chat_history.update_message_stats()
+                
+                # 更新时间戳
+                from sqlalchemy.sql import func
+                chat_history.updated_at = func.now()
+                
+                db.commit()
+                
+                print(f"已更新聊天记录: {chat_history.title}")
+                return True
+                
+        except Exception as e:
+            print(f"更新聊天记录错误: {e}")
+            ui.notify(f'更新聊天记录失败: {str(e)}', type='negative')
+            return False
+
+    def save_chat_to_database():
+        """保存新的聊天记录到数据库 - 复用现有实现，但增强错误处理"""
+        try:
+            from auth import auth_manager
+            from database_models.business_models.chat_history_model import ChatHistory
+            from database_models.business_utils import AuditHelper
+            from auth.database import get_db
+            
+            current_user = auth_manager.current_user
+            if not current_user:
+                ui.notify('用户未登录，无法保存聊天记录', type='warning')
+                return False
+            
+            if not current_chat_messages:
+                ui.notify('没有聊天记录需要保存', type='info')
+                return False
+            
+            # 生成聊天标题（使用第一条用户消息的前20个字符）
+            title = "新对话"
+            for msg in current_chat_messages:
+                if msg.get('role') == 'user':
+                    content = msg.get('content', '')
+                    title = content[:20] + ('...' if len(content) > 20 else '')
+                    break
+            
+            with get_db() as db:
+                # 创建聊天历史记录
+                chat_history = ChatHistory(
+                    title=title,
+                    model_name=current_state['selected_model'],
+                    messages=current_chat_messages.copy()  # 使用副本避免引用问题
+                )
+                
+                # 🔥 使用模型的内置方法更新统计信息
+                chat_history.update_message_stats()
+                
+                # 设置审计字段
+                AuditHelper.set_audit_fields(chat_history, current_user.id)
+                
+                db.add(chat_history)
+                db.commit()
+                
+                print(f'聊天记录已保存: {title} (ID: {chat_history.id})')
+                return True
+                
+        except Exception as e:
+            print(f"保存聊天记录错误: {e}")
+            ui.notify(f'保存聊天记录失败: {str(e)}', type='negative')
+            return False
+
     def restore_welcome_message():
         """恢复欢迎消息"""
         with welcome_message_container:
@@ -303,7 +393,7 @@ def chat_page():
                         ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
                         ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
     
-    # 1. 首先添加加载聊天历史的函数
+    # ============= 历史记录相关逻辑 ============
     def load_chat_histories():
         """从数据库加载聊天历史列表 - 使用模型的优化方法"""
         try:
@@ -350,18 +440,25 @@ def chat_page():
             return []
         
     def on_load_chat_history(chat_id):
-        """加载指定的聊天历史到当前对话中"""
+        """加载指定的聊天历史到当前对话中 - 完善现有实现"""
         try:
             from database_models.business_models.chat_history_model import ChatHistory
             from auth.database import get_db
             
             with get_db() as db:
-                chat = db.query(ChatHistory).filter(ChatHistory.id == chat_id).first()
+                chat = db.query(ChatHistory).filter(
+                    ChatHistory.id == chat_id,
+                    ChatHistory.is_deleted == False
+                ).first()
+                
                 if not chat:
                     ui.notify('聊天记录不存在', type='negative')
                     return
                 
-                # 清空当前聊天消息
+                # 🔥 设置当前加载的聊天ID，用于后续更新判断
+                set_current_loaded_chat_id(chat_id)
+                
+                # 清空当前聊天消息并加载历史消息
                 current_chat_messages.clear()
                 current_chat_messages.extend(chat.messages)
                 
@@ -401,7 +498,7 @@ def chat_page():
                 
         except Exception as e:
             print(f"加载聊天历史错误: {e}")
-            ui.notify('加载聊天失败', type='negative')    
+            ui.notify('加载聊天失败', type='negative')
     
     def on_edit_chat_history(chat_id):
         """编辑聊天历史（占位函数）"""
@@ -457,7 +554,7 @@ def chat_page():
                             ).on('click.stop', lambda chat_id=history['id']: on_delete_chat_history(chat_id)).props('dense flat round size="sm"').classes('text-red-600').tooltip('删除')
         
     def refresh_chat_history_list():
-        """刷新聊天历史列表"""
+        """刷新聊天历史列表 - 完善现有实现"""
         try:
             # 清空容器
             history_list_container.clear()
@@ -476,54 +573,54 @@ def chat_page():
     ui.add_head_html('''
         <style>
         /* 聊天组件专用样式 - 只影响聊天组件内部，不影响全局 */
-        .chat-container {
-            overflow: hidden !important;
+        .chat-archive-container {
+            /*overflow: hidden !important;*/
             height: calc(100vh - 145px) !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow-y: auto !important;
         }
-        .sidebar {
+                     
+        .chat-archive-sidebar {
             border-right: 1px solid #e5e7eb;
             overflow-y: auto;
         }
-        .sidebar::-webkit-scrollbar {
-            width: 6px;
+        .chat-archive-sidebar::-webkit-scrollbar {
+            width: 2px;
         }
-        .sidebar::-webkit-scrollbar-track {
+        .chat-archive-sidebar::-webkit-scrollbar-track {
             background: transparent;
         }
-        .sidebar::-webkit-scrollbar-thumb {
+        .chat-archive-sidebar::-webkit-scrollbar-thumb {
             background-color: #d1d5db;
             border-radius: 3px;
         }
-        .sidebar::-webkit-scrollbar-thumb:hover {
+        .chat-archive-sidebar::-webkit-scrollbar-thumb:hover {
             background-color: #9ca3af;
-        }
-        .chat-history-item {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .chat-history-item:hover {
-            background-color: #e5e7eb;
-        }
-        .expansion-panel {
-            margin-bottom: 8px;
         }
         /* 优化 scroll_area 内容区域的样式 */
         .q-scrollarea__content {
             min-height: 100%;
         }
+        .chathistorylist-hide-scrollbar {
+            overflow-y: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .chathistorylist-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
     </style>
     ''')
     
     # 主容器 - 使用水平布局
-    with ui.row().classes('w-full h-full chat-container').style('overflow: hidden; height: calc(100vh - 120px); margin: 0; padding: 0;'):   
+    with ui.row().classes('w-full h-full chat-archive-container').style('height: calc(100vh - 120px); margin: 0; padding: 0;'):   
         # 侧边栏 - 固定宽度
-        with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
+        with ui.column().classes('chat-archive-sidebar h-full').style('width: 280px; min-width: 280px;'):
             # 侧边栏标题
-            with ui.row().classes('w-full border-b'):
+            with ui.row().classes('w-full'):
                 ui.icon('menu', size='md').classes('text-gray-600')
-                ui.label('功能菜单').classes('text-lg font-semibold ml-2')
+                ui.label('功能菜单').classes('text-lg font-semibold')
             
             # 侧边栏内容 - 完全按照原有结构
             with ui.column().classes('w-full items-center'):
@@ -531,7 +628,7 @@ def chat_page():
                 ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-64').props('outlined')
                 
                 # 选择模型expansion组件
-                with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
+                with ui.expansion('选择模型', icon='view_in_ar').classes('w-full'):
                     with ui.column().classes('w-full'):
                         # 配置管理按钮行
                         with ui.row().classes('w-full'):
@@ -547,26 +644,27 @@ def chat_page():
                             value=current_state['default_model'],
                             with_input=True,
                             on_change=on_model_change
-                        ).props('autofocus dense')
-                
-                 # 设置expansion组件
-                
+                        ).classes('w-full').props('autofocus dense')
+
                 # 上下文模板expansion组件
-                with ui.expansion('上下文模板', icon='pattern').classes('expansion-panel w-full'):
+                with ui.expansion('上下文模板', icon='pattern').classes('w-full'):
                     with ui.column().classes('w-full'):
                         continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
-                        ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus dense')
+                        ui.select(options=continents, 
+                                  value='deepseek-chat', 
+                                  with_input=True,
+                                  on_change=lambda e: ui.notify(e.value)).classes('w-full').props('autofocus dense')
 
                 # select数据expansion组件
-                with ui.expansion('提示数据', icon='tips_and_updates').classes('expansion-panel w-full'):
-                    with ui.column().classes('w-full sidebar').style('flex-grow: 1; overflow-y: auto;'):
+                with ui.expansion('提示数据', icon='tips_and_updates').classes('w-full'):
+                    with ui.column().classes('w-full chathistorylist-hide-scrollbar').style('flex-grow: 1; '):
                         switch = ui.switch('启用')
                         HierarchySelector
                         hierarchy_selector = HierarchySelector(multiple=True)
                         hierarchy_selector.render_column()
                        
                 # 聊天历史expansion组件
-                with ui.expansion('历史消息', icon='history').classes('expansion-panel w-full'):
+                with ui.expansion('历史消息', icon='history').classes('w-full'):
                     with ui.column().classes('w-full'):
                         # 添加刷新按钮
                         with ui.row().classes('w-full'):
@@ -577,7 +675,7 @@ def chat_page():
                             ).classes('text-xs').props('dense flat color="primary"').style('min-width: 80px;')
                         
                         # 聊天历史列表容器
-                        history_list_container = ui.column().classes('w-full')
+                        history_list_container = ui.column().classes('w-full h-96 chathistorylist-hide-scrollbar')
                         with history_list_container:
                             create_chat_history_list()
         
@@ -587,7 +685,7 @@ def chat_page():
             scroll_area = ui.scroll_area().classes('w-full').style('height: calc(100% - 80px); padding-bottom: 20px;')
 
             with scroll_area:
-                messages = ui.column().classes('w-full p-4 gap-4')
+                messages = ui.column().classes('w-full gap-2')
                 
                 # 欢迎消息（可能会被删除）
                 welcome_message_container = ui.column().classes('w-full')
@@ -595,7 +693,7 @@ def chat_page():
                     restore_welcome_message()
                     
             # 输入区域 - 固定在底部，距离底部10px
-            with ui.row().classes('w-full items-center gap-2 p-1 rounded ').style(
+            with ui.row().classes('w-full items-center gap-2 rounded ').style(
                 'position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 1000; '
                 'margin: 0 auto; max-width: calc(100% - 20px);'
             ):    
