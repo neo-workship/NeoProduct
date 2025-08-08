@@ -426,7 +426,7 @@ def chat_page():
             return
         
         # 创建聊天历史列表
-        with ui.list().classes('w-full overscroll-auto').props('dense separator'):
+        with ui.list().classes('w-full').props('dense separator'):
             for history in chat_histories:
                 # 为每个历史记录创建一个item容器，直接绑定点击事件
                 with ui.item(on_click=lambda chat_id=history['id']: on_load_chat_history(chat_id)).classes('cursor-pointer'):
@@ -526,9 +526,9 @@ def chat_page():
                 ui.label('功能菜单').classes('text-lg font-semibold ml-2')
             
             # 侧边栏内容 - 完全按照原有结构
-            with ui.column().classes('w-full'):
+            with ui.column().classes('w-full items-center'):
                 # 添加按钮
-                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-full').props('outlined')
+                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-64').props('outlined')
                 
                 # 选择模型expansion组件
                 with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
