@@ -303,7 +303,174 @@ def chat_page():
                         ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
                         ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
     
+    # 1. 首先添加加载聊天历史的函数
+    def load_chat_histories():
+        """从数据库加载聊天历史列表 - 使用模型的优化方法"""
+        try:
+            from auth import auth_manager
+            from database_models.business_models.chat_history_model import ChatHistory
+            from auth.database import get_db
+            
+            current_user = auth_manager.current_user
+            if not current_user:
+                return []
+            
+            with get_db() as db:
+                # 🔥 使用模型已定义的优化方法
+                chat_histories = ChatHistory.get_user_recent_chats(
+                    db_session=db, 
+                    user_id=current_user.id, 
+                    limit=20
+                )
+                
+                # 转换为UI需要的数据结构
+                history_list = []
+                for chat in chat_histories:
+                    # 🔥 利用模型的实例方法获取更丰富的信息
+                    preview = chat.get_message_preview(30)  # 获取消息预览
+                    duration_info = chat.get_duration_info()  # 获取时长信息
+                    
+                    history_list.append({
+                        'id': chat.id,
+                        'title': chat.title,
+                        'preview': preview,  # 新增：消息预览
+                        'created_at': chat.created_at.strftime('%Y-%m-%d %H:%M'),
+                        'last_message_at': chat.last_message_at.strftime('%Y-%m-%d %H:%M') if chat.last_message_at else None,  # 新增：最后消息时间
+                        'message_count': chat.message_count,
+                        'model_name': chat.model_name,
+                        'duration_minutes': duration_info['duration_minutes'],  # 新增：对话时长
+                        'chat_object': chat  # 保存完整对象，供后续操作使用
+                    })
+                
+                return history_list
+                
+        except Exception as e:
+            print(f"加载聊天历史失败: {e}")
+            ui.notify('加载聊天历史失败', type='negative')
+            return []
         
+    def on_load_chat_history(chat_id):
+        """加载指定的聊天历史到当前对话中"""
+        try:
+            from database_models.business_models.chat_history_model import ChatHistory
+            from auth.database import get_db
+            
+            with get_db() as db:
+                chat = db.query(ChatHistory).filter(ChatHistory.id == chat_id).first()
+                if not chat:
+                    ui.notify('聊天记录不存在', type='negative')
+                    return
+                
+                # 清空当前聊天消息
+                current_chat_messages.clear()
+                current_chat_messages.extend(chat.messages)
+                
+                # 清空聊天界面
+                messages.clear()
+                welcome_message_container.clear()
+                
+                # 重新渲染聊天历史消息
+                for msg in chat.messages:
+                    with messages:
+                        if msg.get('role') == 'user':
+                            user_avatar = static_manager.get_fallback_path(
+                                static_manager.get_logo_path('user.svg'),
+                                'https://robohash.org/user'
+                            )
+                            with ui.chat_message(
+                                name='您',
+                                avatar=user_avatar,
+                                sent=True
+                            ).classes('w-full'):
+                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap break-words')
+                        
+                        elif msg.get('role') == 'assistant':
+                            robot_avatar = static_manager.get_fallback_path(
+                                static_manager.get_logo_path('robot_txt.svg'),
+                                'https://robohash.org/ui'
+                            )
+                            with ui.chat_message(
+                                name='AI',
+                                avatar=robot_avatar
+                            ).classes('w-full'):
+                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap')
+                
+                # 滚动到底部
+                ui.timer(0.1, lambda: scroll_area.scroll_to(percent=1), once=True)
+                ui.notify(f'已加载聊天: {chat.title}', type='positive')
+                
+        except Exception as e:
+            print(f"加载聊天历史错误: {e}")
+            ui.notify('加载聊天失败', type='negative')    
+    
+    def on_edit_chat_history(chat_id):
+        """编辑聊天历史（占位函数）"""
+        ui.notify(f'编辑聊天 ID: {chat_id}', type='info')
+        # TODO: 实现编辑功能
+
+    def on_delete_chat_history(chat_id):
+        """删除聊天历史（占位函数）"""
+        ui.notify(f'删除聊天 ID: {chat_id}', type='info')
+        # TODO: 实现删除功能
+    
+    def create_chat_history_list():
+        """创建聊天历史列表组件"""
+        # 加载聊天历史数据
+        chat_histories = load_chat_histories()
+        
+        if not chat_histories:
+            # 如果没有历史记录，显示空状态
+            with ui.column().classes('w-full text-center'):
+                ui.icon('chat_bubble_outline', size='lg').classes('text-gray-400 mb-2')
+                ui.label('暂无聊天记录').classes('text-gray-500 text-sm')
+            return
+        
+        # 创建聊天历史列表
+        with ui.list().classes('w-full overscroll-auto').props('dense separator'):
+            for history in chat_histories:
+                # 为每个历史记录创建一个item容器，直接绑定点击事件
+                with ui.item(on_click=lambda chat_id=history['id']: on_load_chat_history(chat_id)).classes('cursor-pointer'):
+                    # 主要内容区域
+                    with ui.item_section():
+                        # 聊天标题
+                        ui.item_label(history['title']).classes('font-medium')
+                        # 时间和统计信息
+                        info_text = f"{history['created_at']} • {history['message_count']}条消息"
+                        if history['duration_minutes'] > 0:
+                            info_text += f" • {history['duration_minutes']}分钟"
+                        if history['model_name']:
+                            info_text += f" • {history['model_name']}"
+                        ui.item_label(info_text).props('caption').classes('text-xs')
+                    
+                    # 右侧按钮区域
+                    with ui.item_section().props('side'):
+                        with ui.row().classes('gap-1'):
+                            # 🔥 使用 click.stop 阻止事件冒泡
+                            # 编辑按钮
+                            ui.button(
+                                icon='edit'
+                            ).on('click.stop', lambda chat_id=history['id']: on_edit_chat_history(chat_id)).props('dense flat round size="sm"').classes('text-blue-600').tooltip('编辑')
+                            
+                            # 删除按钮
+                            ui.button(
+                                icon='delete'
+                            ).on('click.stop', lambda chat_id=history['id']: on_delete_chat_history(chat_id)).props('dense flat round size="sm"').classes('text-red-600').tooltip('删除')
+        
+    def refresh_chat_history_list():
+        """刷新聊天历史列表"""
+        try:
+            # 清空容器
+            history_list_container.clear()
+            
+            # 重新创建列表
+            with history_list_container:
+                create_chat_history_list()
+                
+            ui.notify('聊天历史已刷新', type='positive')
+            
+        except Exception as e:
+            print(f"刷新聊天历史失败: {e}")
+            ui.notify('刷新失败', type='negative')
     # ============= UI区域 =============
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
@@ -354,18 +521,18 @@ def chat_page():
         # 侧边栏 - 固定宽度
         with ui.column().classes('sidebar h-full').style('width: 280px; min-width: 280px;'):
             # 侧边栏标题
-            with ui.row().classes('w-full p-4 border-b'):
+            with ui.row().classes('w-full border-b'):
                 ui.icon('menu', size='md').classes('text-gray-600')
                 ui.label('功能菜单').classes('text-lg font-semibold ml-2')
             
             # 侧边栏内容 - 完全按照原有结构
-            with ui.column().classes('w-full p-3'):
+            with ui.column().classes('w-full'):
                 # 添加按钮
-                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-full mb-3').props('outlined')
+                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-full').props('outlined')
                 
                 # 选择模型expansion组件
                 with ui.expansion('选择模型', icon='view_in_ar').classes('expansion-panel w-full'):
-                    with ui.column().classes('p-1'):
+                    with ui.column().classes('w-full'):
                         # 配置管理按钮行
                         with ui.row().classes('w-full'):
                             ui.button(
@@ -386,13 +553,13 @@ def chat_page():
                 
                 # 上下文模板expansion组件
                 with ui.expansion('上下文模板', icon='pattern').classes('expansion-panel w-full'):
-                    with ui.column().classes('p-2'):
+                    with ui.column().classes('w-full'):
                         continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
                         ui.select(options=continents, value='deepseek-chat', with_input=True,on_change=lambda e: ui.notify(e.value)).props('autofocus dense')
 
                 # select数据expansion组件
                 with ui.expansion('提示数据', icon='tips_and_updates').classes('expansion-panel w-full'):
-                    with ui.column().classes('p-2 sidebar').style('flex-grow: 1; overflow-y: auto;'):
+                    with ui.column().classes('w-full sidebar').style('flex-grow: 1; overflow-y: auto;'):
                         switch = ui.switch('启用')
                         HierarchySelector
                         hierarchy_selector = HierarchySelector(multiple=True)
@@ -400,9 +567,19 @@ def chat_page():
                        
                 # 聊天历史expansion组件
                 with ui.expansion('历史消息', icon='history').classes('expansion-panel w-full'):
-                    with ui.column().classes('p-2'):
-                        for i in range(5):
-                            ui.label(f'历史对话 {i+1}').classes('chat-history-item p-2 rounded cursor-pointer').on('click', lambda: ui.notify('加载历史对话'))
+                    with ui.column().classes('w-full'):
+                        # 添加刷新按钮
+                        with ui.row().classes('w-full'):
+                            ui.button(
+                                '刷新历史', 
+                                icon='refresh',
+                                on_click=lambda: refresh_chat_history_list()
+                            ).classes('text-xs').props('dense flat color="primary"').style('min-width: 80px;')
+                        
+                        # 聊天历史列表容器
+                        history_list_container = ui.column().classes('w-full')
+                        with history_list_container:
+                            create_chat_history_list()
         
         # 主聊天区域 - 占据剩余空间
         with ui.column().classes('flex-grow h-full').style('position: relative; overflow: hidden;'):
