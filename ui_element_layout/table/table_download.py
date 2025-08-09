@@ -30,18 +30,21 @@ def main():
     # Button to trigger download
     ui.button('Download CSV', on_click=lambda: ui.download(generate_csv(), 'table_data.csv'))
 
-
-    def handle_upload(e):
-        # In a real application, you would save the uploaded file
-        # and get a URL or path to display it.
-        # For demonstration, we'll use a placeholder URL.
-        ui.notify(f'Uploaded: {e.name}')
-        image_display.set_source('https://picsum.photos/200/200') # Replace with actual image URL
-
-    with ui.row():
-        ui.textarea('Enter your text here').classes('w-64')
-        ui.upload(on_upload=handle_upload).classes('w-64')
-    image_display = ui.image('https://picsum.photos/1/1').classes('w-32 h-32') # Placeholder image
+    with ui.chat_message(
+                    name='AI',
+                ).classes('w-full'):
+        # 创建思考区域
+        think_expansion = ui.expansion(
+            '💭 AI思考过程', 
+            icon='psychology'
+        ).classes('w-full mb-2')
+        with think_expansion:
+            think_label = ui.label('think').classes('whitespace-pre-wrap text-sm text-gray-600 bg-gray-50 p-2 rounded')
+        
+        # 创建回复区域，但暂时设为空且不可见
+        reply_label = ui.label('reply').classes('whitespace-pre-wrap')
+        reply_label.set_visibility(False)
+    
 
 if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
