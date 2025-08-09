@@ -298,7 +298,7 @@ def chat_page():
                                         if current_think:
                                             think_label.set_text(current_think.strip())
                                     # 正文区域在think过程中不显示任何内容
-                                    reply_label.set_text('')
+                                    # reply_label.set_text('')
                                 else:
                                     # 🔥 正常状态：显示完整内容
                                     reply_label.set_text(temp_content)
