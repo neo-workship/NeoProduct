@@ -8,7 +8,7 @@ deepseek:
     provider: "deepseek"
     model_name: "deepseek-chat"
     api_key: "sk-de5a1965cfa94ccea0eaad15d93251dc"
-    base_url: "https://api.deepseek.com/chat/completions"
+    base_url: "https://api.deepseek.com/v1"
     max_tokens: 4096
     temperature: 0.7
     top_p: 1.0
@@ -28,7 +28,7 @@ moonshot:
     provider: "moonshot"
     model_name: "moonshot-v1-8k"
     api_key: "sk-5IPFajDv6yy8hWKd3DScOHea2HE10r1FTN6SMgz038ljsSTf"
-    base_url: "https://api.moonshot.ai/v1/chat/completions"
+    base_url: "https://api.moonshot.cn/v1"
     max_tokens: 8192
     temperature: 0.7
     top_p: 0.7
@@ -46,7 +46,7 @@ alibaba:
     provider: "alibaba"
     model_name: "qwen-plus-2025-07-28"
     api_key: "sk-282660fdc8cc4460943f2da2a86d3d01"
-    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     max_tokens: 8192
     temperature: 0.7
     top_p: 0.8
@@ -62,7 +62,7 @@ alibaba:
     provider: "alibaba"
     model_name: "qwen3-coder-plus"
     api_key: "sk-282660fdc8cc4460943f2da2a86d3d01"
-    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     max_tokens: 8192
     temperature: 0.7
     top_p: 0.8
@@ -80,7 +80,7 @@ local:
     provider: "ollama"
     model_name: "qwen3:8b"
     api_key: "sk-ollamakey123"
-    base_url: "http://localhost:11434v1/chat/completions"
+    base_url: "http://localhost:11434/v1"
     max_tokens: 4096
     temperature: 0.7
     top_p: 0.9
@@ -96,7 +96,7 @@ local:
     provider: "ollama"
     model_name: "deepseek-r1:8b"
     api_key: "sk-ollamakey123"
-    base_url: "http://localhost:11434v1/chat/completions"
+    base_url: "http://localhost:11434/v1"
     max_tokens: 4096
     temperature: 0.7
     top_p: 0.9

@@ -42,6 +42,9 @@ def chat_page():
         current_model_config['selected_model'] = selected_model_key
         current_model_config['config'] = model_config
         
+        # 🔥 同步更新 current_state，保持状态一致性
+        current_state['selected_model'] = selected_model_key
+        
         # 显示选择的模型信息
         if model_config:
             ui.notify(f'已切换到模型: {model_config.get("name", selected_model_key)}')
@@ -78,6 +81,10 @@ def chat_page():
                     current_state['model_select_widget'].set_options(new_options)
                     current_state['model_select_widget'].set_value(current_selection)
                     current_state['selected_model'] = current_selection
+                    
+                    # 🔥 同步更新 current_model_config，保持状态一致性
+                    current_model_config['selected_model'] = current_selection
+                    current_model_config['config'] = get_model_config(current_selection)
                 
                 # 显示刷新结果
                 config_info = get_config_info()
@@ -91,7 +98,7 @@ def chat_page():
                 ui.notify('配置刷新失败，请检查配置文件', type='negative')
                 
         except Exception as e:
-            ui.notify(f'刷新配置时出错: {str(e)}', type='negative')      
+            ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
     # ============= 输入提交相关逻辑 ============
     async def scroll_to_bottom_smooth():
         """平滑滚动到底部，使用更可靠的方法"""
@@ -104,6 +111,10 @@ def chat_page():
             print(f"滚动出错: {e}")
 
     async def handle_message(event=None):
+        """
+        handle_message 像一条“对话生产线”,流程为:前端触发 → 数据校验 → 锁 UI → 双轨记录（历史数组 + 即时气泡） → 异步调模型 → 流式解析 → 动态组件化渲染（思考区、正文、未来可扩展为图表、代码块等） → 异常兜底 → 解锁复位。
+每个步骤既独立又环环相扣，任何一步失败都有 finally 兜底，确保用户体验与数据一致性。
+        """
         user_message = input_ref['widget'].value.strip()
         if not user_message:
             return
@@ -115,6 +126,10 @@ def chat_page():
         # 清空输入框
         input_ref['widget'].set_value('')
 
+        # 等待效果相关变量
+        waiting_message = None
+        waiting_dots = ""
+        
         try:
             # 删除欢迎消息
             if welcome_message_container:
@@ -144,18 +159,7 @@ def chat_page():
             # 添加用户消息后立即滚动到底部
             await scroll_to_bottom_smooth()
 
-            # 机器人回复
-            assistant_reply = f"我收到了您的消息：{user_message}。这是一个智能回复示例，包含更多内容来演示打字机效果。让我们看看这个功能如何工作..."  # 示例回复
-            
-            # 🔥 记录AI回复到聊天历史
-            current_chat_messages.append({
-                'role': 'assistant', 
-                'content': assistant_reply,
-                'timestamp': datetime.now().isoformat(),
-                'model': current_state['selected_model']
-            })
-
-            # 机器人消息
+            # 🔥 添加等待效果的机器人消息
             with messages:
                 robot_avatar = static_manager.get_fallback_path(
                     static_manager.get_logo_path('robot_txt.svg'),
@@ -164,22 +168,193 @@ def chat_page():
                 with ui.chat_message(
                     name='AI',
                     avatar=robot_avatar
-                ).classes('w-full'):
-                    # 先放一个不可见的 label，用来做打字机动画
-                    stream_label = ui.label('').classes('whitespace-pre-wrap')
+                ).classes('w-full') as ai_message_container:
+                    waiting_message = ui.label('正在思考').classes('whitespace-pre-wrap text-gray-500 italic')
 
-                    typed = ''
-                    for ch in assistant_reply:
-                        typed += ch
-                        stream_label.text = typed
-                        # 打字过程中也滚动到底部
-                        await scroll_to_bottom_smooth()
-                        await asyncio.sleep(0.03)
+            await scroll_to_bottom_smooth()
 
-                    # 完成回复后最终滚动
-                    await scroll_to_bottom_smooth()
+            # 🔥 启动等待动画
+            async def animate_waiting():
+                nonlocal waiting_dots
+                while waiting_message and waiting_message.text.startswith('正在思考'):
+                    waiting_dots = "." * ((len(waiting_dots) % 3) + 1)
+                    waiting_message.set_text(f'正在思考{waiting_dots}')
+                    await asyncio.sleep(0.5)
+
+            # 启动等待动画任务
+            waiting_task = asyncio.create_task(animate_waiting())
+
+            # 🔥 使用真实的 AI 模型进行流式回复
+            try:
+                # 导入OpenAI客户端池
+                from common.safe_openai_client_pool import get_openai_client
+                from menu_pages.enterprise_archive.config import get_model_config
+                
+                # 使用 current_model_config 获取当前选择的模型，确保状态一致性
+                selected_model = current_model_config['selected_model']
+                model_config = current_model_config['config']
+                
+                # 如果配置为空，重新获取
+                if not model_config:
+                    model_config = get_model_config(selected_model)
+                    current_model_config['config'] = model_config
+                
+                # 创建 OpenAI 客户端
+                client = await get_openai_client(selected_model, get_model_config)
+                
+                if not client:
+                    assistant_reply = f"抱歉，无法连接到模型 {selected_model}，请检查配置或稍后重试。"
+                    ui.notify(f'模型 {selected_model} 连接失败', type='negative')
+                    
+                    # 停止等待动画并更新消息
+                    waiting_task.cancel()
+                    waiting_message.set_text(assistant_reply)
+                    waiting_message.classes(remove='text-gray-500 italic')
+                    
+                else:
+                    # 准备对话历史（取最近20条消息）
+                    recent_messages = current_chat_messages[-20:]
+                    
+                    # 获取实际的模型名称
+                    actual_model_name = model_config.get('model_name', selected_model) if model_config else selected_model
+                    
+                    # 🔥 流式调用 OpenAI API
+                    stream_response = await asyncio.to_thread(
+                        client.chat.completions.create,
+                        model=actual_model_name,
+                        messages=recent_messages,
+                        max_tokens=2000,
+                        temperature=0.7,
+                        stream=True  # 启用流式响应
+                    )
+                    
+                    # 停止等待动画
+                    waiting_task.cancel()
+                    
+                    # 🔥 处理流式响应
+                    assistant_reply = ""
+                    think_content = ""
+                    is_in_think = False
+                    think_start_pos = -1
+                    
+                    # 清空等待消息，准备流式显示
+                    ai_message_container.clear()
+                    
+                    with ai_message_container:
+                        # 创建思考内容的可折叠区域（初始隐藏）
+                        think_expansion = None
+                        # 创建回复内容的显示区域
+                        reply_label = ui.label('').classes('whitespace-pre-wrap')
+                    
+                    # 处理流式数据
+                    for chunk in stream_response:
+                        if chunk.choices[0].delta.content:
+                            chunk_content = chunk.choices[0].delta.content
+                            assistant_reply += chunk_content
+                            
+                            # 🔥 检测和处理思考内容
+                            temp_content = assistant_reply
+                            
+                            # 检查是否开始思考内容
+                            if '<think>' in temp_content and not is_in_think:
+                                is_in_think = True
+                                think_start_pos = temp_content.find('<think>')
+                                
+                                # 创建思考内容的可折叠区域
+                                if think_expansion is None:
+                                    with ai_message_container:
+                                        think_expansion = ui.expansion(
+                                            '💭 AI思考过程', 
+                                            icon='psychology'
+                                        ).classes('w-full mb-2')
+                                        with think_expansion:
+                                            think_label = ui.label('').classes('whitespace-pre-wrap text-sm text-gray-600 bg-gray-50 p-2 rounded')
+                            
+                            # 检查是否结束思考内容
+                            if '</think>' in temp_content and is_in_think:
+                                is_in_think = False
+                                think_end_pos = temp_content.find('</think>') + 8
+                                
+                                # 提取思考内容
+                                think_content = temp_content[think_start_pos + 7:think_end_pos - 8]
+                                
+                                # 更新思考内容显示
+                                if think_expansion and 'think_label' in locals():
+                                    think_label.set_text(think_content.strip())
+                                
+                                # 移除思考标签，保留其他内容
+                                display_content = temp_content[:think_start_pos] + temp_content[think_end_pos:]
+                                reply_label.set_text(display_content)
+                            else:
+                                # 如果在思考中，只显示思考前的内容
+                                if is_in_think:
+                                    if think_start_pos >= 0:
+                                        display_content = temp_content[:think_start_pos]
+                                        reply_label.set_text(display_content)
+                                        
+                                        # 更新思考内容（去除标签）
+                                        current_think = temp_content[think_start_pos + 7:]
+                                        if current_think and think_expansion and 'think_label' in locals():
+                                            think_label.set_text(current_think.strip())
+                                else:
+                                    # 正常显示内容
+                                    reply_label.set_text(temp_content)
+                            
+                            # 流式更新时滚动到底部
+                            await scroll_to_bottom_smooth()
+                            await asyncio.sleep(0.01)  # 流式显示的间隔
+                    
+                    # 最终处理：确保所有内容正确显示
+                    final_content = assistant_reply
+                    
+                    # 如果包含思考内容，进行最终清理
+                    if '<think>' in final_content and '</think>' in final_content:
+                        think_start = final_content.find('<think>')
+                        think_end = final_content.find('</think>') + 8
+                        
+                        # 最终的思考内容
+                        final_think_content = final_content[think_start + 7:think_end - 8]
+                        if think_expansion and 'think_label' in locals():
+                            think_label.set_text(final_think_content.strip())
+                        
+                        # 最终的回复内容（移除思考标签）
+                        final_reply_content = final_content[:think_start] + final_content[think_end:]
+                        reply_label.set_text(final_reply_content.strip())
+                        
+                        # 用于记录到聊天历史的内容（保留思考标签）
+                        assistant_reply = final_content
+                    else:
+                        # 没有思考内容，直接显示
+                        reply_label.set_text(final_content)
+                    
+            except Exception as api_error:
+                print(f"API调用错误: {api_error}")
+                assistant_reply = f"抱歉，调用AI服务时出现错误：{str(api_error)[:100]}..."
+                ui.notify('AI服务调用失败，请稍后重试', type='negative')
+                
+                # 停止等待动画并显示错误信息
+                if waiting_task and not waiting_task.done():
+                    waiting_task.cancel()
+                if waiting_message:
+                    waiting_message.set_text(assistant_reply)
+                    waiting_message.classes(remove='text-gray-500 italic')
+            
+            # 🔥 记录AI回复到聊天历史
+            current_chat_messages.append({
+                'role': 'assistant', 
+                'content': assistant_reply,
+                'timestamp': datetime.now().isoformat(),
+                'model': current_model_config['selected_model']
+            })
+
+            # 完成回复后最终滚动
+            await scroll_to_bottom_smooth()
         
         finally:
+            # 确保等待动画任务被取消
+            if 'waiting_task' in locals() and not waiting_task.done():
+                waiting_task.cancel()
+            
             # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
             input_ref['widget'].set_enabled(True)
             send_button_ref['widget'].set_enabled(True)
