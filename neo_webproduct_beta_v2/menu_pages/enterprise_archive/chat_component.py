@@ -166,7 +166,7 @@ def chat_page():
             # 方法1: 使用 scroll_area 的内置方法，设置 percent > 1 确保滚动到底部
             scroll_area.scroll_to(percent=1.1)
             # 添加小延迟确保滚动完成
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.09)
         except Exception as e:
             print(f"滚动出错: {e}")
 
@@ -186,6 +186,7 @@ def chat_page():
         waiting_message = None
         waiting_dots = ""
         assistant_reply = ""
+        waiting_task = None  # 初始化变量
         
         try:
             # 删除欢迎消息
@@ -204,7 +205,7 @@ def chat_page():
             with messages:
                 user_avatar = static_manager.get_fallback_path(
                     static_manager.get_logo_path('user.svg'),
-                    'https://robohash.org/user'
+                    'https://robohash.org/user   '
                 )
                 with ui.chat_message(
                     name='您',
@@ -220,7 +221,7 @@ def chat_page():
             with messages:
                 robot_avatar = static_manager.get_fallback_path(
                     static_manager.get_logo_path('robot_txt.svg'),
-                    'https://robohash.org/ui'
+                    'https://robohash.org/ui   '
                 )
                 with ui.chat_message(
                     name='AI',
@@ -230,13 +231,21 @@ def chat_page():
 
             await scroll_to_bottom_smooth()
 
-            # 🔥 启动等待动画
+            # 🔥 启动等待动画 - 使用标志变量控制
+            animation_active = True
+            
             async def animate_waiting():
-                nonlocal waiting_dots
-                while waiting_message and waiting_message.text.startswith('正在思考...'):
-                    waiting_dots = "." * ((len(waiting_dots) % 3) + 1)
-                    waiting_message.set_text(f'正在思考{waiting_dots}')
-                    await asyncio.sleep(0.3)
+                nonlocal waiting_dots, animation_active
+                dots_count = 0
+                while animation_active and waiting_message:
+                    dots_count = (dots_count % 3) + 1
+                    waiting_dots = "." * dots_count
+                    try:
+                        waiting_message.set_text(f'正在思考{waiting_dots}')
+                        await asyncio.sleep(0.5)  # 稍微放慢动画速度
+                    except Exception:
+                        # 如果组件已被销毁，退出动画
+                        break
 
             # 启动等待动画任务
             waiting_task = asyncio.create_task(animate_waiting())
@@ -264,7 +273,9 @@ def chat_page():
                     ui.notify(f'模型 {selected_model} 连接失败', type='negative')
                     
                     # 停止等待动画并更新消息
-                    waiting_task.cancel()
+                    animation_active = False
+                    if waiting_task and not waiting_task.done():
+                        waiting_task.cancel()
                     waiting_message.set_text(assistant_reply)
                     waiting_message.classes(remove='text-gray-500 italic')
                     
@@ -293,8 +304,10 @@ def chat_page():
                         stream=True  # 启用流式响应
                     )
                     
-                    # 停止等待动画
-                    waiting_task.cancel()
+                    # ⭐ 关键修复：在开始处理流式响应时才停止等待动画
+                    animation_active = False
+                    if waiting_task and not waiting_task.done():
+                        waiting_task.cancel()
                     
                     # 🔥 处理流式响应 - 完全重写逻辑
                     assistant_reply = ""
@@ -340,7 +353,7 @@ def chat_page():
                                             ).classes('w-full mb-2')
                                             with think_expansion:
                                                 think_label = ui.label('').classes('whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none')
-                                    
+                                        
                                     structure_created = True
                             
                             # 如果没有思考内容，且尚未创建结构，创建普通回复结构
@@ -348,7 +361,7 @@ def chat_page():
                                 ai_message_container.clear()
                                 with ai_message_container:
                                     with ui.column().classes('w-full') as chat_content_container:
-                                        reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                        reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
                                 structure_created = True
                                 reply_created = True
                             
@@ -368,12 +381,12 @@ def chat_page():
                                 # 现在在容器中创建回复组件
                                 if chat_content_container and not reply_created:
                                     with chat_content_container:
-                                        reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                        reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
                                     reply_created = True
                                 
                                 # 更新回复内容
                                 if reply_label and display_content.strip():
-                                    reply_label.set_text(display_content.strip())
+                                    reply_label.set_content(display_content.strip())
                             else:
                                 # 根据当前状态更新显示内容
                                 if is_in_think:
@@ -389,16 +402,16 @@ def chat_page():
                                         # 如果有前置内容且还未创建回复组件，先创建
                                         if display_content.strip() and chat_content_container and not reply_created:
                                             with chat_content_container:
-                                                reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                                reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
                                             reply_created = True
                                         
                                         # 更新前置内容
                                         if reply_label and display_content.strip():
-                                            reply_label.set_text(display_content.strip())
+                                            reply_label.set_content(display_content.strip())
                                 else:
                                     # 正常显示内容：没有思考标签
                                     if reply_label:
-                                        reply_label.set_text(temp_content)
+                                        reply_label.set_content(temp_content)
                             
                             # 流式更新时滚动到底部
                             await scroll_to_bottom_smooth()
@@ -423,11 +436,11 @@ def chat_page():
                         # 确保回复组件已创建
                         if chat_content_container and not reply_created and final_reply_content.strip():
                             with chat_content_container:
-                                reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
                             reply_created = True
                         
                         if reply_label and final_reply_content.strip():
-                            reply_label.set_text(final_reply_content.strip())
+                            reply_label.set_content(final_reply_content.strip())
                         
                         # 用于记录到聊天历史的内容（保留思考标签）
                         assistant_reply = final_content
@@ -436,11 +449,11 @@ def chat_page():
                         if not structure_created:
                             ai_message_container.clear()
                             with ai_message_container:
-                                with chat_content_container:
-                                    reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                with ui.column().classes('w-full') as chat_content_container:
+                                    reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
                         
                         if reply_label:
-                            reply_label.set_text(final_content)
+                            reply_label.set_content(final_content)
                     
             except Exception as api_error:
                 print(f"API调用错误: {api_error}")
@@ -448,6 +461,7 @@ def chat_page():
                 ui.notify('AI服务调用失败，请稍后重试', type='negative')
                 
                 # 停止等待动画并显示错误信息
+                animation_active = False
                 if waiting_task and not waiting_task.done():
                     waiting_task.cancel()
                 if waiting_message:
@@ -455,6 +469,7 @@ def chat_page():
                     waiting_message.classes(remove='text-gray-500 italic')
             
             # 🔥 记录AI回复到聊天历史
+            print(f"🤖 AI的回复：", {assistant_reply})
             current_chat_messages.append({
                 'role': 'assistant', 
                 'content': assistant_reply,
@@ -467,7 +482,8 @@ def chat_page():
         
         finally:
             # 确保等待动画任务被取消
-            if 'waiting_task' in locals() and not waiting_task.done():
+            animation_active = False
+            if waiting_task and not waiting_task.done():
                 waiting_task.cancel()
             
             # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
