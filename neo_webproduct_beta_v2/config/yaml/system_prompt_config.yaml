@@ -11,8 +11,24 @@ metadata:
 
 # 系统提示词模板集合
 prompt_templates:
+
+  默认:
+    name: "默认"
+    description: "专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等"
+    enabled: true
+    version: "1.0"
+    category: "文档编写"
+
+    # 系统提示词内容
+    system_prompt: |
+      # 你是一个AI助手，帮助用户处理各类问题
+
+    # 示例交互
+    examples:
+
+
   # 1. Markdown规范文档编写专家
-  默认上下文:
+  Markdown专家:
     name: "默认上下文"
     description: "专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等"
     enabled: true
@@ -92,7 +108,7 @@ prompt_templates:
       output_format: "标准Markdown格式，包含完整的文档结构"
 
   # 2. MongoDB查询语句生成专家
-  一企一档:
+  一企一档专家:
     name: "一企一档"
     description: "基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句"
     enabled: true

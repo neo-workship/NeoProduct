@@ -271,6 +271,14 @@ def chat_page():
                 else:
                     # 准备对话历史（取最近20条消息）
                     recent_messages = current_chat_messages[-20:]
+                    print(f"prompt:{current_prompt_config['system_prompt']}")
+                    if current_state.get('prompt_select_widget') and current_prompt_config.get('system_prompt'):
+                        system_message = {
+                            "role": "system", 
+                            "content": current_prompt_config['system_prompt']
+                        }
+                        # 将系统消息插入到历史消息的最前面
+                        recent_messages = [system_message] + recent_messages
                     
                     # 获取实际的模型名称
                     actual_model_name = model_config.get('model_name', selected_model) if model_config else selected_model
@@ -300,7 +308,7 @@ def chat_page():
                     think_expansion = None
                     think_label = None
                     reply_label = None
-                    content_container = None
+                    chat_content_container = None
 
                     # 用于跟踪是否已经创建了基础结构
                     structure_created = False
@@ -324,7 +332,7 @@ def chat_page():
                                 if not structure_created:
                                     ai_message_container.clear()
                                     with ai_message_container:
-                                        with ui.column().classes('w-full') as content_container:
+                                        with ui.column().classes('w-full') as chat_content_container:
                                             # 创建思考区域
                                             think_expansion = ui.expansion(
                                                 '💭 AI思考过程...(可点击打开查看)', 
@@ -339,7 +347,7 @@ def chat_page():
                             elif not structure_created and '<think>' not in temp_content:
                                 ai_message_container.clear()
                                 with ai_message_container:
-                                    with ui.column().classes('w-full') as content_container:
+                                    with ui.column().classes('w-full') as chat_content_container:
                                         reply_label = ui.label('').classes('whitespace-pre-wrap')
                                 structure_created = True
                                 reply_created = True
@@ -358,8 +366,8 @@ def chat_page():
                                 display_content = temp_content[:think_start_pos] + temp_content[think_end_pos:]
                                 
                                 # 现在在容器中创建回复组件
-                                if content_container and not reply_created:
-                                    with content_container:
+                                if chat_content_container and not reply_created:
+                                    with chat_content_container:
                                         reply_label = ui.label('').classes('whitespace-pre-wrap')
                                     reply_created = True
                                 
@@ -379,8 +387,8 @@ def chat_page():
                                             think_label.set_text(current_think.strip())
                                         
                                         # 如果有前置内容且还未创建回复组件，先创建
-                                        if display_content.strip() and content_container and not reply_created:
-                                            with content_container:
+                                        if display_content.strip() and chat_content_container and not reply_created:
+                                            with chat_content_container:
                                                 reply_label = ui.label('').classes('whitespace-pre-wrap')
                                             reply_created = True
                                         
@@ -413,8 +421,8 @@ def chat_page():
                         final_reply_content = final_content[:think_start] + final_content[think_end:]
                         
                         # 确保回复组件已创建
-                        if content_container and not reply_created and final_reply_content.strip():
-                            with content_container:
+                        if chat_content_container and not reply_created and final_reply_content.strip():
+                            with chat_content_container:
                                 reply_label = ui.label('').classes('whitespace-pre-wrap')
                             reply_created = True
                         
@@ -428,7 +436,8 @@ def chat_page():
                         if not structure_created:
                             ai_message_container.clear()
                             with ai_message_container:
-                                reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                with chat_content_container:
+                                    reply_label = ui.label('').classes('whitespace-pre-wrap')
                         
                         if reply_label:
                             reply_label.set_text(final_content)
