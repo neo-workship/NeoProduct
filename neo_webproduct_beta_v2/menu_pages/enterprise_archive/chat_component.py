@@ -676,6 +676,7 @@ def chat_page():
                         'title': chat.title,
                         'preview': preview,  # 新增：消息预览
                         'created_at': chat.created_at.strftime('%Y-%m-%d %H:%M'),
+                        'updated_at': chat.updated_at.strftime('%Y-%m-%d %H:%M'),
                         'last_message_at': chat.last_message_at.strftime('%Y-%m-%d %H:%M') if chat.last_message_at else None,  # 新增：最后消息时间
                         'message_count': chat.message_count,
                         'model_name': chat.model_name,
@@ -752,14 +753,179 @@ def chat_page():
             ui.notify('加载聊天失败', type='negative')
     
     def on_edit_chat_history(chat_id):
-        """编辑聊天历史（占位函数）"""
-        ui.notify(f'编辑聊天 ID: {chat_id}', type='info')
-        # TODO: 实现编辑功能
+        """编辑聊天历史标题"""
+        
+        try:
+            from auth import auth_manager
+            from database_models.business_models.chat_history_model import ChatHistory
+            from auth.database import get_db
+            from sqlalchemy.sql import func
+            
+            current_user = auth_manager.current_user
+            if not current_user:
+                ui.notify('用户未登录，无法编辑聊天记录', type='warning')
+                return
+            
+            with get_db() as db:
+                # 查找聊天记录
+                chat_history = db.query(ChatHistory).filter(
+                    ChatHistory.id == chat_id,
+                    ChatHistory.created_by == current_user.id,
+                    ChatHistory.is_deleted == False
+                ).first()
+                
+                if not chat_history:
+                    ui.notify('聊天记录不存在或无权限编辑', type='negative')
+                    return
+                
+                # 获取当前数据用于显示
+                current_title = chat_history.title
+                created_at = chat_history.created_at.strftime("%Y-%m-%d %H:%M")
+                message_count = chat_history.message_count
+                model_name = chat_history.model_name
+                
+                # 创建编辑对话框
+                with ui.dialog() as dialog:
+                    with ui.card().classes('w-96'):
+                        with ui.column().classes('w-full '):
+                            ui.label('编辑聊天标题').classes('text-lg font-medium')
+                            
+                            # 标题输入框
+                            title_input = ui.input(
+                                label='聊天标题',
+                                value=current_title,
+                                placeholder='请输入新的聊天标题'
+                            ).classes('w-full')
+                            
+                            # 显示聊天信息
+                            with ui.column().classes('gap-1'):
+                                ui.label(f'创建时间: {created_at}').classes('text-sm text-gray-600')
+                                ui.label(f'消息数量: {message_count}条').classes('text-sm text-gray-600')
+                                if model_name:
+                                    ui.label(f'AI模型: {model_name}').classes('text-sm text-gray-600')
+                            
+                            def save_title():
+                                """保存新标题"""
+                                new_title = title_input.value.strip()
+                                if not new_title:
+                                    ui.notify('标题不能为空', type='warning')
+                                    return
+                                
+                                if len(new_title) > 200:
+                                    ui.notify('标题长度不能超过200个字符', type='warning')
+                                    return
+                                
+                                try:
+                                    # 重新在新的数据库会话中查找并更新
+                                    with get_db() as update_db:
+                                        update_chat = update_db.query(ChatHistory).filter(
+                                            ChatHistory.id == chat_id,
+                                            ChatHistory.created_by == current_user.id,
+                                            ChatHistory.is_deleted == False
+                                        ).first()
+                                        
+                                        if not update_chat:
+                                            ui.notify('聊天记录不存在', type='negative')
+                                            return
+                                        
+                                        # 直接更新字段
+                                        update_chat.title = new_title
+                                        update_chat.updated_at = func.now()
+                                        
+                                        update_db.commit()
+                                    
+                                    # 刷新聊天历史列表
+                                    refresh_chat_history_list()
+                                    
+                                    ui.notify(f'标题已更新为: {new_title}', type='positive')
+                                    dialog.close()
+                                    
+                                except Exception as e:
+                                    print(f"更新聊天标题错误: {e}")
+                                    ui.notify(f'更新标题失败: {str(e)}', type='negative')
+                            
+                            # 按钮区域
+                            with ui.row().classes('w-full justify-end gap-2'):
+                                ui.button('取消', on_click=dialog.close).props('flat')
+                                ui.button('保存', on_click=save_title).props('color=primary')
+                
+                dialog.open()
+                
+        except Exception as e:
+            print(f"编辑聊天历史错误: {e}")
+            ui.notify(f'编辑聊天失败: {str(e)}', type='negative')
 
     def on_delete_chat_history(chat_id):
-        """删除聊天历史（占位函数）"""
-        ui.notify(f'删除聊天 ID: {chat_id}', type='info')
-        # TODO: 实现删除功能
+        """删除聊天历史 - 使用软删除功能"""
+        
+        def confirm_delete():
+            """确认删除操作"""
+            try:
+                from auth import auth_manager
+                from database_models.business_models.chat_history_model import ChatHistory
+                from auth.database import get_db
+                from sqlalchemy.sql import func
+                
+                current_user = auth_manager.current_user
+                if not current_user:
+                    ui.notify('用户未登录，无法删除聊天记录', type='warning')
+                    return
+                
+                with get_db() as db:
+                    # 查找聊天记录
+                    chat_history = db.query(ChatHistory).filter(
+                        ChatHistory.id == chat_id,
+                        ChatHistory.created_by == current_user.id,
+                        ChatHistory.is_deleted == False
+                    ).first()
+                    
+                    if not chat_history:
+                        ui.notify('聊天记录不存在或无权限删除', type='negative')
+                        return
+                    
+                    # 保存标题用于通知
+                    chat_title = chat_history.title
+                    
+                    # 直接在数据库会话中进行软删除操作，避免会话问题
+                    chat_history.is_deleted = True
+                    chat_history.deleted_at = func.now()
+                    chat_history.deleted_by = current_user.id
+                    chat_history.is_active = False
+                    
+                    db.commit()
+                    
+                    # 如果删除的是当前加载的聊天，需要重置界面
+                    current_loaded_id = get_current_loaded_chat_id()
+                    if current_loaded_id == chat_id:
+                        # 清空当前聊天
+                        current_chat_messages.clear()
+                        messages.clear()
+                        welcome_message_container.clear()
+                        restore_welcome_message()
+                        reset_current_loaded_chat_id()
+                        
+                    # 刷新聊天历史列表
+                    refresh_chat_history_list()
+                    
+                    ui.notify(f'已删除聊天: {chat_title}', type='positive')
+                    
+            except Exception as e:
+                print(f"删除聊天历史错误: {e}")
+                ui.notify(f'删除聊天失败: {str(e)}', type='negative')
+        
+        # 显示确认对话框
+        with ui.dialog() as dialog:
+            with ui.card().classes('w-80'):
+                with ui.column().classes('w-full'):
+                    ui.icon('warning', size='lg').classes('text-orange-500 mx-auto')
+                    ui.label('确认删除聊天记录？').classes('text-lg font-medium text-center')
+                    ui.label('删除后可以在回收站中恢复').classes('text-sm text-gray-600 text-center')
+                    
+                    with ui.row().classes('w-full justify-end gap-2'):
+                        ui.button('取消', on_click=dialog.close).props('flat')
+                        ui.button('删除', on_click=lambda: [confirm_delete(), dialog.close()]).props('color=negative')
+        
+        dialog.open()
     
     def create_chat_history_list():
         """创建聊天历史列表组件"""
@@ -783,7 +949,7 @@ def chat_page():
                         # 聊天标题
                         ui.item_label(history['title']).classes('font-medium')
                         # 时间和统计信息
-                        info_text = f"{history['created_at']} • {history['message_count']}条消息"
+                        info_text = f"{history['updated_at']} • {history['message_count']}条消息"
                         if history['duration_minutes'] > 0:
                             info_text += f" • {history['duration_minutes']}分钟"
                         if history['model_name']:

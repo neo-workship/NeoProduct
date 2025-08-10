@@ -122,6 +122,19 @@ class ChatHistory(BusinessBaseModel):
             'last_message': last_timestamp
         }
     
+    def update_chat_title(self, new_title: str) -> bool:
+        """更新聊天标题的模型方法"""
+        if not new_title or not new_title.strip():
+            return False
+        
+        if len(new_title) > 200:
+            return False
+        
+        self.title = new_title.strip()
+        from sqlalchemy.sql import func
+        self.updated_at = func.now()
+        
+        return True
     # === 类方法 ===
     
     @classmethod
