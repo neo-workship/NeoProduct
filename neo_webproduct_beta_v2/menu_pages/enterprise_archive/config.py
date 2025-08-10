@@ -6,7 +6,7 @@ import yaml
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-
+# LLMModelConfigManager类读取配置文件llm_model_config.yaml
 class LLMModelConfigManager:
     """LLM模型配置管理器"""
     
@@ -158,7 +158,7 @@ class LLMModelConfigManager:
             'last_modified': self.config_file_path.stat().st_mtime if self.config_file_path.exists() else None
         }
 
-# 全局配置管理器实例
+# LLMModelConfigManager 全局配置管理器实例
 _config_manager = None
 
 def get_llm_config_manager() -> LLMModelConfigManager:
@@ -223,3 +223,27 @@ def get_model_config_info() -> Dict[str, Any]:
         Dict: 配置文件信息
     """
     return get_llm_config_manager().get_config_info()
+
+# SystemPromptConfigManager类读取配置文件llm_model_config.yaml
+class SystemPromptConfigManager:
+    def __init__(self, config_file_path: Optional[str] = None):
+        """
+        初始化配置管理器
+        
+        Args:
+            config_file_path: YAML配置文件路径，如果为None则使用默认路径
+        """
+        if config_file_path is None:
+            # 默认配置文件路径：项目根目录的 config/yaml/llm_model_config.yaml
+            current_dir = Path(__file__).parent
+            project_root = current_dir.parent.parent  # 向上两级到项目根目录
+            self.config_file_path = project_root / "config" / "yaml" / "system_prompt_config.yaml"
+        else:
+            self.config_file_path = Path(config_file_path)
+        
+        self._yaml_config = None
+        self._model_options = []
+        self._load_config()
+
+    def _load_config(self) -> None:
+        pass
