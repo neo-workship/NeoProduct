@@ -112,14 +112,9 @@ def chat_page():
 
     # 完整的handle_message函数实现
     async def handle_message(event=None):
-        """
-        handle_message 像一条"对话生产线",流程为:前端触发 → 数据校验 → 锁 UI → 双轨记录（历史数组 + 即时气泡） → 异步调模型 → 流式解析 → 动态组件化渲染（思考区、正文、未来可扩展为图表、代码块等） → 异常兜底 → 解锁复位。
-    每个步骤既独立又环环相扣，任何一步失败都有 finally 兜底，确保用户体验与数据一致性。
-        """
         user_message = input_ref['widget'].value.strip()
         if not user_message:
             return
-        
         # 🔒 禁用输入框和发送按钮，防止重复发送
         input_ref['widget'].set_enabled(False)
         send_button_ref['widget'].set_enabled(False)
@@ -171,17 +166,17 @@ def chat_page():
                     name='AI',
                     avatar=robot_avatar
                 ).classes('w-full') as ai_message_container:
-                    waiting_message = ui.label('正在思考').classes('whitespace-pre-wrap text-gray-500 italic')
+                    waiting_message = ui.label('正在思考...').classes('whitespace-pre-wrap text-gray-500 italic')
 
             await scroll_to_bottom_smooth()
 
             # 🔥 启动等待动画
             async def animate_waiting():
                 nonlocal waiting_dots
-                while waiting_message and waiting_message.text.startswith('正在思考'):
+                while waiting_message and waiting_message.text.startswith('正在思考...'):
                     waiting_dots = "." * ((len(waiting_dots) % 3) + 1)
                     waiting_message.set_text(f'正在思考{waiting_dots}')
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.3)
 
             # 启动等待动画任务
             waiting_task = asyncio.create_task(animate_waiting())
@@ -245,9 +240,11 @@ def chat_page():
                     think_expansion = None
                     think_label = None
                     reply_label = None
+                    content_container = None
 
                     # 用于跟踪是否已经创建了基础结构
                     structure_created = False
+                    reply_created = False
 
                     # 处理流式数据
                     for chunk in stream_response:
@@ -267,17 +264,14 @@ def chat_page():
                                 if not structure_created:
                                     ai_message_container.clear()
                                     with ai_message_container:
-                                        # 创建思考区域
-                                        think_expansion = ui.expansion(
-                                            '💭 AI思考过程', 
-                                            icon='psychology'
-                                        ).classes('w-full mb-2')
-                                        with think_expansion:
-                                            think_label = ui.label('').classes('whitespace-pre-wrap text-sm text-gray-600 bg-gray-50 p-2 rounded')
-                                        
-                                        # 创建回复区域，但暂时设为空且不可见
-                                        reply_label = ui.label('').classes('whitespace-pre-wrap')
-                                        reply_label.set_visibility(False)
+                                        with ui.column().classes('w-full') as content_container:
+                                            # 创建思考区域
+                                            think_expansion = ui.expansion(
+                                                '💭 AI思考过程...(可点击打开查看)', 
+                                                icon='psychology'
+                                            ).classes('w-full mb-2')
+                                            with think_expansion:
+                                                think_label = ui.label('').classes('whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none')
                                     
                                     structure_created = True
                             
@@ -285,8 +279,10 @@ def chat_page():
                             elif not structure_created and '<think>' not in temp_content:
                                 ai_message_container.clear()
                                 with ai_message_container:
-                                    reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                    with ui.column().classes('w-full') as content_container:
+                                        reply_label = ui.label('').classes('whitespace-pre-wrap')
                                 structure_created = True
+                                reply_created = True
                             
                             # 检查是否结束思考内容
                             if '</think>' in temp_content and is_in_think:
@@ -301,13 +297,15 @@ def chat_page():
                                 # 移除思考标签，保留其他内容
                                 display_content = temp_content[:think_start_pos] + temp_content[think_end_pos:]
                                 
-                                # 现在显示回复内容
-                                if reply_label:
-                                    if display_content.strip():
-                                        reply_label.set_text(display_content.strip())
-                                        reply_label.set_visibility(True)
-                                    else:
-                                        reply_label.set_visibility(False)
+                                # 现在在容器中创建回复组件
+                                if content_container and not reply_created:
+                                    with content_container:
+                                        reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                    reply_created = True
+                                
+                                # 更新回复内容
+                                if reply_label and display_content.strip():
+                                    reply_label.set_text(display_content.strip())
                             else:
                                 # 根据当前状态更新显示内容
                                 if is_in_think:
@@ -320,18 +318,19 @@ def chat_page():
                                         if current_think and think_label:
                                             think_label.set_text(current_think.strip())
                                         
-                                        # 如果有前置内容，显示在回复区域
-                                        if reply_label:
-                                            if display_content.strip():
-                                                reply_label.set_text(display_content.strip())
-                                                reply_label.set_visibility(True)
-                                            else:
-                                                reply_label.set_visibility(False)
+                                        # 如果有前置内容且还未创建回复组件，先创建
+                                        if display_content.strip() and content_container and not reply_created:
+                                            with content_container:
+                                                reply_label = ui.label('').classes('whitespace-pre-wrap')
+                                            reply_created = True
+                                        
+                                        # 更新前置内容
+                                        if reply_label and display_content.strip():
+                                            reply_label.set_text(display_content.strip())
                                 else:
                                     # 正常显示内容：没有思考标签
                                     if reply_label:
                                         reply_label.set_text(temp_content)
-                                        reply_label.set_visibility(True)
                             
                             # 流式更新时滚动到底部
                             await scroll_to_bottom_smooth()
@@ -353,13 +352,14 @@ def chat_page():
                         # 最终的回复内容（移除思考标签）
                         final_reply_content = final_content[:think_start] + final_content[think_end:]
                         
-                        if reply_label:
-                            if final_reply_content.strip():
-                                reply_label.set_text(final_reply_content.strip())
-                                reply_label.set_visibility(True)
-                            else:
-                                # 如果没有正文内容，完全移除reply_label
-                                reply_label.delete()
+                        # 确保回复组件已创建
+                        if content_container and not reply_created and final_reply_content.strip():
+                            with content_container:
+                                reply_label = ui.label('').classes('whitespace-pre-wrap')
+                            reply_created = True
+                        
+                        if reply_label and final_reply_content.strip():
+                            reply_label.set_text(final_reply_content.strip())
                         
                         # 用于记录到聊天历史的内容（保留思考标签）
                         assistant_reply = final_content
@@ -372,7 +372,6 @@ def chat_page():
                         
                         if reply_label:
                             reply_label.set_text(final_content)
-                            reply_label.set_visibility(True)
                     
             except Exception as api_error:
                 print(f"API调用错误: {api_error}")
