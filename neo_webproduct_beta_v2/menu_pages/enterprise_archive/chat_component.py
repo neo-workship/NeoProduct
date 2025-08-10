@@ -13,7 +13,7 @@ from .config import (
     get_model_config, 
     get_default_model,
     reload_llm_config,
-    get_config_info
+    get_model_config_info
 )
     
 def chat_page():
@@ -87,7 +87,7 @@ def chat_page():
                     current_model_config['config'] = get_model_config(current_selection)
                 
                 # 显示刷新结果
-                config_info = get_config_info()
+                config_info = get_model_config_info()
                 ui.notify(
                     f'配置刷新成功！共加载 {config_info["total_models"]} 个模型，'
                     f'其中 {config_info["enabled_models"]} 个已启用',
