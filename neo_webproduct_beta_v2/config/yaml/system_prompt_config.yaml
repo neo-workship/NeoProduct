@@ -12,7 +12,7 @@ metadata:
 # 系统提示词模板集合
 prompt_templates:
   # 1. Markdown规范文档编写专家
-  markdown_expert:
+  默认上下文:
     name: "默认上下文"
     description: "专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等"
     enabled: true
@@ -92,7 +92,7 @@ prompt_templates:
       output_format: "标准Markdown格式，包含完整的文档结构"
 
   # 2. MongoDB查询语句生成专家
-  mongodb_expert:
+  一企一档:
     name: "一企一档"
     description: "基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句"
     enabled: true

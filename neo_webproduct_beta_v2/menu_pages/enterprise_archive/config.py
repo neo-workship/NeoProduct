@@ -224,8 +224,9 @@ def get_model_config_info() -> Dict[str, Any]:
     """
     return get_llm_config_manager().get_config_info()
 
-# SystemPromptConfigManager类读取配置文件llm_model_config.yaml
+# SystemPromptConfigManager类读取配置文件system_prompt_config.yaml
 class SystemPromptConfigManager:
+    """系统提示词配置管理器"""
     def __init__(self, config_file_path: Optional[str] = None):
         """
         初始化配置管理器
@@ -234,7 +235,7 @@ class SystemPromptConfigManager:
             config_file_path: YAML配置文件路径，如果为None则使用默认路径
         """
         if config_file_path is None:
-            # 默认配置文件路径：项目根目录的 config/yaml/llm_model_config.yaml
+            # 默认配置文件路径：项目根目录的 config/yaml/system_prompt_config.yaml
             current_dir = Path(__file__).parent
             project_root = current_dir.parent.parent  # 向上两级到项目根目录
             self.config_file_path = project_root / "config" / "yaml" / "system_prompt_config.yaml"
@@ -242,8 +243,261 @@ class SystemPromptConfigManager:
             self.config_file_path = Path(config_file_path)
         
         self._yaml_config = None
-        self._model_options = []
+        self._prompt_options = []
         self._load_config()
 
     def _load_config(self) -> None:
-        pass
+        """从YAML文件加载配置"""
+        try:
+            if not self.config_file_path.exists():
+                raise FileNotFoundError(f"系统提示词配置文件不存在: {self.config_file_path}")
+            
+            with open(self.config_file_path, 'r', encoding='utf-8') as file:
+                self._yaml_config = yaml.safe_load(file)
+            
+            if not self._yaml_config:
+                raise ValueError("配置文件为空或格式无效")
+            
+            # 解析配置并生成提示词选项
+            self._parse_prompt_config()
+                
+        except Exception as e:
+            print(f"错误: 无法加载系统提示词配置文件: {e}")
+            print("请确保配置文件存在且格式正确")
+            self._yaml_config = None
+            self._prompt_options = []
+
+    def _parse_prompt_config(self) -> None:
+        """解析YAML配置，生成提示词选项列表"""
+        self._prompt_options = []
+        
+        # 检查是否存在 prompt_templates 节点
+        prompt_templates = self._yaml_config.get('prompt_templates', {})
+        
+        if not prompt_templates:
+            print("警告: 配置文件中未找到 'prompt_templates' 节点")
+            return
+        
+        # 遍历所有提示词模板的配置
+        for template_key, template_config in prompt_templates.items():
+            # 跳过非字典类型的配置节点
+            if not isinstance(template_config, dict):
+                continue
+            
+            # 提取配置信息
+            enabled = template_config.get('enabled', True)
+            name = template_config.get('name', template_key)
+            system_prompt = template_config.get('system_prompt', '')
+            examples = template_config.get('examples', {})
+            
+            # 构建提示词选项
+            prompt_option = {
+                'key': template_key,
+                'name': name,
+                'enabled': enabled,
+                'system_prompt': system_prompt,
+                'examples': examples,
+                'config': template_config
+            }
+            
+            self._prompt_options.append(prompt_option)
+        
+        print(f"已加载 {len(self._prompt_options)} 个系统提示词模板")
+
+    def get_prompt_options_for_select(self, include_disabled: bool = False) -> List[str]:
+        """
+        获取用于ui.select的提示词选项列表
+        
+        Args:
+            include_disabled: 是否包含禁用的提示词，默认为False
+        
+        Returns:
+            List[str]: 提示词key列表
+        """
+        if include_disabled:
+            return [option['key'] for option in self._prompt_options]
+        else:
+            return [option['key'] for option in self._prompt_options 
+                   if option.get('enabled', True)]
+
+    def get_prompt_config(self, prompt_key: str) -> Optional[Dict[str, Any]]:
+        """
+        根据提示词key获取完整配置信息
+        
+        Args:
+            prompt_key: 提示词标识符
+            
+        Returns:
+            Dict[str, Any]: 提示词配置信息，如果不存在则返回None
+        """
+        for option in self._prompt_options:
+            if option['key'] == prompt_key:
+                return option
+        return None
+
+    def get_system_prompt(self, prompt_key: str) -> Optional[str]:
+        """
+        获取系统提示词内容
+        
+        Args:
+            prompt_key: 提示词标识符
+            
+        Returns:
+            str: 系统提示词内容，如果不存在则返回None
+        """
+        config = self.get_prompt_config(prompt_key)
+        return config.get('system_prompt') if config else None
+
+    def get_examples(self, prompt_key: str) -> Optional[Dict[str, Any]]:
+        """
+        获取示例内容
+        
+        Args:
+            prompt_key: 提示词标识符
+            
+        Returns:
+            Dict: 示例内容，如果不存在则返回None
+        """
+        config = self.get_prompt_config(prompt_key)
+        return config.get('examples') if config else None
+
+    def get_default_prompt(self) -> Optional[str]:
+        """
+        获取默认提示词key
+        
+        Returns:
+            str: 默认提示词key，如果没有启用的提示词则返回None
+        """
+        enabled_prompts = [opt for opt in self._prompt_options 
+                         if opt.get('enabled', True)]
+        return enabled_prompts[0]['key'] if enabled_prompts else None
+
+    def reload_config(self) -> bool:
+        """
+        重新加载配置文件
+        
+        Returns:
+            bool: 重新加载是否成功
+        """
+        try:
+            old_prompt_count = len(self._prompt_options)
+            
+            # 重新加载配置
+            self._yaml_config = None
+            self._prompt_options = []
+            self._load_config()
+            
+            new_prompt_count = len(self._prompt_options)
+            
+            print(f"配置重新加载完成: {old_prompt_count} -> {new_prompt_count} 个提示词模板")
+            return True
+            
+        except Exception as e:
+            print(f"配置重新加载失败: {e}")
+            return False
+
+    def get_config_info(self) -> Dict[str, Any]:
+        """
+        获取配置文件信息
+        
+        Returns:
+            Dict: 配置文件信息
+        """
+        return {
+            'config_file_path': str(self.config_file_path),
+            'file_exists': self.config_file_path.exists(),
+            'total_prompts': len(self._prompt_options),
+            'enabled_prompts': len([opt for opt in self._prompt_options 
+                                  if opt.get('enabled', True)]),
+            'last_modified': self.config_file_path.stat().st_mtime if self.config_file_path.exists() else None
+        }
+
+# SystemPromptConfigManager 全局配置管理器实例
+_prompt_config_manager = None
+
+def get_system_prompt_manager() -> SystemPromptConfigManager:
+    """
+    获取全局系统提示词配置管理器实例（单例模式）
+    
+    Returns:
+        SystemPromptConfigManager: 配置管理器实例
+    """
+    global _prompt_config_manager
+    if _prompt_config_manager is None:
+        _prompt_config_manager = SystemPromptConfigManager()
+    return _prompt_config_manager
+
+def get_prompt_options_for_select(include_disabled: bool = False) -> List[str]:
+    """
+    获取用于ui.select的提示词选项的便捷函数
+    
+    Args:
+        include_disabled: 是否包含禁用的提示词，默认为False
+    
+    Returns:
+        List[str]: 提示词key列表
+    """
+    return get_system_prompt_manager().get_prompt_options_for_select(include_disabled)
+
+def get_prompt_config(prompt_key: str) -> Optional[Dict[str, Any]]:
+    """
+    根据提示词key获取配置的便捷函数
+    
+    Args:
+        prompt_key: 提示词标识符
+        
+    Returns:
+        Dict[str, Any]: 提示词配置信息
+    """
+    return get_system_prompt_manager().get_prompt_config(prompt_key)
+
+def get_system_prompt(prompt_key: str) -> Optional[str]:
+    """
+    获取系统提示词内容的便捷函数
+    
+    Args:
+        prompt_key: 提示词标识符
+        
+    Returns:
+        str: 系统提示词内容
+    """
+    return get_system_prompt_manager().get_system_prompt(prompt_key)
+
+def get_examples(prompt_key: str) -> Optional[Dict[str, Any]]:
+    """
+    获取示例内容的便捷函数
+    
+    Args:
+        prompt_key: 提示词标识符
+        
+    Returns:
+        Dict: 示例内容
+    """
+    return get_system_prompt_manager().get_examples(prompt_key)
+
+def get_default_prompt() -> Optional[str]:
+    """
+    获取默认提示词key的便捷函数
+    
+    Returns:
+        str: 默认提示词key
+    """
+    return get_system_prompt_manager().get_default_prompt()
+
+def reload_prompt_config() -> bool:
+    """
+    重新加载系统提示词配置的便捷函数
+    
+    Returns:
+        bool: 重新加载是否成功
+    """
+    return get_system_prompt_manager().reload_config()
+
+def get_prompt_config_info() -> Dict[str, Any]:
+    """
+    获取配置信息的便捷函数
+    
+    Returns:
+        Dict: 配置文件信息
+    """
+    return get_system_prompt_manager().get_config_info()

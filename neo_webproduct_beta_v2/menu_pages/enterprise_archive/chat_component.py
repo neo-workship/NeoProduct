@@ -13,7 +13,12 @@ from .config import (
     get_model_config, 
     get_default_model,
     reload_llm_config,
-    get_model_config_info
+    get_model_config_info,
+    get_prompt_options_for_select,
+    get_system_prompt,
+    get_examples,
+    get_default_prompt,
+    reload_prompt_config
 )
     
 def chat_page():
@@ -26,11 +31,20 @@ def chat_page():
         'model_options': model_options,
         'default_model': default_model,
         'selected_model': default_model,
-        'model_select_widget': None
+        'model_select_widget': None,
+        'prompt_select_widget': None  # 添加这行
     }
     
     # 🔥 新增：记录当前聊天中的消息
     current_chat_messages: List[Dict] = []
+    # 添加以下代码 - 提示词初始化
+    prompt_options = get_prompt_options_for_select()
+    default_prompt = get_default_prompt() or (prompt_options[0] if prompt_options else None)
+    current_prompt_config = {
+        'selected_prompt': default_prompt,
+        'system_prompt': get_system_prompt(default_prompt) if default_prompt else '',
+        'examples': get_examples(default_prompt) if default_prompt else {}
+    }
     
     # ============= 模型选择相关逻辑 =============
     def on_model_change(e):
@@ -99,6 +113,52 @@ def chat_page():
                 
         except Exception as e:
             ui.notify(f'刷新配置时出错: {str(e)}', type='negative')
+    
+    def on_prompt_change(e):
+        """提示词选择变化事件处理"""
+        selected_prompt_key = e.value
+        
+        # 获取系统提示词内容和示例
+        system_prompt = get_system_prompt(selected_prompt_key)
+        examples = get_examples(selected_prompt_key)
+        
+        # 更新当前提示词配置
+        current_prompt_config['selected_prompt'] = selected_prompt_key
+        current_prompt_config['system_prompt'] = system_prompt or ''
+        current_prompt_config['examples'] = examples or {}
+        
+        # 显示选择信息
+        ui.notify(f'已切换到提示词: {selected_prompt_key}')
+    
+    def on_refresh_prompt_config():
+        """刷新提示词配置"""
+        try:
+            ui.notify('正在刷新提示词配置...', type='info')
+            success = reload_prompt_config()
+            
+            if success:
+                nonlocal prompt_options, default_prompt
+                prompt_options = get_prompt_options_for_select()
+                new_default = get_default_prompt() or (prompt_options[0] if prompt_options else None)
+                
+                if current_state.get('prompt_select_widget'):
+                    current_selection = current_prompt_config['selected_prompt']
+                    if current_selection not in prompt_options:
+                        current_selection = new_default
+                    
+                    current_state['prompt_select_widget'].set_options(prompt_options)
+                    current_state['prompt_select_widget'].set_value(current_selection)
+                    
+                    current_prompt_config['selected_prompt'] = current_selection
+                    current_prompt_config['system_prompt'] = get_system_prompt(current_selection) if current_selection else ''
+                    current_prompt_config['examples'] = get_examples(current_selection) if current_selection else {}
+                
+                ui.notify(f'提示词配置刷新成功，共加载 {len(prompt_options)} 个模板', type='positive')
+            else:
+                ui.notify('提示词配置刷新失败', type='negative')
+                
+        except Exception as e:
+            ui.notify(f'刷新提示词配置时发生错误: {str(e)}', type='negative')
     # ============= 输入提交相关逻辑 ============
     async def scroll_to_bottom_smooth():
         """平滑滚动到底部，使用更可靠的方法"""
@@ -1066,11 +1126,21 @@ def chat_page():
                 # 上下文模板expansion组件
                 with ui.expansion('上下文模板', icon='pattern').classes('w-full'):
                     with ui.column().classes('w-full'):
-                        continents = ["deepseek-chat","moonshot-v1-8k","Qwen32B"]
-                        ui.select(options=continents, 
-                                  value='deepseek-chat', 
-                                  with_input=True,
-                                  on_change=lambda e: ui.notify(e.value)).classes('w-full').props('autofocus dense')
+                        # 配置管理按钮行
+                        with ui.row().classes('w-full'):
+                            ui.button(
+                                '刷新配置', 
+                                icon='refresh',
+                                on_click=on_refresh_prompt_config
+                            ).classes('text-xs').props('dense flat color="primary"').style('min-width: 80px;')
+                        
+                        # 提示词选择下拉框
+                        current_state['prompt_select_widget'] = ui.select(
+                            options=prompt_options, 
+                            value=default_prompt, 
+                            with_input=True,
+                            on_change=on_prompt_change
+                        ).classes('w-full').props('autofocus dense')
 
                 # select数据expansion组件
                 with ui.expansion('提示数据', icon='tips_and_updates').classes('w-full'):
