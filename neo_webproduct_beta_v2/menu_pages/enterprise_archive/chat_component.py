@@ -1,12 +1,12 @@
 """
 聊天组件 - 类似Vue组件，可复用的聊天UI
 """
+import re
 import asyncio
 from datetime import datetime
 from nicegui import ui, app
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict,Any
 from component import static_manager
-import os
 from .hierarchy_selector_component import HierarchySelector
 from .config import (
     get_model_options_for_select, 
@@ -45,8 +45,362 @@ def chat_page():
         'system_prompt': get_system_prompt(default_prompt) if default_prompt else '',
         'examples': get_examples(default_prompt) if default_prompt else {}
     }
+
+    #region 解析markdown并映射为ui组件展示 
+    async def optimize_content_display(reply_label, content: str, chat_content_container=None):
+        """
+        优化内容显示 - 将特殊内容转换为专业NiceGUI组件
+        
+        Args:
+            reply_label: 当前的markdown组件引用
+            content: 完整的AI回复内容
+            chat_content_container: 聊天内容容器引用
+        """
+        try:
+            # 1. 解析内容，检测特殊块
+            parsed_blocks = parse_content_with_mistune(content)
+            
+            # 2. 判断是否需要优化
+            if has_special_content(parsed_blocks):
+                # 3. 显示优化提示
+                show_optimization_hint(reply_label)
+                
+                # 4. 短暂延迟，让用户看到提示
+                await asyncio.sleep(0.1)
+                
+                # 5. 获取正确的容器
+                container = chat_content_container if chat_content_container else reply_label
+                
+                # 6. 重新渲染混合组件
+                await render_optimized_content(container, parsed_blocks)
+            
+        except Exception as e:
+            print(f"内容优化失败，保持原始显示: {e}")
+    # ==================== Mistune解析 ====================
+    def parse_content_with_mistune(content: str) -> List[Dict[str, Any]]:
+        """
+        使用Mistune解析内容为结构化块
+        
+        Returns:
+            List[Dict]: 解析后的内容块列表
+            [{
+                'type': 'table|mermaid|code|heading|math|text',
+                'content': '原始内容',
+                'data': '解析后的数据'(可选),
+                'start_pos': 开始位置,
+                'end_pos': 结束位置
+            }]
+        """
+        blocks = []
+        
+        # 1. 检测表格
+        table_blocks = extract_tables(content)
+        blocks.extend(table_blocks)
+        
+        # 2. 检测Mermaid图表
+        mermaid_blocks = extract_mermaid(content)
+        blocks.extend(mermaid_blocks)
+        
+        # 3. 检测代码块
+        code_blocks = extract_code_blocks(content)
+        blocks.extend(code_blocks)
+        
+        # 4. 检测LaTeX公式
+        math_blocks = extract_math(content)
+        blocks.extend(math_blocks)
+        
+        # 5. 检测标题
+        heading_blocks = extract_headings(content)
+        blocks.extend(heading_blocks)
+        
+        # 6. 按位置排序
+        blocks.sort(key=lambda x: x['start_pos'])
+        
+        # 7. 填充文本块
+        text_blocks = fill_text_blocks(content, blocks)
+        
+        # 8. 合并并重新排序
+        all_blocks = blocks + text_blocks
+        all_blocks.sort(key=lambda x: x['start_pos'])
+        
+        return all_blocks
+
+    # ==================== 内容检测函数 ====================
+    def extract_tables(content: str) -> List[Dict[str, Any]]:
+        """提取表格内容"""
+        tables = []
+        # 匹配markdown表格模式
+        pattern = r'(\|.*\|.*\n\|[-\s\|]*\|.*\n(?:\|.*\|.*\n)*)'
+        
+        for match in re.finditer(pattern, content):
+            table_data = parse_table_data(match.group(1))
+            if table_data:  # 确保解析成功
+                tables.append({
+                    'type': 'table',
+                    'content': match.group(1),
+                    'data': table_data,
+                    'start_pos': match.start(),
+                    'end_pos': match.end()
+                })
+        
+        return tables
+
+    def extract_mermaid(content: str) -> List[Dict[str, Any]]:
+        """提取Mermaid图表"""
+        mermaid_blocks = []
+        pattern = r'```mermaid\n(.*?)```'
+        
+        for match in re.finditer(pattern, content, re.DOTALL):
+            mermaid_blocks.append({
+                'type': 'mermaid',
+                'content': match.group(1).strip(),
+                'start_pos': match.start(),
+                'end_pos': match.end()
+            })
     
-    # ============= 模型选择相关逻辑 =============
+        return mermaid_blocks
+
+    def extract_code_blocks(content: str) -> List[Dict[str, Any]]:
+        """提取代码块（排除mermaid）"""
+        code_blocks = []
+        pattern = r'```(\w+)?\n(.*?)```'
+        
+        for match in re.finditer(pattern, content, re.DOTALL):
+            language = match.group(1) or 'text'
+            if language.lower() != 'mermaid':  # 排除mermaid
+                code_blocks.append({
+                    'type': 'code',
+                    'content': match.group(2).strip(),
+                    'language': language,
+                    'start_pos': match.start(),
+                    'end_pos': match.end()
+                })
+        
+        return code_blocks
+
+    def extract_math(content: str) -> List[Dict[str, Any]]:
+        """提取LaTeX数学公式"""
+        math_blocks = []
+        
+        # 块级公式 $$...$$
+        block_pattern = r'\$\$(.*?)\$\$'
+        for match in re.finditer(block_pattern, content, re.DOTALL):
+            math_blocks.append({
+                'type': 'math',
+                'content': match.group(1).strip(),
+                'display_mode': 'block',
+                'start_pos': match.start(),
+                'end_pos': match.end()
+            })
+        
+        # 行内公式 $...$
+        inline_pattern = r'(?<!\$)\$([^\$\n]+)\$(?!\$)'
+        for match in re.finditer(inline_pattern, content):
+            math_blocks.append({
+                'type': 'math',
+                'content': match.group(1).strip(),
+                'display_mode': 'inline',
+                'start_pos': match.start(),
+                'end_pos': match.end()
+            })
+        
+        return math_blocks
+
+    def extract_headings(content: str) -> List[Dict[str, Any]]:
+        """提取标题"""
+        headings = []
+        pattern = r'^(#{1,6})\s+(.+)$'
+        
+        for match in re.finditer(pattern, content, re.MULTILINE):
+            level = len(match.group(1))
+            text = match.group(2).strip()
+            headings.append({
+                'type': 'heading',
+                'content': text,
+                'level': level,
+                'start_pos': match.start(),
+                'end_pos': match.end()
+            })
+        
+        return headings
+
+    def fill_text_blocks(content: str, special_blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """填充普通文本块"""
+        if not special_blocks:
+            return [{
+                'type': 'text',
+                'content': content,
+                'start_pos': 0,
+                'end_pos': len(content)
+            }]
+        
+        text_blocks = []
+        last_end = 0
+        
+        for block in special_blocks:
+            if block['start_pos'] > last_end:
+                text_content = content[last_end:block['start_pos']].strip()
+                if text_content:
+                    text_blocks.append({
+                        'type': 'text',
+                        'content': text_content,
+                        'start_pos': last_end,
+                        'end_pos': block['start_pos']
+                    })
+            last_end = block['end_pos']
+        
+        # 添加最后的文本内容
+        if last_end < len(content):
+            text_content = content[last_end:].strip()
+            if text_content:
+                text_blocks.append({
+                    'type': 'text',
+                    'content': text_content,
+                    'start_pos': last_end,
+                    'end_pos': len(content)
+                })
+        
+        return text_blocks
+
+    # ==================== 数据解析函数 ====================
+    def parse_table_data(table_text: str) -> Optional[Dict[str, Any]]:
+        """解析表格数据为NiceGUI table格式"""
+        try:
+            lines = [line.strip() for line in table_text.strip().split('\n') if line.strip()]
+            if len(lines) < 3:  # 至少需要header、separator、data
+                return None
+            
+            # 解析表头
+            headers = [cell.strip() for cell in lines[0].split('|')[1:-1]]
+            if not headers:
+                return None
+            
+            # 解析数据行（跳过分隔行）
+            rows = []
+            for line in lines[2:]:
+                cells = [cell.strip() for cell in line.split('|')[1:-1]]
+                if len(cells) == len(headers):
+                    row_data = dict(zip(headers, cells))
+                    rows.append(row_data)
+            
+            return {
+                'columns': [{'name': col, 'label': col, 'field': col} for col in headers],
+                'rows': rows
+            }
+        
+        except Exception as e:
+            print(f"表格解析失败: {e}")
+            return None
+
+    # ==================== 检测和渲染函数 ====================
+    def has_special_content(blocks: List[Dict[str, Any]]) -> bool:
+        """检查是否包含需要优化的特殊内容"""
+        special_types = {'table', 'mermaid', 'code', 'math', 'heading'}
+        return any(block['type'] in special_types for block in blocks)
+
+    def show_optimization_hint(reply_label):
+        """显示优化提示"""
+        try:
+            reply_label.set_text("🔄 正在优化内容显示...")
+        except:
+            pass  # 如果设置失败，忽略错误
+
+    async def render_optimized_content(container, blocks: List[Dict[str, Any]]):
+        """渲染优化后的混合内容"""
+        from nicegui import ui
+        
+        container.clear()
+        
+        with container:
+            for block in blocks:
+                try:
+                    if block['type'] == 'table':
+                        create_table_component(block['data'])
+                    elif block['type'] == 'mermaid':
+                        create_mermaid_component(block['content'])
+                    elif block['type'] == 'code':
+                        create_code_component(block['content'], block.get('language', 'text'))
+                    elif block['type'] == 'math':
+                        create_math_component(block['content'], block.get('display_mode', 'block'))
+                    elif block['type'] == 'heading':
+                        create_heading_component(block['content'], block.get('level', 1))
+                    elif block['type'] == 'text':
+                        create_text_component(block['content'])
+                    else:
+                        # 兜底：用markdown显示
+                        ui.markdown(block['content']).classes('w-full')
+                
+                except Exception as e:
+                    print(f"渲染块失败 {block['type']}: {e}")
+                    # 失败时用markdown显示原内容
+                    ui.markdown(block['content']).classes('w-full')
+
+    # ==================== NiceGUI组件创建函数 ====================
+    def create_table_component(table_data: Dict[str, Any]):
+        """创建表格组件"""
+        from nicegui import ui
+        
+        if table_data and table_data.get('columns') and table_data.get('rows'):
+            ui.table(
+                columns=table_data['columns'],
+                rows=table_data['rows']
+            ).classes('w-full').props('flat bordered dense')
+        else:
+            ui.label("⚠️ 表格数据解析失败").classes('text-orange-600')
+
+    def create_mermaid_component(mermaid_content: str):
+        """创建Mermaid图表组件"""
+        from nicegui import ui
+        
+        try:
+            ui.mermaid(mermaid_content).classes('w-full')
+        except Exception as e:
+            print(f"Mermaid渲染失败: {e}")
+            ui.code(mermaid_content, language='mermaid').classes('w-full')
+
+    def create_code_component(code_content: str, language: str):
+        """创建代码块组件"""
+        from nicegui import ui
+        
+        ui.code(code_content, language=language).classes('w-full')
+
+    def create_math_component(math_content: str, display_mode: str):
+        """创建数学公式组件"""
+        from nicegui import ui
+        
+        if display_mode == 'block':
+            # 块级公式
+            ui.markdown(f"$${math_content}$$", extras=['latex']).classes('w-full text-center')
+        else:
+            # 行内公式
+            ui.markdown(f"${math_content}$", extras=['latex']).classes('w-full')
+
+    def create_heading_component(text: str, level: int):
+        """创建标题组件"""
+        from nicegui import ui
+        
+        size_classes = {
+            1: 'text-3xl',
+            2: 'text-2xl', 
+            3: 'text-xl',
+            4: 'text-lg',
+            5: 'text-base',
+            6: 'text-sm'
+        }
+        
+        size_class = size_classes.get(level, 'text-base')
+        ui.label(text).classes(f'{size_class} font-bold text-primary mb-2 mt-4')
+
+    def create_text_component(text_content: str):
+        """创建普通文本组件"""
+        from nicegui import ui
+        
+        if text_content.strip():
+            ui.markdown(text_content, extras=['tables', 'mermaid', 'latex', 'fenced-code-blocks']).classes('w-full')
+
+    #endregion  解析markdown并映射为ui组件展示 
+
+    #region 模型选择相关逻辑 
     def on_model_change(e):
         """模型选择变化事件处理"""
         selected_model_key = e.value
@@ -159,7 +513,9 @@ def chat_page():
                 
         except Exception as e:
             ui.notify(f'刷新提示词配置时发生错误: {str(e)}', type='negative')
-    # ============= 输入提交相关逻辑 ============
+    # endregion 模型选择相关逻辑
+    
+    #region 输入提交相关逻辑
     async def scroll_to_bottom_smooth():
         """平滑滚动到底部，使用更可靠的方法"""
         try:
@@ -361,7 +717,7 @@ def chat_page():
                                 ai_message_container.clear()
                                 with ai_message_container:
                                     with ui.column().classes('w-full') as chat_content_container:
-                                        reply_label = ui.label('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
+                                        reply_label = ui.label('').classes('w-full')
                                 structure_created = True
                                 reply_created = True
                             
@@ -441,6 +797,7 @@ def chat_page():
                         
                         if reply_label and final_reply_content.strip():
                             reply_label.set_text(final_reply_content.strip())
+                            await optimize_content_display(reply_label, final_reply_content,chat_content_container)
                         
                         # 用于记录到聊天历史的内容（保留思考标签）
                         assistant_reply = final_content
@@ -454,6 +811,8 @@ def chat_page():
                         
                         if reply_label:
                             reply_label.set_text(final_content)
+                            await optimize_content_display(reply_label, final_content,chat_content_container)
+                            
                     
             except Exception as api_error:
                 print(f"API调用错误: {api_error}")
@@ -499,8 +858,8 @@ def chat_page():
             if msg.get('role') == 'assistant' and '<think>' in msg.get('content', ''):
                 return True
         return False
-        # 解决方案 2：混合渲染策略 - 流式显示 + 最终 markdown 渲染
 
+    # 移除<think>...</think>内容
     def remove_think_content(messages):
         """从消息列表中移除think标签及内容"""
         import re
@@ -517,6 +876,7 @@ def chat_page():
             cleaned_messages.append(cleaned_msg)
         return cleaned_messages
 
+    # 聊天输入框事件处理
     def handle_keydown(e):
         """处理键盘事件 - 使用NiceGUI原生方法"""
         # 检查输入框是否已禁用，如果禁用则不处理按键事件
@@ -538,8 +898,9 @@ def chat_page():
                 ui.run_javascript('event.preventDefault();')
                 # 异步调用消息处理函数
                 ui.timer(0.01, lambda: handle_message(), once=True)
+    #endregion 输入提交相关逻辑
 
-    # ============= 新建会话相关逻辑 ============
+    #region 新建会话相关逻辑
     async def on_create_new_chat():
         """新建对话 - 保存当前聊天记录并清空界面"""
         try:
@@ -719,17 +1080,18 @@ def chat_page():
         with welcome_message_container:
             with ui.card().classes('w-full max-w-3xl mx-auto shadow-lg'):
                 with ui.column().classes('p-6 text-center'):
-                    ui.icon('tips_and_updates', size='3xl').classes('text-blue-500 mb-4 text-3xl')
-                    ui.label('欢迎使用一企一档智能助手').classes('text-2xl font-bold mb-2')
+                    ui.icon('waving_hand', size='3xl').classes('text-blue-500 mb-4 text-3xl')
+                    ui.label('欢迎使用一企一档智能问答助手').classes('text-2xl font-bold mb-2')
                     ui.label('请输入您的问题，我将为您提供帮助').classes('text-lg text-gray-600 mb-4')
                     
                     with ui.row().classes('justify-center gap-4'):
-                        ui.chip('问答', icon='help_outline').classes('text-blue-600 text-lg')
-                        ui.chip('翻译', icon='translate').classes('text-yellow-600 text-lg')
-                        ui.chip('写作', icon='edit').classes('text-purple-600 text-lg')
+                        ui.chip('问答', icon='quiz').classes('text-blue-600 text-lg')
+                        ui.chip('制表', icon='table_view').classes('text-yellow-600 text-lg')
+                        ui.chip('绘图', icon='dirty_lens').classes('text-purple-600 text-lg')
                         ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
-    
-    # ============= 历史记录相关逻辑 ============
+    #endregion 新建会话相关逻辑
+
+    #region 历史记录相关逻辑
     def load_chat_histories():
         """从数据库加载聊天历史列表 - 使用模型的优化方法"""
         try:
@@ -1070,7 +1432,9 @@ def chat_page():
         except Exception as e:
             print(f"刷新聊天历史失败: {e}")
             ui.notify('刷新失败', type='negative')
-    # ============= UI区域 =============
+    #endregion 历史记录相关逻辑
+    
+    #region UI区域
     # 添加全局样式，保持原有样式并添加scroll_area优化
     ui.add_head_html('''
         <style>
@@ -1229,3 +1593,4 @@ def chat_page():
                     icon='send',
                     on_click=handle_message
                 ).props('round dense ').classes('ml-2')
+    #endregion UI区域
