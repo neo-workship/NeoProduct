@@ -361,7 +361,7 @@ def chat_page():
                                 ai_message_container.clear()
                                 with ai_message_container:
                                     with ui.column().classes('w-full') as chat_content_container:
-                                        reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
+                                        reply_label = ui.label('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
                                 structure_created = True
                                 reply_created = True
                             
@@ -381,12 +381,12 @@ def chat_page():
                                 # 现在在容器中创建回复组件
                                 if chat_content_container and not reply_created:
                                     with chat_content_container:
-                                        reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
+                                        reply_label = ui.label('').classes('w-full')
                                     reply_created = True
                                 
                                 # 更新回复内容
                                 if reply_label and display_content.strip():
-                                    reply_label.set_content(display_content.strip())
+                                    reply_label.set_text(display_content.strip())
                             else:
                                 # 根据当前状态更新显示内容
                                 if is_in_think:
@@ -402,16 +402,16 @@ def chat_page():
                                         # 如果有前置内容且还未创建回复组件，先创建
                                         if display_content.strip() and chat_content_container and not reply_created:
                                             with chat_content_container:
-                                                reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
+                                                reply_label = ui.label('').classes('w-full')
                                             reply_created = True
                                         
                                         # 更新前置内容
                                         if reply_label and display_content.strip():
-                                            reply_label.set_content(display_content.strip())
+                                            reply_label.set_text(display_content.strip())
                                 else:
                                     # 正常显示内容：没有思考标签
                                     if reply_label:
-                                        reply_label.set_content(temp_content)
+                                        reply_label.set_text(temp_content)
                             
                             # 流式更新时滚动到底部
                             await scroll_to_bottom_smooth()
@@ -436,11 +436,11 @@ def chat_page():
                         # 确保回复组件已创建
                         if chat_content_container and not reply_created and final_reply_content.strip():
                             with chat_content_container:
-                                reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
+                                reply_label = ui.label('').classes('w-full')
                             reply_created = True
                         
                         if reply_label and final_reply_content.strip():
-                            reply_label.set_content(final_reply_content.strip())
+                            reply_label.set_text(final_reply_content.strip())
                         
                         # 用于记录到聊天历史的内容（保留思考标签）
                         assistant_reply = final_content
@@ -450,10 +450,10 @@ def chat_page():
                             ai_message_container.clear()
                             with ai_message_container:
                                 with ui.column().classes('w-full') as chat_content_container:
-                                    reply_label = ui.markdown('',extras=['tables','mermaid','latex','fenced-code-blocks']).classes('w-full')
+                                    reply_label = ui.label('').classes('w-full')
                         
                         if reply_label:
-                            reply_label.set_content(final_content)
+                            reply_label.set_text(final_content)
                     
             except Exception as api_error:
                 print(f"API调用错误: {api_error}")
@@ -469,7 +469,7 @@ def chat_page():
                     waiting_message.classes(remove='text-gray-500 italic')
             
             # 🔥 记录AI回复到聊天历史
-            print(f"🤖 AI的回复：", {assistant_reply})
+            # print(f"🤖 AI的回复：", {assistant_reply})
             current_chat_messages.append({
                 'role': 'assistant', 
                 'content': assistant_reply,
