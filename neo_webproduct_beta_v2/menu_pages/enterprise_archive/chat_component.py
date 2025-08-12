@@ -45,7 +45,7 @@ def chat_page():
         'examples': get_examples(default_prompt) if default_prompt else {}
     }
 
-    #region 解析markdown并映射为ui组件展示 
+    #region 解析markdown并映射为ui组件展示相关逻辑 
     async def optimize_content_display(reply_label, content: str, chat_content_container=None):
         """
         优化内容显示 - 将特殊内容转换为专业NiceGUI组件
@@ -58,7 +58,7 @@ def chat_page():
         try:
             # 1. 解析内容，检测特殊块
             parsed_blocks = parse_content_with_regex(content)
-            print(f"parsed_blocks:{parsed_blocks}")
+            # print(f"parsed_blocks:{parsed_blocks}")
             # 2. 判断是否需要优化
             if has_special_content(parsed_blocks):
                 # 3. 显示优化提示
@@ -302,7 +302,7 @@ def chat_page():
     def show_optimization_hint(reply_label):
         """显示优化提示"""
         try:
-            reply_label.set_text("🔄 正在优化内容显示...")
+            reply_label.set_content("🔄 正在优化内容显示...")
         except:
             pass  # 如果设置失败，忽略错误
 
@@ -377,20 +377,22 @@ def chat_page():
             ui.markdown(f"${math_content}$", extras=['latex']).classes('w-full')
 
     def create_heading_component(text: str, level: int):
-        """创建标题组件"""
+        """创建标题组件 - 将标题级别向下调整并使用markdown渲染"""
         from nicegui import ui
         
-        size_classes = {
-            1: 'text-3xl',
-            2: 'text-2xl', 
-            3: 'text-xl',
-            4: 'text-lg',
-            5: 'text-base',
-            6: 'text-sm'
-        }
+        # 标题级别映射：向下调整2级
+        # # -> ###, ## -> ####, ### -> #####, #### -> ######
+        adjusted_level = level + 2
         
-        size_class = size_classes.get(level, 'text-base')
-        ui.label(text).classes(f'{size_class} font-bold text-primary mb-2 mt-4')
+        # 限制最大级别为6（markdown支持的最大级别）
+        if adjusted_level > 6:
+            adjusted_level = 6
+        
+        # 生成对应级别的markdown标题
+        markdown_heading = '#' * adjusted_level + ' ' + text
+        
+        # 使用ui.markdown渲染，这样可以保持**加粗**等markdown格式
+        ui.markdown(markdown_heading).classes('w-full')
 
     def create_text_component(text_content: str):
         """创建普通文本组件"""
@@ -398,9 +400,9 @@ def chat_page():
         if text_content.strip():
             ui.markdown(text_content, extras=['tables', 'mermaid', 'latex', 'fenced-code-blocks']).classes('w-full')
 
-    #endregion  解析markdown并映射为ui组件展示 
+    #endregion  解析markdown并映射为ui组件展示相关逻辑
 
-    #region 模型选择相关逻辑 
+    #region 模型选择相关处理逻辑 
     def on_model_change(e):
         """模型选择变化事件处理"""
         selected_model_key = e.value
@@ -514,7 +516,7 @@ def chat_page():
             ui.notify(f'刷新提示词配置时发生错误: {str(e)}', type='negative')
     # endregion 模型选择相关逻辑
     
-    #region 输入提交相关逻辑
+    #region 用户输入提交相关处理逻辑
     async def scroll_to_bottom_smooth():
         """平滑滚动到底部，使用更可靠的方法"""
         try:
@@ -525,6 +527,72 @@ def chat_page():
         except Exception as e:
             print(f"滚动出错: {e}")
             ui.notify(f"滚动出错: {e}")
+
+    # 动态处理是否添加提示数据
+    def enhance_first_user_message(user_message: str, current_chat_messages: list, 
+                              switch, current_state: dict, hierarchy_selector) -> str:
+        """
+        在用户输入中动态添加 select数据expansion组件 的内容
+        
+        Args:
+            user_message: 用户原始输入消息
+            current_chat_messages: 当前聊天消息列表
+            switch: select数据expansion组件的开关
+            current_state: 当前状态字典，包含prompt_select_widget
+            hierarchy_selector: 层级选择器实例
+            
+        Returns:
+            str: 增强后的用户消息（如果不满足条件则返回原消息）
+        """
+        try:
+            # 1. 检查是否为第一次用户输入
+            # is_first_message = len(current_chat_messages) == 0
+            # if not is_first_message:
+            #     return user_message
+                
+            # 2. 检查 select数据expansion组件 中的 switch 是否打开
+            if not switch.value:
+                # ui.notify("提示数据开关未启用",type="warning")
+                return user_message
+                
+            # 3. 检查上下文模板expansion组件中的 prompt_select_widget 是否选择"一企一档专家"
+            if not (current_state.get('prompt_select_widget') and 
+                    current_state['prompt_select_widget'].value == "一企一档专家"):
+                ui.notify("上下文模板未选择'一企一档专家'",type="warning")
+                return user_message
+                
+            # 4. 检查 hierarchy_selector 至少选择3级数据
+            selected_values = hierarchy_selector.get_selected_values()
+            
+            if not (selected_values and selected_values.get('l3')):
+                ui.notify("未选择足够的层级数据（至少需要3级）",type="warning")
+                return user_message
+                
+            # 5. 根据是否选择4级数据决定拼接内容
+            append_text = ""
+            
+            if selected_values.get('field'):  # 选择了4级数据
+                # 处理字段信息进行拼接
+                full_path_code = selected_values['full_path_code']
+                field_value = selected_values['field']
+                
+                append_text = f"\n\n[数据路径] {full_path_code} \n\n [字段信息] {field_value}"
+                
+            else:  # 未选择4级，使用3级内容
+                full_path_code = selected_values['full_path_code']
+                append_text = f"\n\n[数据路径] {full_path_code}"
+            
+            # 6. 拼接到用户消息
+            if append_text:
+                enhanced_message = f"{user_message}{append_text}"
+                return enhanced_message
+                
+            return user_message
+            
+        except Exception as e:
+            # 异常处理：确保即使出错也不影响正常聊天功能
+            ui.notify(f"[ERROR] 增强用户消息时发生异常: {e}",type="negative")
+            return user_message
 
     # 完整的handle_message函数实现
     async def handle_message(event=None):
@@ -551,6 +619,15 @@ def chat_page():
 
             # 🔥 记录用户消息到聊天历史
             from datetime import datetime
+            # 动态添加提示数据
+            user_message = enhance_first_user_message(
+                user_message=user_message,
+                current_chat_messages=current_chat_messages,
+                switch=switch,
+                current_state=current_state,
+                hierarchy_selector=hierarchy_selector
+            )
+            print(f"user_message:{user_message}")
             current_chat_messages.append({
                 'role': 'user',
                 'content': user_message,
@@ -717,7 +794,7 @@ def chat_page():
                                 ai_message_container.clear()
                                 with ai_message_container:
                                     with ui.column().classes('w-full') as chat_content_container:
-                                        reply_label = ui.label('').classes('w-full')
+                                        reply_label = ui.markdown('').classes('w-full')
                                 structure_created = True
                                 reply_created = True
                             
@@ -737,12 +814,12 @@ def chat_page():
                                 # 现在在容器中创建回复组件
                                 if chat_content_container and not reply_created:
                                     with chat_content_container:
-                                        reply_label = ui.label('').classes('w-full')
+                                        reply_label = ui.markdown('').classes('w-full')
                                     reply_created = True
                                 
                                 # 更新回复内容
                                 if reply_label and display_content.strip():
-                                    reply_label.set_text(display_content.strip())
+                                    reply_label.set_content(display_content.strip())
                             else:
                                 # 根据当前状态更新显示内容
                                 if is_in_think:
@@ -758,16 +835,16 @@ def chat_page():
                                         # 如果有前置内容且还未创建回复组件，先创建
                                         if display_content.strip() and chat_content_container and not reply_created:
                                             with chat_content_container:
-                                                reply_label = ui.label('').classes('w-full')
+                                                reply_label = ui.markdown('').classes('w-full')
                                             reply_created = True
                                         
                                         # 更新前置内容
                                         if reply_label and display_content.strip():
-                                            reply_label.set_text(display_content.strip())
+                                            reply_label.set_content(display_content.strip())
                                 else:
                                     # 正常显示内容：没有思考标签
                                     if reply_label:
-                                        reply_label.set_text(temp_content)
+                                        reply_label.set_content(temp_content)
                             
                             # 流式更新时滚动到底部
                             await scroll_to_bottom_smooth()
@@ -792,11 +869,11 @@ def chat_page():
                         # 确保回复组件已创建
                         if chat_content_container and not reply_created and final_reply_content.strip():
                             with chat_content_container:
-                                reply_label = ui.label('').classes('w-full')
+                                reply_label = ui.markdown('').classes('w-full')
                             reply_created = True
                         
                         if reply_label and final_reply_content.strip():
-                            reply_label.set_text(final_reply_content.strip())
+                            reply_label.set_content(final_reply_content.strip())
                             await optimize_content_display(reply_label, final_reply_content,chat_content_container)
                         
                         # 用于记录到聊天历史的内容（保留思考标签）
@@ -807,10 +884,10 @@ def chat_page():
                             ai_message_container.clear()
                             with ai_message_container:
                                 with ui.column().classes('w-full') as chat_content_container:
-                                    reply_label = ui.label('').classes('w-full')
+                                    reply_label = ui.markdown('').classes('w-full')
                         
                         if reply_label:
-                            reply_label.set_text(final_content)
+                            reply_label.set_content(final_content)
                             await optimize_content_display(reply_label, final_content,chat_content_container)
                             
                     
@@ -897,7 +974,7 @@ def chat_page():
                 ui.run_javascript('event.preventDefault();')
                 # 异步调用消息处理函数
                 ui.timer(0.01, lambda: handle_message(), once=True)
-    #endregion 输入提交相关逻辑
+    #endregion 用户输入提交相关处理逻辑
 
     #region 新建会话相关逻辑
     async def on_create_new_chat():
@@ -1006,8 +1083,7 @@ def chat_page():
                 chat_history.update_message_stats()
                 
                 # 更新时间戳
-                from sqlalchemy.sql import func
-                chat_history.updated_at = func.now()
+                chat_history.updated_at = datetime.now()
                 
                 db.commit()
                 
@@ -1205,7 +1281,6 @@ def chat_page():
             from auth import auth_manager
             from database_models.business_models.chat_history_model import ChatHistory
             from auth.database import get_db
-            from sqlalchemy.sql import func
             
             current_user = auth_manager.current_user
             if not current_user:
@@ -1276,7 +1351,7 @@ def chat_page():
                                         
                                         # 直接更新字段
                                         update_chat.title = new_title
-                                        update_chat.updated_at = func.now()
+                                        update_chat.updated_at = datetime.now()
                                         
                                         update_db.commit()
                                     
@@ -1308,7 +1383,6 @@ def chat_page():
                 from auth import auth_manager
                 from database_models.business_models.chat_history_model import ChatHistory
                 from auth.database import get_db
-                from sqlalchemy.sql import func
                 
                 current_user = auth_manager.current_user
                 if not current_user:
@@ -1332,7 +1406,7 @@ def chat_page():
                     
                     # 直接在数据库会话中进行软删除操作，避免会话问题
                     chat_history.is_deleted = True
-                    chat_history.deleted_at = func.now()
+                    chat_history.deleted_at = datetime.now()
                     chat_history.deleted_by = current_user.id
                     chat_history.is_active = False
                     
@@ -1486,7 +1560,7 @@ def chat_page():
             # 侧边栏内容 - 完全按照原有结构
             with ui.column().classes('w-full items-center'):
                 # 添加按钮
-                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-64').props('outlined')
+                ui.button('新建对话', icon='add', on_click=on_create_new_chat).classes('w-64').props('outlined rounded')
                 
                 # 选择模型expansion组件
                 with ui.expansion('选择模型', icon='view_in_ar').classes('w-full'):
@@ -1529,7 +1603,7 @@ def chat_page():
                 # select数据expansion组件
                 with ui.expansion('提示数据', icon='tips_and_updates').classes('w-full'):
                     with ui.column().classes('w-full chathistorylist-hide-scrollbar').style('flex-grow: 1; '):
-                        switch = ui.switch('启用')
+                        switch = ui.switch('启用',value=False)
                         HierarchySelector
                         hierarchy_selector = HierarchySelector(multiple=True)
                         hierarchy_selector.render_column()
