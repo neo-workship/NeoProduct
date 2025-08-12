@@ -34,10 +34,9 @@ def chat_page():
         'model_select_widget': None,
         'prompt_select_widget': None  # 添加这行
     }
-    
-    # 🔥 新增：记录当前聊天中的消息
+    # 记录当前聊天中的消息
     current_chat_messages: List[Dict] = []
-    # 添加以下代码 - 提示词初始化
+    # 提示词初始化
     prompt_options = get_prompt_options_for_select()
     default_prompt = get_default_prompt() or (prompt_options[0] if prompt_options else None)
     current_prompt_config = {
@@ -58,8 +57,8 @@ def chat_page():
         """
         try:
             # 1. 解析内容，检测特殊块
-            parsed_blocks = parse_content_with_mistune(content)
-            
+            parsed_blocks = parse_content_with_regex(content)
+            print(f"parsed_blocks:{parsed_blocks}")
             # 2. 判断是否需要优化
             if has_special_content(parsed_blocks):
                 # 3. 显示优化提示
@@ -75,9 +74,10 @@ def chat_page():
                 await render_optimized_content(container, parsed_blocks)
             
         except Exception as e:
-            print(f"内容优化失败，保持原始显示: {e}")
+            # print(f"内容优化失败，保持原始显示: {e}")
+            ui.notify(f"内容优化失败，保持原始显示: {e}")
     # ==================== Mistune解析 ====================
-    def parse_content_with_mistune(content: str) -> List[Dict[str, Any]]:
+    def parse_content_with_regex(content: str) -> List[Dict[str, Any]]:
         """
         使用Mistune解析内容为结构化块
         
@@ -289,13 +289,14 @@ def chat_page():
             }
         
         except Exception as e:
-            print(f"表格解析失败: {e}")
+            # print(f"表格解析失败: {e}")
+            ui.notify(f"表格解析失败: {e}")
             return None
 
     # ==================== 检测和渲染函数 ====================
     def has_special_content(blocks: List[Dict[str, Any]]) -> bool:
         """检查是否包含需要优化的特殊内容"""
-        special_types = {'table', 'mermaid', 'code', 'math', 'heading'}
+        special_types = {'table', 'mermaid', 'code', 'math', 'heading','text'}
         return any(block['type'] in special_types for block in blocks)
 
     def show_optimization_hint(reply_label):
@@ -355,7 +356,7 @@ def chat_page():
         try:
             ui.mermaid(mermaid_content).classes('w-full')
         except Exception as e:
-            print(f"Mermaid渲染失败: {e}")
+            ui.notify(f"流程图渲染失败: {e}",type="info")
             ui.code(mermaid_content, language='mermaid').classes('w-full')
 
     def create_code_component(code_content: str, language: str):
@@ -394,7 +395,6 @@ def chat_page():
     def create_text_component(text_content: str):
         """创建普通文本组件"""
         from nicegui import ui
-        
         if text_content.strip():
             ui.markdown(text_content, extras=['tables', 'mermaid', 'latex', 'fenced-code-blocks']).classes('w-full')
 
@@ -416,7 +416,6 @@ def chat_page():
         # 显示选择的模型信息
         if model_config:
             ui.notify(f'已切换到模型: {model_config.get("name", selected_model_key)}')
-            print(f"模型配置: {model_config}")  # 用于调试
         else:
             ui.notify(f'已切换到模型: {selected_model_key}')
 
@@ -525,6 +524,7 @@ def chat_page():
             await asyncio.sleep(0.09)
         except Exception as e:
             print(f"滚动出错: {e}")
+            ui.notify(f"滚动出错: {e}")
 
     # 完整的handle_message函数实现
     async def handle_message(event=None):
@@ -638,7 +638,7 @@ def chat_page():
                 else:
                     # 准备对话历史（取最近20条消息）
                     recent_messages = current_chat_messages[-20:]
-                    print(f"prompt:{current_prompt_config['system_prompt']}")
+                    # print(f"prompt:{current_prompt_config['system_prompt']}")
                     if current_state.get('prompt_select_widget') and current_prompt_config.get('system_prompt'):
                         system_message = {
                             "role": "system", 
@@ -815,7 +815,7 @@ def chat_page():
                             
                     
             except Exception as api_error:
-                print(f"API调用错误: {api_error}")
+                # print(f"API调用错误: {api_error}")
                 assistant_reply = f"抱歉，调用AI服务时出现错误：{str(api_error)[:100]}..."
                 ui.notify('AI服务调用失败，请稍后重试', type='negative')
                 
@@ -828,7 +828,6 @@ def chat_page():
                     waiting_message.classes(remove='text-gray-500 italic')
             
             # 🔥 记录AI回复到聊天历史
-            # print(f"🤖 AI的回复：", {assistant_reply})
             current_chat_messages.append({
                 'role': 'assistant', 
                 'content': assistant_reply,
@@ -1067,11 +1066,11 @@ def chat_page():
                 db.add(chat_history)
                 db.commit()
                 
-                print(f'聊天记录已保存: {title} (ID: {chat_history.id})')
+                # print(f'聊天记录已保存: {title} (ID: {chat_history.id})')
                 return True
                 
         except Exception as e:
-            print(f"保存聊天记录错误: {e}")
+            # print(f"保存聊天记录错误: {e}")
             ui.notify(f'保存聊天记录失败: {str(e)}', type='negative')
             return False
 
@@ -1134,7 +1133,7 @@ def chat_page():
                 return history_list
                 
         except Exception as e:
-            print(f"加载聊天历史失败: {e}")
+            # print(f"加载聊天历史失败: {e}")
             ui.notify('加载聊天历史失败', type='negative')
             return []
         
@@ -1196,7 +1195,7 @@ def chat_page():
                 ui.notify(f'已加载聊天: {chat.title}', type='positive')
                 
         except Exception as e:
-            print(f"加载聊天历史错误: {e}")
+            # print(f"加载聊天历史错误: {e}")
             ui.notify('加载聊天失败', type='negative')
     
     def on_edit_chat_history(chat_id):
@@ -1288,7 +1287,6 @@ def chat_page():
                                     dialog.close()
                                     
                                 except Exception as e:
-                                    print(f"更新聊天标题错误: {e}")
                                     ui.notify(f'更新标题失败: {str(e)}', type='negative')
                             
                             # 按钮区域
@@ -1299,7 +1297,6 @@ def chat_page():
                 dialog.open()
                 
         except Exception as e:
-            print(f"编辑聊天历史错误: {e}")
             ui.notify(f'编辑聊天失败: {str(e)}', type='negative')
 
     def on_delete_chat_history(chat_id):
@@ -1357,7 +1354,6 @@ def chat_page():
                     ui.notify(f'已删除聊天: {chat_title}', type='positive')
                     
             except Exception as e:
-                print(f"删除聊天历史错误: {e}")
                 ui.notify(f'删除聊天失败: {str(e)}', type='negative')
         
         # 显示确认对话框
@@ -1430,7 +1426,6 @@ def chat_page():
             ui.notify('聊天历史已刷新', type='positive')
             
         except Exception as e:
-            print(f"刷新聊天历史失败: {e}")
             ui.notify('刷新失败', type='negative')
     #endregion 历史记录相关逻辑
     

@@ -11,7 +11,6 @@ metadata:
 
 # 系统提示词模板集合
 prompt_templates:
-
   默认:
     name: "默认"
     description: "专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等"
@@ -21,24 +20,10 @@ prompt_templates:
 
     # 系统提示词内容
     system_prompt: |
-      # 你是一个AI助手，帮助用户处理各类问题,尽量有markdown文本格式回答（如要绘制mermaid，注意错误：Syntax error in text mermaid version 11.0.2）。
-      - 绘制表格，参考如下
-      | First name | Last name |
-      | ---------- | --------- |
-      | Max        | Planck    |
-      | Marie      | Curie     |
-      - 绘制mermaid，参考如下
-      graph TD;
-        A-->B;
-        A-->C;
-        B-->D;
-        C-->D;
-  
-      
+      # 你是一个AI助手，帮助用户处理各类问题,尽量使用有条理的markdown文本格式回答
 
     # 示例交互
     examples:
-
 
   # 1. Markdown规范文档编写专家
   规范内容专家:
