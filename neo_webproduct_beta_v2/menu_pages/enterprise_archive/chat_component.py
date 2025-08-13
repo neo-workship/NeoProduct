@@ -529,7 +529,7 @@ def chat_page():
             ui.notify(f"滚动出错: {e}")
 
     # 动态处理是否添加提示数据
-    def enhance_first_user_message(user_message: str, current_chat_messages: list, 
+    def enhance_user_message(user_message: str, current_chat_messages: list, 
                               switch, current_state: dict, hierarchy_selector) -> str:
         """
         在用户输入中动态添加 select数据expansion组件 的内容
@@ -620,7 +620,7 @@ def chat_page():
             # 🔥 记录用户消息到聊天历史
             from datetime import datetime
             # 动态添加提示数据
-            user_message = enhance_first_user_message(
+            user_message = enhance_user_message(
                 user_message=user_message,
                 current_chat_messages=current_chat_messages,
                 switch=switch,
