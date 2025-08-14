@@ -4,7 +4,6 @@ from datetime import datetime
 from nicegui import ui, app
 from typing import Optional, List, Dict, Any
 from component import static_manager
-from ..hierarchy_selector_component import HierarchySelector
 from .chat_data_state import ChatDataState
 
 class ChatAreaManager:
@@ -767,15 +766,17 @@ class ChatAreaManager:
         if self.welcome_message_container:
             self.welcome_message_container.clear()
             with self.welcome_message_container:
-                with ui.card().classes('w-full border-2 border-dashed border-gray-300'):
-                    with ui.card_section():
-                        ui.label('👋 欢迎使用智能对话助手').classes('text-lg font-bold text-center')
-                        ui.label('我可以帮助您解答问题、分析数据、提供建议等').classes('text-center text-gray-600')
-                        ui.separator()
-                        with ui.row().classes('w-full justify-center gap-4'):
-                            ui.chip('数据分析', icon='analytics').classes('cursor-pointer')
-                            ui.chip('问答咨询', icon='question_answer').classes('cursor-pointer')
-                            ui.chip('文档处理', icon='description').classes('cursor-pointer')
+                with ui.card().classes('w-full max-w-3xl mx-auto shadow-lg'):
+                    with ui.column().classes('p-6 text-center'):
+                        ui.icon('waving_hand', size='3xl').classes('text-blue-500 mb-4 text-3xl')
+                        ui.label('欢迎使用一企一档智能问答助手').classes('text-2xl font-bold mb-2')
+                        ui.label('请输入您的问题，我将为您提供帮助').classes('text-lg text-gray-600 mb-4')
+                        
+                        with ui.row().classes('justify-center gap-4'):
+                            ui.chip('问答', icon='quiz').classes('text-blue-600 text-lg')
+                            ui.chip('制表', icon='table_view').classes('text-yellow-600 text-lg')
+                            ui.chip('绘图', icon='dirty_lens').classes('text-purple-600 text-lg')
+                            ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
 
     def render_chat_history(self, chat_id):
         """渲染聊天历史内容"""

@@ -2,10 +2,8 @@
 ChatSidebarManager - 聊天侧边栏管理器
 负责管理侧边栏的UI和相关业务逻辑
 """
-import asyncio
 from datetime import datetime
 from nicegui import ui
-from typing import Optional, List, Dict, Any
 from .chat_data_state import ChatDataState
 from ..hierarchy_selector_component import HierarchySelector
 from ..config import (
