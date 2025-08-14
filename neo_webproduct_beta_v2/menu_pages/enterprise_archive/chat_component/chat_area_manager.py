@@ -5,6 +5,8 @@ from nicegui import ui, app
 from typing import Optional, List, Dict, Any
 from component import static_manager
 from .chat_data_state import ChatDataState
+import time
+from datetime import datetime
 
 class ChatAreaManager:
     """主聊天区域管理器 - 负责聊天内容展示和用户交互"""
@@ -507,12 +509,11 @@ class ChatAreaManager:
                 else:
                     # 准备对话历史（取最近20条消息）
                     recent_messages = self.chat_data_state.current_chat_messages[-20:]
-                    # print(f"prompt:{current_prompt_config['system_prompt']}")
-                    if self.chat_data_state.current_state.get('prompt_select_widget') \
-                        and self.chat_data_state.current_prompt_config.get('system_prompt'):
+                    if self.chat_data_state.current_state.prompt_select_widget \
+                        and self.chat_data_state.current_prompt_config.system_prompt:
                         system_message = {
                             "role": "system", 
-                            "content": self.chat_data_state['system_prompt']
+                            "content": self.chat_data_state.current_prompt_config.system_prompt
                         }
                         # 将系统消息插入到历史消息的最前面
                         recent_messages = [system_message] + recent_messages
@@ -552,12 +553,13 @@ class ChatAreaManager:
                     # 用于跟踪是否已经创建了基础结构
                     structure_created = False
                     reply_created = False
+
                     # 处理流式数据
                     for chunk in stream_response:
                         if chunk.choices[0].delta.content:
                             chunk_content = chunk.choices[0].delta.content
                             assistant_reply += chunk_content
-                            
+            
                             # 🔥 检测和处理思考内容
                             temp_content = assistant_reply
                             
@@ -580,65 +582,65 @@ class ChatAreaManager:
                                                 think_label = ui.label('').classes('whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none')
                                         
                                     structure_created = True
-                                # 如果没有思考内容，且尚未创建结构，创建普通回复结构
-                                elif not structure_created and '<think>' not in temp_content:
-                                    ai_message_container.clear()
-                                    with ai_message_container:
-                                        with ui.column().classes('w-full') as chat_content_container:
-                                            reply_label = ui.markdown('').classes('w-full')
-                                    structure_created = True
+                            # 如果没有思考内容，且尚未创建结构，创建普通回复结构
+                            elif not structure_created and '<think>' not in temp_content:
+                                ai_message_container.clear()
+                                with ai_message_container:
+                                    with ui.column().classes('w-full') as chat_content_container:
+                                        reply_label = ui.markdown('').classes('w-full')
+                                structure_created = True
+                                reply_created = True
+                            # 检查是否结束思考内容
+                            if '</think>' in temp_content and is_in_think:
+                                is_in_think = False
+                                think_end_pos = temp_content.find('</think>') + 8
+                                
+                                # 提取思考内容
+                                think_content = temp_content[think_start_pos + 7:think_end_pos - 8]
+                                if think_label:
+                                    think_label.set_text(think_content.strip())
+                                
+                                # 移除思考标签，保留其他内容
+                                display_content = temp_content[:think_start_pos] + temp_content[think_end_pos:]
+                                
+                                # 现在在容器中创建回复组件
+                                if chat_content_container and not reply_created:
+                                    with chat_content_container:
+                                        reply_label = ui.markdown('').classes('w-full')
                                     reply_created = True
-                                # 检查是否结束思考内容
-                                if '</think>' in temp_content and is_in_think:
-                                    is_in_think = False
-                                    think_end_pos = temp_content.find('</think>') + 8
-                                    
-                                    # 提取思考内容
-                                    think_content = temp_content[think_start_pos + 7:think_end_pos - 8]
-                                    if think_label:
-                                        think_label.set_text(think_content.strip())
-                                    
-                                    # 移除思考标签，保留其他内容
-                                    display_content = temp_content[:think_start_pos] + temp_content[think_end_pos:]
-                                    
-                                    # 现在在容器中创建回复组件
-                                    if chat_content_container and not reply_created:
-                                        with chat_content_container:
-                                            reply_label = ui.markdown('').classes('w-full')
-                                        reply_created = True
-                                    
-                                    # 更新回复内容
-                                    if reply_label and display_content.strip():
-                                        reply_label.set_content(display_content.strip())
+                                
+                                # 更新回复内容
+                                if reply_label and display_content.strip():
+                                    reply_label.set_content(display_content.strip())
+                            else:
+                                # 根据当前状态更新显示内容
+                                if is_in_think:
+                                    # 在思考中：显示思考前的内容（如果有），更新思考内容
+                                    if think_start_pos >= 0:
+                                        display_content = temp_content[:think_start_pos]
+                                        
+                                        # 更新思考内容（去除标签）
+                                        current_think = temp_content[think_start_pos + 7:]
+                                        if current_think and think_label:
+                                            think_label.set_text(current_think.strip())
+                                        
+                                        # 如果有前置内容且还未创建回复组件，先创建
+                                        if display_content.strip() and chat_content_container and not reply_created:
+                                            with chat_content_container:
+                                                reply_label = ui.markdown('').classes('w-full')
+                                            reply_created = True
+                                        
+                                        # 更新前置内容
+                                        if reply_label and display_content.strip():
+                                            reply_label.set_content(display_content.strip())
                                 else:
-                                    # 根据当前状态更新显示内容
-                                    if is_in_think:
-                                        # 在思考中：显示思考前的内容（如果有），更新思考内容
-                                        if think_start_pos >= 0:
-                                            display_content = temp_content[:think_start_pos]
-                                            
-                                            # 更新思考内容（去除标签）
-                                            current_think = temp_content[think_start_pos + 7:]
-                                            if current_think and think_label:
-                                                think_label.set_text(current_think.strip())
-                                            
-                                            # 如果有前置内容且还未创建回复组件，先创建
-                                            if display_content.strip() and chat_content_container and not reply_created:
-                                                with chat_content_container:
-                                                    reply_label = ui.markdown('').classes('w-full')
-                                                reply_created = True
-                                            
-                                            # 更新前置内容
-                                            if reply_label and display_content.strip():
-                                                reply_label.set_content(display_content.strip())
-                                    else:
-                                        # 正常显示内容：没有思考标签
-                                        if reply_label:
-                                            reply_label.set_content(temp_content)
+                                    # 正常显示内容：没有思考标签
+                                    if reply_label:
+                                        reply_label.set_content(temp_content)
                             
-                                # 流式更新时滚动到底部
-                                await self.scroll_to_bottom_smooth()
-                                await asyncio.sleep(0.01)  # 流式显示的间隔
+                            # 流式更新时滚动到底部
+                            await self.scroll_to_bottom_smooth()
+                            await asyncio.sleep(0.05)  # 流式显示的间隔
 
                     # 最终处理：确保所有内容正确显示
                     final_content = assistant_reply
@@ -681,7 +683,8 @@ class ChatAreaManager:
                             
                             
             except Exception as api_error:
-                assistant_reply = f"抱歉，调用AI服务时出现错误：{str(api_error)[:100]}..."
+                print(f"api error:{str(api_error)}")
+                assistant_reply = f"抱歉，调用AI服务时出现错误：{str(api_error)[:300]}..."
                 ui.notify('AI服务调用失败，请稍后重试', type='negative')
                 
                 # 停止等待动画并显示错误信息

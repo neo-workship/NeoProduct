@@ -12,6 +12,7 @@ SafeOpenAIClientPool - 线程安全的OpenAI客户端连接池
 - 完善的错误处理和用户友好的提示
 - 详细的统计信息和性能监控
 - 配置更新时自动刷新客户端
+- 支持配置函数和配置字典两种传参方式
 
 设计原则：
 1. 线程安全：使用asyncio.Lock()防止并发创建
@@ -19,12 +20,13 @@ SafeOpenAIClientPool - 线程安全的OpenAI客户端连接池
 3. 用户友好：提供清晰的错误信息和状态提示
 4. 可观测性：详细的日志和统计信息
 5. 容错性：优雅处理各种异常情况
+6. 兼容性：支持多种配置传递方式
 """
 
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Set, Any
+from typing import Dict, Optional, Set, Any, Union, Callable
 from openai import OpenAI
 
 
@@ -79,7 +81,10 @@ class SafeOpenAIClientPool:
         
         Args:
             model_key: 模型键名 (如 'deepseek-chat', 'moonshot-v1-8k')
-            config_getter_func: 配置获取函数，如果不提供则尝试自动导入
+            config_getter_func: 配置获取方式，支持：
+                              - 函数：function(model_key) -> dict
+                              - 字典：直接使用该配置
+                              - None：尝试自动导入配置函数
             
         Returns:
             OpenAI客户端实例，失败时返回None
@@ -144,7 +149,7 @@ class SafeOpenAIClientPool:
         
         Args:
             model_key: 模型键名
-            config_getter_func: 配置获取函数
+            config_getter_func: 配置获取方式
             start_time: 开始时间（用于性能统计）
             
         Returns:
@@ -191,7 +196,7 @@ class SafeOpenAIClientPool:
         
         Args:
             model_key: 模型键名
-            config_getter_func: 配置获取函数
+            config_getter_func: 配置获取方式
             start_time: 开始时间
             
         Returns:
@@ -251,18 +256,34 @@ class SafeOpenAIClientPool:
     
     async def _get_model_config(self, model_key: str, config_getter_func) -> Optional[Dict]:
         """
-        获取模型配置信息
+        获取模型配置信息（支持函数和字典两种方式）
         
         Args:
             model_key: 模型键名
-            config_getter_func: 外部提供的配置获取函数
+            config_getter_func: 外部提供的配置获取方式
             
         Returns:
             模型配置字典
         """
         if config_getter_func:
-            # 使用外部提供的配置获取函数
-            return config_getter_func(model_key)
+            if callable(config_getter_func):
+                # 使用外部提供的配置获取函数
+                try:
+                    config = config_getter_func(model_key)
+                    if isinstance(config, dict):
+                        return config
+                    else:
+                        print(f"⚠️ 配置获取函数返回了非字典类型: {type(config)}")
+                        return None
+                except Exception as e:
+                    print(f"⚠️ 调用配置获取函数失败: {str(e)}")
+                    return None
+            elif isinstance(config_getter_func, dict):
+                # 直接使用配置字典
+                return config_getter_func
+            else:
+                print(f"⚠️ 不支持的config_getter_func类型: {type(config_getter_func)}")
+                return None
         
         # 尝试自动导入配置获取函数
         try:
@@ -324,98 +345,51 @@ class SafeOpenAIClientPool:
         
         Args:
             model_key: 模型键名
-            config_getter_func: 配置获取函数
+            config_getter_func: 配置获取方式
             
         Returns:
             更新后的客户端实例
         """
         print(f"🔄 更新客户端: {model_key}")
         
-        async with self._lock:
-            # 移除旧客户端
-            await self._remove_client(model_key)
+        # 移除旧客户端
+        await self._remove_client(model_key)
         
-        # 重新创建
+        # 创建新客户端
         return await self.get_client(model_key, config_getter_func)
     
-    async def clear_cache(self, show_log: bool = True) -> int:
+    async def clear_cache(self) -> int:
         """
-        清空所有客户端缓存
+        清空所有缓存的客户端
         
-        Args:
-            show_log: 是否显示清理日志
-            
         Returns:
             清理的客户端数量
         """
         async with self._lock:
-            client_count = len(self._clients)
+            cleared_count = len(self._clients)
             
-            # 清空所有缓存
             self._clients.clear()
             self._client_configs.clear()
             self._creation_times.clear()
             self._access_times.clear()
             self._access_counts.clear()
-            self._creating.clear()
             
-            if show_log and client_count > 0:
-                print(f"🧹 已清空所有客户端缓存 (共 {client_count} 个)")
+            self._cleanup_count += cleared_count
             
-            return client_count
-    
-    async def refresh_all_clients(self, config_getter_func=None) -> Dict[str, bool]:
-        """
-        刷新所有已缓存的客户端（配置文件更新后使用）
-        
-        Args:
-            config_getter_func: 配置获取函数
-            
-        Returns:
-            刷新结果字典 {model_key: success}
-        """
-        print("🔄 开始刷新所有客户端...")
-        
-        # 获取当前所有模型键名
-        model_keys = list(self._clients.keys())
-        
-        if not model_keys:
-            print("ℹ️ 当前无客户端需要刷新")
-            return {}
-        
-        # 清空缓存
-        await self.clear_cache(show_log=False)
-        
-        # 重新创建所有客户端
-        results = {}
-        success_count = 0
-        
-        for model_key in model_keys:
-            try:
-                client = await self.get_client(model_key, config_getter_func)
-                success = client is not None
-                results[model_key] = success
-                if success:
-                    success_count += 1
-            except Exception as e:
-                print(f"❌ 刷新客户端失败 ({model_key}): {str(e)}")
-                results[model_key] = False
-        
-        print(f"✅ 客户端刷新完成: {success_count}/{len(model_keys)} 成功")
-        return results
+            print(f"🧹 已清空所有客户端缓存，共清理 {cleared_count} 个客户端")
+            return cleared_count
     
     def get_stats(self) -> Dict[str, Any]:
         """
-        获取客户端池的详细统计信息
+        获取客户端池的统计信息
         
         Returns:
-            包含统计信息的字典
+            包含各种统计信息的字典
         """
-        total_requests = max(self._total_requests, 1)  # 避免除零
-        cache_hit_rate = (self._cache_hits / total_requests) * 100
+        cache_hit_rate = (self._cache_hits / self._total_requests * 100) if self._total_requests > 0 else 0.0
         
         return {
-            # 基本信息
+            # 基本状态
             'cached_clients': len(self._clients),
             'creating_clients': len(self._creating),
             'max_clients': self._max_clients,
@@ -500,17 +474,38 @@ def get_openai_client_pool(max_clients: int = 20, client_ttl_hours: int = 24) ->
 
 async def get_openai_client(model_key: str, config_getter_func=None) -> Optional[OpenAI]:
     """
-    便捷函数：获取OpenAI客户端
+    便捷函数：获取OpenAI客户端（重构版本）
     
     Args:
         model_key: 模型键名
-        config_getter_func: 配置获取函数
+        config_getter_func: 配置获取方式，支持：
+                          - 函数：function(model_key) -> dict
+                          - 字典：直接使用该配置
+                          - None：尝试自动导入配置函数
         
     Returns:
         OpenAI客户端实例
     """
     pool = get_openai_client_pool()
-    return await pool.get_client(model_key, config_getter_func)
+    
+    # 重构：支持函数和字典两种方式
+    if config_getter_func is None:
+        # 保持原有逻辑：尝试自动导入
+        return await pool.get_client(model_key, None)
+    elif callable(config_getter_func):
+        # 原有逻辑：传递函数
+        return await pool.get_client(model_key, config_getter_func)
+    elif isinstance(config_getter_func, dict):
+        # 新增逻辑：直接传递配置字典
+        def dict_config_getter(key: str) -> dict:
+            return config_getter_func
+        return await pool.get_client(model_key, dict_config_getter)
+    else:
+        # 其他类型，转换为字典处理
+        print(f"⚠️ 未知的配置类型: {type(config_getter_func)}, 尝试作为字典处理")
+        def fallback_config_getter(key: str) -> dict:
+            return config_getter_func if isinstance(config_getter_func, dict) else {}
+        return await pool.get_client(model_key, fallback_config_getter)
 
 async def clear_openai_cache() -> int:
     """
@@ -534,12 +529,12 @@ def print_openai_stats():
 
 async def example_usage():
     """
-    使用示例
+    使用示例（展示重构后的多种使用方式）
     """
-    print("🚀 SafeOpenAIClientPool 使用示例")
-    print("=" * 50)
+    print("🚀 SafeOpenAIClientPool 重构版本使用示例")
+    print("=" * 60)
     
-    # 模拟配置获取函数
+    # 方式1：使用配置获取函数（原有方式）
     def mock_get_model_config(model_key: str):
         configs = {
             'deepseek-chat': {
@@ -557,36 +552,48 @@ async def example_usage():
         }
         return configs.get(model_key)
     
-    # 获取客户端池
-    pool = get_openai_client_pool(max_clients=5)
+    print("\n📋 方式1：使用配置获取函数")
+    client1 = await get_openai_client('deepseek-chat', mock_get_model_config)
+    if client1:
+        print("✅ 成功获取客户端（配置函数方式）")
     
-    # 获取不同模型的客户端
-    models = ['deepseek-chat', 'moonshot-v1-8k']
+    # 方式2：直接传递配置字典（新增方式）
+    config_dict = {
+        'name': 'Claude Chat',
+        'api_key': 'sk-claude-test-key',
+        'base_url': 'https://api.anthropic.com/v1',
+        'timeout': 60
+    }
     
-    for model in models:
-        print(f"\n📱 获取客户端: {model}")
-        client = await pool.get_client(model, mock_get_model_config)
-        if client:
-            print(f"✅ 成功获取客户端")
-        else:
-            print(f"❌ 获取客户端失败")
+    print("\n📋 方式2：直接传递配置字典")
+    client2 = await get_openai_client('claude-3-sonnet', config_dict)
+    if client2:
+        print("✅ 成功获取客户端（配置字典方式）")
+    
+    # 方式3：自动导入配置函数（保持兼容）
+    print("\n📋 方式3：自动导入配置函数")
+    client3 = await get_openai_client('gpt-4', None)
+    if client3:
+        print("✅ 成功获取客户端（自动导入方式）")
+    else:
+        print("⚠️ 自动导入失败（这是正常的，因为示例环境中没有配置模块）")
     
     # 打印统计信息
-    pool.print_stats()
+    print_openai_stats()
     
     # 测试缓存命中
     print(f"\n🔄 测试缓存命中...")
     start_time = time.time()
-    cached_client = await pool.get_client('deepseek-chat', mock_get_model_config)
+    cached_client = await get_openai_client('deepseek-chat', mock_get_model_config)
     elapsed_ms = (time.time() - start_time) * 1000
     print(f"缓存命中耗时: {elapsed_ms:.1f}ms")
     
     # 清理缓存
     print(f"\n🧹 清理缓存...")
-    cleared_count = await pool.clear_cache()
+    cleared_count = await clear_openai_cache()
     print(f"已清理 {cleared_count} 个客户端")
     
-    pool.print_stats()
+    print_openai_stats()
 
 if __name__ == "__main__":
     # 运行示例

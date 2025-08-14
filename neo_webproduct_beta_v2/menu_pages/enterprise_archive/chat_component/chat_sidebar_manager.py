@@ -188,27 +188,40 @@ class ChatSidebarManager:
     async def on_create_new_chat(self):
         """新建聊天会话"""
         try:
-            # 检查是否需要保存当前聊天
-            current_loaded_id = self.get_current_loaded_chat_id()
-            if self.chat_data_state.current_chat_messages and current_loaded_id:
-                # 更新现有聊天记录
-                self.update_existing_chat_to_database(current_loaded_id)
-            elif self.chat_data_state.current_chat_messages and not current_loaded_id:
-                # 保存为新聊天记录
-                self.save_chat_to_database()
-            
-            # 清空当前聊天数据
-            self.chat_data_state.current_chat_messages.clear()
-            self.reset_current_loaded_chat_id()
-            
-            # 调用聊天区域管理器恢复欢迎消息
-            self.chat_area_manager.restore_welcome_message()
-            
-            # 刷新历史记录列表
-            self.refresh_chat_history_list()
-            
-            ui.notify('新对话已创建', type='positive')
-            
+            # 🔥 新增：先判断是否已有聊天记录，执行插入或更新操作
+            if self.chat_data_state.current_chat_messages:
+                # 检查当前是否为加载的历史对话（通过检查 current_chat_messages 是否与某个历史记录匹配）
+                existing_chat_id = self.get_current_loaded_chat_id()
+                
+                if existing_chat_id:
+                    # 更新现有聊天记录
+                    update_success = self.update_existing_chat_to_database(existing_chat_id)
+                    if update_success:
+                        ui.notify('对话已更新', type='positive')
+                    else:
+                        ui.notify('更新对话失败', type='negative')
+                        return
+                else:
+                    # 插入新的聊天记录
+                    save_success = self.save_chat_to_database()
+                    if save_success:
+                        ui.notify('对话已保存', type='positive')
+                    else:
+                        ui.notify('保存对话失败', type='negative')
+                        return
+                
+                # 清空当前聊天记录
+                self.chat_data_state.current_chat_messages.clear()
+                # 恢复欢迎消息
+                self.chat_area_manager.restore_welcome_message()
+                # 新增：自动刷新聊天历史列表
+                self.refresh_chat_history_list()
+                # 重置当前加载的聊天ID
+                self.reset_current_loaded_chat_id()     
+            else:
+                self.chat_area_manager.restore_welcome_message()
+                ui.notify('界面已重置', type='info')
+                
         except Exception as e:
             ui.notify(f'创建新对话失败: {str(e)}', type='negative')
     
@@ -228,6 +241,8 @@ class ChatSidebarManager:
 
     def update_existing_chat_to_database(self, chat_id):
         """更新现有的聊天记录到数据库"""
+        if chat_id is None:
+            return True
         try:
             from auth import auth_manager
             from database_models.business_models.chat_history_model import ChatHistory

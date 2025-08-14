@@ -50,28 +50,3 @@ class ChatDataState:
     # 层级选择器选中值
     switch: bool = False
     selected_values: SelectedValues = field(default_factory=SelectedValues)
-
-
-chat_component_styles = '''
-        <style>
-        /* 聊天组件专用样式 - 跨多个管理器使用 */
-        .chat-archive-container {
-            height: calc(100vh - 145px) !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow-y: auto !important;
-        }
-        
-        .chat-archive-sidebar {
-            border-right: 1px solid #e5e7eb;
-            overflow-y: auto;
-        }
-        
-        .chathistorylist-hide-scrollbar {
-            overflow-y: auto;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-        }
-        /* ... 其他样式 */
-        </style>
-    '''
