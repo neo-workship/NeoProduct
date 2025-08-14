@@ -1,7 +1,7 @@
 
-ChatSidebarManager:
-    ChatAreaManger chat_area_manager     # uses-a，调用使用一些功能
-    
+class ChatSidebarManager:
+    ChatAreaManger chat_area_manager     # uses-a，调用相关些功能
+
     #region 模型选择相关处理逻辑
     def on_model_change(e)
     def on_refresh_model_config()
@@ -27,7 +27,11 @@ ChatSidebarManager:
     def refresh_chat_history_list()
     #endregion 历史记录相关逻辑
 
-ChatAreaManger:
+    #UI 侧边栏
+    with ui.column().classes('chat-archive-sidebar h-full').style('width: 280px; min-width: 280px;'):
+      ...
+
+class ChatAreaManager:
     #region 解析markdown并映射为ui组件展示相关逻辑 
     async def optimize_content_display(reply_label, content: str, chat_content_container=None)
     def parse_content_with_regex(content: str) -> List[Dict[str, Any]]
@@ -58,6 +62,10 @@ ChatAreaManger:
     def handle_keydown(e)
     #endregion 用户输入提交相关处理逻辑
 
-    # 是
+    # 重置和加载历史对话内容
     def restore_welcome_message()
     def render_chat_history(chat_id)
+
+    # UI主聊天区域，并添加一个函数
+    with ui.column().classes('flex-grow h-full').style('position: relative; overflow: hidden;'):
+      ...

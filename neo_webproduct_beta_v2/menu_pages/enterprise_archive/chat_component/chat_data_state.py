@@ -1,16 +1,3 @@
-import re
-import asyncio
-from typing import List, Dict, Any, Optional
-from enum import Enum
-from dataclasses import dataclass,field
-import weakref
-from datetime import datetime
-from nicegui import ui, app
-from component import static_manager
-
-"""
-聊天页面数据状态封装
-"""
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Union
 
@@ -65,9 +52,7 @@ class ChatDataState:
     selected_values: SelectedValues = field(default_factory=SelectedValues)
 
 
-def _apply_chat_component_styles():
-    """应用聊天组件的全局样式"""
-    ui.add_head_html('''
+chat_component_styles = '''
         <style>
         /* 聊天组件专用样式 - 跨多个管理器使用 */
         .chat-archive-container {
@@ -89,6 +74,4 @@ def _apply_chat_component_styles():
         }
         /* ... 其他样式 */
         </style>
-    ''')
-
-    
+    '''
