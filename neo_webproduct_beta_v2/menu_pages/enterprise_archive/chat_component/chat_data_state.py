@@ -50,3 +50,6 @@ class ChatDataState:
     # 层级选择器选中值
     switch: bool = False
     selected_values: SelectedValues = field(default_factory=SelectedValues)
+
+    # 当前聊天id
+    current_chat_id: int = None

@@ -70,6 +70,7 @@ class ChatSidebarManager:
             get_examples(self.chat_data_state.default_prompt) 
             if self.chat_data_state.default_prompt else {}
         )
+        self.chat_data_state.current_chat_id = None
 
     #region 模型选择相关处理逻辑
     def on_model_change(self, e):
@@ -227,17 +228,15 @@ class ChatSidebarManager:
     
     def get_current_loaded_chat_id(self):
         """获取当前加载的聊天记录ID"""
-        if hasattr(self.get_current_loaded_chat_id, 'current_chat_id'):
-            return self.get_current_loaded_chat_id.current_chat_id
-        return None
+        return self.chat_data_state.current_chat_id
 
     def set_current_loaded_chat_id(self, chat_id):
         """设置当前加载的聊天记录ID"""
-        self.get_current_loaded_chat_id.current_chat_id = chat_id
+        self.chat_data_state.current_chat_id = chat_id
 
     def reset_current_loaded_chat_id(self):
         """重置当前加载的聊天记录ID"""
-        self.get_current_loaded_chat_id.current_chat_id = None
+        self.chat_data_state.current_chat_id = None
 
     def update_existing_chat_to_database(self, chat_id):
         """更新现有的聊天记录到数据库"""
@@ -628,13 +627,12 @@ class ChatSidebarManager:
                 # select数据expansion组件
                 with ui.expansion('提示数据', icon='tips_and_updates').classes('w-full'):
                     with ui.column().classes('w-full chathistorylist-hide-scrollbar').style('flex-grow: 1; '):
-                        self.switch = ui.switch('启用', value=False)
-                        # 更新数据状态中的switch值
-                        self.switch.on('change', lambda e: setattr(self.chat_data_state, 'switch', e.value))
+                        self.switch = ui.switch('启用', value=False).bind_value(self.chat_data_state, 'switch')
                         
                         # 层级选择器
                         self.hierarchy_selector = HierarchySelector(multiple=True)
                         self.hierarchy_selector.render_column()
+                        self.chat_data_state.selected_values = self.hierarchy_selector.selected_values
                        
                 # 聊天历史expansion组件
                 with ui.expansion('历史消息', icon='history').classes('w-full'):

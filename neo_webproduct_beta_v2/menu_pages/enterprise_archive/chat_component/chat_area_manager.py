@@ -5,8 +5,6 @@ from nicegui import ui, app
 from typing import Optional, List, Dict, Any
 from component import static_manager
 from .chat_data_state import ChatDataState
-import time
-from datetime import datetime
 
 class ChatAreaManager:
     """主聊天区域管理器 - 负责聊天内容展示和用户交互"""
@@ -368,7 +366,8 @@ class ChatAreaManager:
             # 2. 检查 select数据expansion组件 中的 switch 是否打开
             if not self.chat_data_state.switch:
                 return user_message
-                
+            print(f"prompt_select_widget:{self.chat_data_state.current_state.prompt_select_widget}|{self.chat_data_state.current_state.prompt_select_widget.value}")
+            print(f"prompt_select:{self.chat_data_state.current_prompt_config.selected_prompt}|{self.chat_data_state.current_prompt_config.system_prompt}")      
             # 3. 检查上下文模板expansion组件中的 prompt_select_widget 是否选择"一企一档专家"
             if not (self.chat_data_state.current_state.prompt_select_widget and 
                     self.chat_data_state.current_state.prompt_select_widget.value == "一企一档专家"):
@@ -378,22 +377,22 @@ class ChatAreaManager:
             # 4. 检查 selected_values 至少选择3级数据
             selected_values = self.chat_data_state.selected_values
             
-            if not (selected_values and selected_values.l3):
+            if not (selected_values and selected_values['l3']):
                 ui.notify("未选择足够的层级数据（至少需要3级）",type="warning")
                 return user_message
                 
             # 5. 根据是否选择4级数据决定拼接内容
             append_text = ""
             
-            if selected_values.field:  # 选择了4级数据
+            if selected_values['field']:  # 选择了4级数据
                 # 处理字段信息进行拼接
-                full_path_code = selected_values.full_path_code
-                field_value = selected_values.field
+                full_path_code = selected_values['full_path_code']
+                field_value = selected_values['field']
                 
                 append_text = f"\n\n[数据路径] {full_path_code} \n\n [字段信息] {field_value}"
                 
             else:  # 未选择4级，使用3级内容
-                full_path_code = selected_values.full_path_code
+                full_path_code = selected_values['full_path_code']
                 append_text = f"\n\n[数据路径] {full_path_code}"
             
             # 6. 拼接到用户消息
@@ -434,8 +433,8 @@ class ChatAreaManager:
 
             # 🔥 记录用户消息到聊天历史
             # 动态添加提示数据
+
             user_message = self.enhance_user_message(user_message)
-            print(f"user_message:{user_message}")
             self.chat_data_state.current_chat_messages.append({
                 'role': 'user',
                 'content': user_message,
@@ -766,6 +765,7 @@ class ChatAreaManager:
     # 重置和加载历史对话内容
     def restore_welcome_message(self):
         """恢复欢迎消息"""
+        self.messages.clear()
         if self.welcome_message_container:
             self.welcome_message_container.clear()
             with self.welcome_message_container:
@@ -783,30 +783,62 @@ class ChatAreaManager:
 
     def render_chat_history(self, chat_id):
         """渲染聊天历史内容"""
+
         try:
-            # 这里应该从数据库加载聊天历史
-            # 暂时使用占位符逻辑
-            ui.notify(f'加载聊天历史 {chat_id}', type='info')
+            from database_models.business_models.chat_history_model import ChatHistory
+            from auth.database import get_db
             
-            # 清空当前消息容器
-            if self.messages:
+            with get_db() as db:
+                chat = db.query(ChatHistory).filter(
+                    ChatHistory.id == chat_id,
+                    ChatHistory.is_deleted == False
+                ).first()
+                
+                if not chat:
+                    ui.notify('聊天记录不存在', type='negative')
+                    return
+                
+                # 清空当前聊天消息并加载历史消息
+                self.chat_data_state.current_chat_messages.clear()
+                self.chat_data_state.current_chat_messages.extend(chat.messages)
+                
+                # 清空聊天界面
                 self.messages.clear()
-            
-            # 清空欢迎消息
-            if self.welcome_message_container:
                 self.welcome_message_container.clear()
-            
-            # 模拟加载历史消息
-            # 实际实现时应该从数据库加载 chat_id 对应的消息
-            # loaded_messages = load_chat_messages_from_db(chat_id)
-            # self.chat_data_state.current_chat_messages = loaded_messages
-            
-            # 重新渲染所有历史消息
-            # for message in self.chat_data_state.current_chat_messages:
-            #     self.render_single_message(message)
-            
+                
+                # 重新渲染聊天历史消息
+                for msg in chat.messages:
+                    with self.messages:
+                        if msg.get('role') == 'user':
+                            user_avatar = static_manager.get_fallback_path(
+                                static_manager.get_logo_path('user.svg'),
+                                'https://robohash.org/user'
+                            )
+                            with ui.chat_message(
+                                name='您',
+                                avatar=user_avatar,
+                                sent=True
+                            ).classes('w-full'):
+                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap break-words')
+                        
+                        elif msg.get('role') == 'assistant':
+                            robot_avatar = static_manager.get_fallback_path(
+                                static_manager.get_logo_path('robot_txt.svg'),
+                                'https://robohash.org/ui'
+                            )
+                            with ui.chat_message(
+                                name='AI',
+                                avatar=robot_avatar
+                            ).classes('w-full'):
+                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap')
+                
+                # 滚动到底部
+                ui.timer(0.1, lambda: self.scroll_area.scroll_to(percent=1), once=True)
+                ui.notify(f'已加载聊天: {chat.title}', type='positive')
+                
         except Exception as e:
-            ui.notify(f'加载聊天历史失败: {str(e)}', type='negative')
+            # print(f"加载聊天历史错误: {e}")
+            ui.notify('加载聊天失败', type='negative')    
 
     def render_single_message(self, message: Dict[str, Any]):
         """渲染单条消息"""
