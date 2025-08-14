@@ -27,7 +27,7 @@ class ChatSidebarManager:
     def refresh_chat_history_list()
     #endregion 历史记录相关逻辑
 
-    #UI 侧边栏
+    #UI 侧边栏，需要添加一个函数render函数进行渲染
     with ui.column().classes('chat-archive-sidebar h-full').style('width: 280px; min-width: 280px;'):
       ...
 
@@ -66,6 +66,6 @@ class ChatAreaManager:
     def restore_welcome_message()
     def render_chat_history(chat_id)
 
-    # UI主聊天区域，并添加一个函数
+    # UI主聊天区域，需要添加一个函数render函数进行渲染
     with ui.column().classes('flex-grow h-full').style('position: relative; overflow: hidden;'):
       ...
