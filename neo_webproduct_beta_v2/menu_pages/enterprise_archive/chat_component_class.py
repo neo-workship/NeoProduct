@@ -61,4 +61,5 @@ class ChatDataState:
     current_prompt_config: CurrentPromptConfig = field(default_factory=CurrentPromptConfig)
     
     # 层级选择器选中值
+    switch: bool = False
     selected_values: SelectedValues = field(default_factory=SelectedValues)
