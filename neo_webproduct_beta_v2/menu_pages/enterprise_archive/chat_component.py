@@ -1004,28 +1004,14 @@ def chat_page():
                 
                 # 清空当前聊天记录
                 current_chat_messages.clear()
-                
-                # 清空聊天界面
-                messages.clear()
-                
                 # 恢复欢迎消息
                 restore_welcome_message()
-                
-                # 🔥 新增：自动刷新聊天历史列表
+                # 新增：自动刷新聊天历史列表
                 refresh_chat_history_list()
-                
-                # 滚动到顶部
-                scroll_area.scroll_to(percent=0)
-                
                 # 重置当前加载的聊天ID
-                reset_current_loaded_chat_id()
-                
+                reset_current_loaded_chat_id()     
             else:
-                # 如果没有聊天内容，仅清空界面
-                messages.clear()
-                welcome_message_container.clear()
                 restore_welcome_message()
-                scroll_area.scroll_to(percent=0)
                 ui.notify('界面已重置', type='info')
                 
         except Exception as e:
@@ -1152,6 +1138,9 @@ def chat_page():
 
     def restore_welcome_message():
         """恢复欢迎消息"""
+        # 清空聊天界面
+        messages.clear()
+        welcome_message_container.clear()
         with welcome_message_container:
             with ui.card().classes('w-full max-w-3xl mx-auto shadow-lg'):
                 with ui.column().classes('p-6 text-center'):
@@ -1164,6 +1153,66 @@ def chat_page():
                         ui.chip('制表', icon='table_view').classes('text-yellow-600 text-lg')
                         ui.chip('绘图', icon='dirty_lens').classes('text-purple-600 text-lg')
                         ui.chip('分析', icon='analytics').classes('text-orange-600 text-lg')
+        # 滚动到顶部
+        scroll_area.scroll_to(percent=0)
+    
+    def render_chat_history(chat_id):
+        """加载指定的聊天历史到当前对话中 - 完善现有实现"""
+        try:
+            from database_models.business_models.chat_history_model import ChatHistory
+            from auth.database import get_db
+            
+            with get_db() as db:
+                chat = db.query(ChatHistory).filter(
+                    ChatHistory.id == chat_id,
+                    ChatHistory.is_deleted == False
+                ).first()
+                
+                if not chat:
+                    ui.notify('聊天记录不存在', type='negative')
+                    return
+                
+                # 清空当前聊天消息并加载历史消息
+                current_chat_messages.clear()
+                current_chat_messages.extend(chat.messages)
+                
+                # 清空聊天界面
+                messages.clear()
+                welcome_message_container.clear()
+                
+                # 重新渲染聊天历史消息
+                for msg in chat.messages:
+                    with messages:
+                        if msg.get('role') == 'user':
+                            user_avatar = static_manager.get_fallback_path(
+                                static_manager.get_logo_path('user.svg'),
+                                'https://robohash.org/user'
+                            )
+                            with ui.chat_message(
+                                name='您',
+                                avatar=user_avatar,
+                                sent=True
+                            ).classes('w-full'):
+                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap break-words')
+                        
+                        elif msg.get('role') == 'assistant':
+                            robot_avatar = static_manager.get_fallback_path(
+                                static_manager.get_logo_path('robot_txt.svg'),
+                                'https://robohash.org/ui'
+                            )
+                            with ui.chat_message(
+                                name='AI',
+                                avatar=robot_avatar
+                            ).classes('w-full'):
+                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap')
+                
+                # 滚动到底部
+                ui.timer(0.1, lambda: scroll_area.scroll_to(percent=1), once=True)
+                ui.notify(f'已加载聊天: {chat.title}', type='positive')
+                
+        except Exception as e:
+            # print(f"加载聊天历史错误: {e}")
+            ui.notify('加载聊天失败', type='negative')
     #endregion 新建会话相关逻辑
 
     #region 历史记录相关逻辑
@@ -1214,66 +1263,11 @@ def chat_page():
             return []
         
     def on_load_chat_history(chat_id):
-        """加载指定的聊天历史到当前对话中 - 完善现有实现"""
-        try:
-            from database_models.business_models.chat_history_model import ChatHistory
-            from auth.database import get_db
+        """加载指定的聊天历史到当前对话中""" 
+        # 设置当前加载的聊天ID，用于后续更新判断
+        set_current_loaded_chat_id(chat_id)
+        render_chat_history(chat_id)
             
-            with get_db() as db:
-                chat = db.query(ChatHistory).filter(
-                    ChatHistory.id == chat_id,
-                    ChatHistory.is_deleted == False
-                ).first()
-                
-                if not chat:
-                    ui.notify('聊天记录不存在', type='negative')
-                    return
-                
-                # 🔥 设置当前加载的聊天ID，用于后续更新判断
-                set_current_loaded_chat_id(chat_id)
-                
-                # 清空当前聊天消息并加载历史消息
-                current_chat_messages.clear()
-                current_chat_messages.extend(chat.messages)
-                
-                # 清空聊天界面
-                messages.clear()
-                welcome_message_container.clear()
-                
-                # 重新渲染聊天历史消息
-                for msg in chat.messages:
-                    with messages:
-                        if msg.get('role') == 'user':
-                            user_avatar = static_manager.get_fallback_path(
-                                static_manager.get_logo_path('user.svg'),
-                                'https://robohash.org/user'
-                            )
-                            with ui.chat_message(
-                                name='您',
-                                avatar=user_avatar,
-                                sent=True
-                            ).classes('w-full'):
-                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap break-words')
-                        
-                        elif msg.get('role') == 'assistant':
-                            robot_avatar = static_manager.get_fallback_path(
-                                static_manager.get_logo_path('robot_txt.svg'),
-                                'https://robohash.org/ui'
-                            )
-                            with ui.chat_message(
-                                name='AI',
-                                avatar=robot_avatar
-                            ).classes('w-full'):
-                                ui.label(msg.get('content', '')).classes('whitespace-pre-wrap')
-                
-                # 滚动到底部
-                ui.timer(0.1, lambda: scroll_area.scroll_to(percent=1), once=True)
-                ui.notify(f'已加载聊天: {chat.title}', type='positive')
-                
-        except Exception as e:
-            # print(f"加载聊天历史错误: {e}")
-            ui.notify('加载聊天失败', type='negative')
-    
     def on_edit_chat_history(chat_id):
         """编辑聊天历史标题"""
         

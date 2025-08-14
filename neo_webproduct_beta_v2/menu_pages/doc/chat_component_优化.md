@@ -1,6 +1,7 @@
 
-ChatSiderManager:
-    ChatAreaManger chat_area_manager     ## uses-a 
+ChatSidebarManager:
+    ChatAreaManger chat_area_manager     # uses-a，调用使用一些功能
+    
     #region 模型选择相关处理逻辑
     def on_model_change(e)
     def on_refresh_model_config()
@@ -9,20 +10,19 @@ ChatSiderManager:
     # endregion 模型选择相关逻辑
     
     #region 新建会话相关逻辑
-    async def on_create_new_chat()       ## 调整
+    async def on_create_new_chat()       # 要调用 chat_area_manager.restore_welcome_message
     def get_current_loaded_chat_id()
     def set_current_loaded_chat_id(chat_id)
     def reset_current_loaded_chat_id()
     def update_existing_chat_to_database(chat_id)
     def save_chat_to_database()
-    def restore_welcome_message()        ## 调整
     #endregion 新建会话相关逻辑
 
     #region 历史记录相关逻辑
     def load_chat_histories()
-    def on_load_chat_history(chat_id)    ## 调整
+    def on_load_chat_history(chat_id)    # 要调用 chat_area_manager.render_chat_history
     def on_edit_chat_history(chat_id)
-    def on_delete_chat_history(chat_id)
+    def on_delete_chat_history(chat_id)  # 要调用 chat_area_manager.restore_welcome_message
     def create_chat_history_list()
     def refresh_chat_history_list()
     #endregion 历史记录相关逻辑
@@ -58,5 +58,6 @@ ChatAreaManger:
     def handle_keydown(e)
     #endregion 用户输入提交相关处理逻辑
 
-
-    
+    # 是
+    def restore_welcome_message()
+    def render_chat_history(chat_id)
