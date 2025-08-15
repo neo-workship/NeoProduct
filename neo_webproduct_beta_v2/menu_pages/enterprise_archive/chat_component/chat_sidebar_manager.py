@@ -25,7 +25,8 @@ class ChatSidebarManager:
     def __init__(self, chat_data_state: ChatDataState, chat_area_manager,
                  sidebar_visible: bool = True, 
                  default_model: str = None, 
-                 default_prompt: str = None ):
+                 default_prompt: str = None ,
+                 is_record_history: bool = True):
         """
         初始化侧边栏管理器
         
@@ -46,6 +47,7 @@ class ChatSidebarManager:
         
         # 存储侧边栏可见性配置
         self.sidebar_visible = sidebar_visible
+        self.is_record_history = is_record_history
 
         # 初始化数据
         self._initialize_data(default_model, default_prompt)
@@ -601,7 +603,8 @@ class ChatSidebarManager:
     
     def render_ui(self):
         """渲染侧边栏UI"""
-        with ui.column().classes('chat-archive-sidebar h-full').style('width: 280px; min-width: 280px;'):
+        visibility_style = 'display: none;' if not self.sidebar_visible else ''
+        with ui.column().classes('chat-archive-sidebar h-full').style(f'width: 280px; min-width: 280px; {visibility_style}'):
             # 侧边栏标题
             with ui.row().classes('w-full'):
                 ui.icon('menu', size='md').classes('text-gray-600')
