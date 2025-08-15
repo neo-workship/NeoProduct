@@ -20,7 +20,7 @@ class LLMModelConfigManager:
         if config_file_path is None:
             # 默认配置文件路径：项目根目录的 config/yaml/llm_model_config.yaml
             current_dir = Path(__file__).parent
-            project_root = current_dir.parent.parent  # 向上两级到项目根目录
+            project_root = current_dir.parent.parent.parent  # 向上两级到项目根目录
             self.config_file_path = project_root / "config" / "yaml" / "llm_model_config.yaml"
         else:
             self.config_file_path = Path(config_file_path)
@@ -237,7 +237,7 @@ class SystemPromptConfigManager:
         if config_file_path is None:
             # 默认配置文件路径：项目根目录的 config/yaml/system_prompt_config.yaml
             current_dir = Path(__file__).parent
-            project_root = current_dir.parent.parent  # 向上两级到项目根目录
+            project_root = current_dir.parent.parent.parent  # 向上两级到项目根目录
             self.config_file_path = project_root / "config" / "yaml" / "system_prompt_config.yaml"
         else:
             self.config_file_path = Path(config_file_path)

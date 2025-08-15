@@ -6,7 +6,7 @@ from datetime import datetime
 from nicegui import ui
 from .chat_data_state import ChatDataState
 from ..hierarchy_selector_component import HierarchySelector
-from ..config import (
+from .config import (
     get_model_options_for_select, 
     get_model_config, 
     get_default_model,
@@ -372,19 +372,17 @@ class ChatSidebarManager:
                         'duration_minutes': duration_info['duration_minutes'],
                         'chat_object': chat
                     })
-                
-                return history_list
-                
+                return history_list        
         except Exception as e:
             ui.notify('加载聊天历史失败', type='negative')
             return []
         
-    def on_load_chat_history(self, chat_id):
+    async def on_load_chat_history(self, chat_id):
         """加载指定的聊天历史到当前对话中"""
         # 设置当前加载的聊天ID，用于后续更新判断
         self.set_current_loaded_chat_id(chat_id)
         # 调用聊天区域管理器渲染聊天历史
-        self.chat_area_manager.render_chat_history(chat_id)
+        await self.chat_area_manager.render_chat_history(chat_id)
     
     def on_edit_chat_history(self, chat_id):
         """编辑聊天历史记录"""

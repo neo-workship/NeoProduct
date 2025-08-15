@@ -289,7 +289,7 @@ class SafeOpenAIClientPool:
         try:
             # 假设配置函数在某个已知模块中
             # 这里需要根据实际项目结构调整导入路径
-            from menu_pages.enterprise_archive.config import get_model_config
+            from menu_pages.enterprise_archive.chat_component.config import get_model_config
             return get_model_config(model_key)
         except ImportError:
             print(f"⚠️ 无法自动导入配置获取函数，请提供 config_getter_func 参数")

@@ -8,7 +8,7 @@ from nicegui import ui, app
 from typing import Optional, List, Dict,Any
 from component import static_manager
 from .hierarchy_selector_component import HierarchySelector
-from .config import (
+from .chat_component.config import (
     get_model_options_for_select, 
     get_model_config, 
     get_default_model,
@@ -687,7 +687,7 @@ def chat_page():
             try:
                 # 导入OpenAI客户端池
                 from common.safe_openai_client_pool import get_openai_client
-                from menu_pages.enterprise_archive.config import get_model_config
+                from neo_webproduct_beta_v2.menu_pages.enterprise_archive.chat_component.config import get_model_config
                 
                 # 使用 current_model_config 获取当前选择的模型，确保状态一致性
                 selected_model = current_model_config['selected_model']
