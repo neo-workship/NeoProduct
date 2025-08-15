@@ -529,6 +529,7 @@ class ChatAreaManager:
                     ui.notify('聊天记录不存在', type='negative')
                     return
                 # 在会话关闭前获取消息数据
+                prompt_name = chat.prompt_name
                 messages = chat.messages.copy() if chat.messages else []
                 chat_title = chat.title
                 

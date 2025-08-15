@@ -16,6 +16,7 @@ class ChatHistory(BusinessBaseModel):
     # 基础字段
     title = Column(String(200), nullable=False, comment='聊天标题')
     model_name = Column(String(100), nullable=True, comment='使用的AI模型')
+    prompt_name = Column(String(100), nullable=True, comment='使用的提示模板')
     messages = Column(JSON, nullable=False, comment='聊天消息列表')
     
     # 新增字段 - 统计和缓存信息

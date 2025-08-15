@@ -316,6 +316,7 @@ class ChatSidebarManager:
                 chat_history = ChatHistory(
                     title=title,
                     model_name=self.chat_data_state.current_state.selected_model,
+                    prompt_name = self.chat_data_state.current_prompt_config.selected_prompt,
                     messages=messages_to_save
                 )
                 
