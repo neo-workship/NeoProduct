@@ -303,8 +303,10 @@ class ChatAreaManager:
                         self.create_heading_component(block['content'], block['level'])
                     elif block['type'] == 'text':
                         self.create_text_component(block['content'])
+                    else:
+                        # 兜底：用markdown显示
+                        ui.markdown(block['content']).classes('w-full')
                 except Exception as e:
-                    # 如果某个组件创建失败，显示原始文本作为降级方案
                     ui.markdown(f"```\n{block['content']}\n```").classes('w-full')
 
     def create_table_component(self, table_data: Dict[str, Any]):
@@ -901,13 +903,3 @@ class ChatAreaManager:
                     icon='send',
                     on_click=self.handle_message
                 ).props('round dense ').classes('ml-2')
-
-    def set_sidebar_components(self, switch, hierarchy_selector):
-        """设置来自侧边栏的组件引用
-        
-        Args:
-            switch: 提示数据开关组件
-            hierarchy_selector: 层级选择器组件
-        """
-        self.switch = switch
-        self.hierarchy_selector = hierarchy_selector
