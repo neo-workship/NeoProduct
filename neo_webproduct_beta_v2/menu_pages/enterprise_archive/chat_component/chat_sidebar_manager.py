@@ -22,13 +22,19 @@ from .config import (
 class ChatSidebarManager:
     """聊天侧边栏管理器"""
     
-    def __init__(self, chat_data_state: ChatDataState, chat_area_manager):
+    def __init__(self, chat_data_state: ChatDataState, chat_area_manager,
+                 sidebar_visible: bool = True, 
+                 default_model: str = None, 
+                 default_prompt: str = None ):
         """
         初始化侧边栏管理器
         
         Args:
             chat_data_state: 聊天数据状态对象
             chat_area_manager: 聊天区域管理器实例
+            sidebar_visible: 侧边栏是否可见，默认为True
+            default_model: 指定的默认模型，默认为None
+            default_prompt: 指定的默认提示词，默认为None
         """
         self.chat_data_state = chat_data_state
         self.chat_area_manager = chat_area_manager
@@ -38,14 +44,25 @@ class ChatSidebarManager:
         self.switch = None
         self.hierarchy_selector = None
         
+        # 存储侧边栏可见性配置
+        self.sidebar_visible = sidebar_visible
+
         # 初始化数据
-        self._initialize_data()
+        self._initialize_data(default_model, default_prompt)
     
-    def _initialize_data(self):
+    def _initialize_data(self,default_model_param: str = None, default_prompt_param: str = None):
         """初始化数据状态"""
         # 初始化模型相关数据
         self.chat_data_state.model_options = get_model_options_for_select()
-        self.chat_data_state.default_model = get_default_model() or 'deepseek-chat'
+        # self.chat_data_state.default_model = get_default_model() or 'deepseek-chat'
+        if default_model_param and \
+           default_model_param in self.chat_data_state.model_options:
+            self.chat_data_state.default_model = default_model_param
+        else:
+            self.chat_data_state.default_model = get_default_model() or 'deepseek-chat'
+            if default_model_param:
+                ui.notify(f"指定的模型 '{default_model_param}' 不存在，使用默认模型", type='warning')
+
         self.chat_data_state.current_model_config = {
             'selected_model': self.chat_data_state.default_model, 
             'config': get_model_config(self.chat_data_state.default_model)
@@ -58,9 +75,19 @@ class ChatSidebarManager:
         
         # 初始化提示词数据
         self.chat_data_state.prompt_options = get_prompt_options_for_select()
-        self.chat_data_state.default_prompt = get_default_prompt() or (
-            self.chat_data_state.prompt_options[0] if self.chat_data_state.prompt_options else None
-        )
+        # self.chat_data_state.default_prompt = get_default_prompt() or (
+        #     self.chat_data_state.prompt_options[0] if self.chat_data_state.prompt_options else None
+        # )
+        if default_prompt_param and \
+           default_prompt_param in self.chat_data_state.prompt_options:
+            self.chat_data_state.default_prompt = default_prompt_param
+        else:
+            self.chat_data_state.default_prompt = get_default_prompt() or (
+                self.chat_data_state.prompt_options[0] if self.chat_data_state.prompt_options else None
+            )
+            if default_prompt_param:
+                ui.notify(f"指定的提示词 '{default_prompt_param}' 不存在，使用默认提示词", type='warning')
+
         self.chat_data_state.current_prompt_config.selected_prompt = self.chat_data_state.default_prompt
         self.chat_data_state.current_prompt_config.system_prompt = (
             get_system_prompt(self.chat_data_state.default_prompt) 
