@@ -37,11 +37,11 @@ class ChatAreaManager:
         self.user_avatar = static_manager.get_fallback_path(
                     static_manager.get_logo_path('user.svg'),
                     'https://robohash.org/user'
-                )
+        )
         self.robot_avatar = static_manager.get_fallback_path(
                     static_manager.get_logo_path('robot_txt.svg'),
                     'https://robohash.org/ui'
-                )
+        )
 
     #region 等待效果相关方法
     async def start_waiting_effect(self, message="正在处理"):
@@ -283,7 +283,6 @@ class ChatAreaManager:
                     # 重置类属性
                     self.reply_label = None
                     self.chat_content_container = None
-
                     # 用于跟踪是否已经创建了基础结构
                     structure_created = False
                     reply_created = False
@@ -296,12 +295,10 @@ class ChatAreaManager:
             
                             # 🔥 检测和处理思考内容
                             temp_content = assistant_reply
-                            
                             # 检查是否开始思考内容
                             if '<think>' in temp_content and not is_in_think:
                                 is_in_think = True
                                 think_start_pos = temp_content.find('<think>')
-                                
                                 # 创建包含思考内容的完整结构
                                 if not structure_created:
                                     self.waiting_ai_message_container.clear()
@@ -313,8 +310,7 @@ class ChatAreaManager:
                                                 icon='psychology'
                                             ).classes('w-full mb-2')
                                             with think_expansion:
-                                                think_label = ui.label('').classes('whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none')
-                                        
+                                                think_label = ui.label('').classes('whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none')           
                                     structure_created = True
                             # 如果没有思考内容，且尚未创建结构，创建普通回复结构
                             elif not structure_created and '<think>' not in temp_content:
@@ -370,8 +366,7 @@ class ChatAreaManager:
                                 else:
                                     # 正常显示内容：没有思考标签
                                     if self.reply_label:
-                                        self.reply_label.set_content(temp_content)
-                            
+                                        self.reply_label.set_content(temp_content) 
                             # 流式更新时滚动到底部
                             await self.scroll_to_bottom_smooth()
                             await asyncio.sleep(0.05)  # 流式显示的间隔
@@ -387,10 +382,8 @@ class ChatAreaManager:
                         final_think_content = final_content[think_start + 7:think_end - 8]
                         if think_label:
                             think_label.set_text(final_think_content.strip())
-                        
                         # 最终的回复内容（移除思考标签）
                         final_reply_content = final_content[:think_start] + final_content[think_end:]
-                        
                         # 确保回复组件已创建
                         if self.chat_content_container and not reply_created and final_reply_content.strip():
                             with self.chat_content_container:
@@ -412,14 +405,11 @@ class ChatAreaManager:
                         
                         if self.reply_label:
                             self.reply_label.set_content(final_content)
-                            await self.markdown_parser.optimize_content_display(self.reply_label, final_content, self.chat_content_container)
-                            
-                            
+                            await self.markdown_parser.optimize_content_display(self.reply_label, final_content, self.chat_content_container)        
             except Exception as api_error:
                 print(f"api error:{str(api_error)}")
                 assistant_reply = f"抱歉，调用AI服务时出现错误：{str(api_error)[:300]}..."
                 ui.notify('AI服务调用失败，请稍后重试', type='negative')
-                
                 # 停止等待动画并显示错误信息
                 await self.stop_waiting_effect()
                 if self.waiting_message_label:
@@ -435,11 +425,9 @@ class ChatAreaManager:
             })
             # 完成回复后最终滚动
             await self.scroll_to_bottom_smooth()
-        
         finally:
             # 确保等待动画任务被取消
             await self.stop_waiting_effect()
-            
             # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
             self.input_ref['widget'].set_enabled(True)
             self.send_button_ref['widget'].set_enabled(True)
@@ -530,6 +518,7 @@ class ChatAreaManager:
                     return
                 # 在会话关闭前获取消息数据
                 prompt_name = chat.prompt_name
+                model_name = chat.model_name
                 messages = chat.messages.copy() if chat.messages else []
                 chat_title = chat.title
                 
@@ -548,7 +537,13 @@ class ChatAreaManager:
             ui.timer(0.01, lambda: asyncio.create_task(render_messages_async()), once=True)
             # 滚动到底部
             ui.timer(0.1, lambda: self.scroll_area.scroll_to(percent=1), once=True)
-            ui.notify(f'已加载聊天: {chat_title}', type='positive')            
+            ui.notify(f'已加载聊天: {chat_title}', type='positive') 
+            # -----------------------------
+            # print(f"model:{model_name}\n model_config:{self.chat_data_state.current_model_config['config']}")
+            # print(f"prompt:{prompt_name}\n prompt_config:{self.chat_data_state.current_prompt_config.system_prompt}")           
+            self.chat_data_state.current_state.model_select_widget.set_value(model_name)
+            self.chat_data_state.current_state.prompt_select_widget.set_value(prompt_name)
+            self.chat_data_state.switch =  (prompt_name == '一企一档专家')
         except Exception as e:
             await self.stop_waiting_effect()
             await self.cleanup_waiting_effect()
@@ -569,7 +564,6 @@ class ChatAreaManager:
                 self.welcome_message_container = ui.column().classes('w-full')
                 with self.welcome_message_container:
                     self.restore_welcome_message()
-                    
             # 输入区域 - 固定在底部，距离底部10px
             with ui.row().classes('w-full items-center gap-2 rounded ').style(
                 'position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 1000; '
