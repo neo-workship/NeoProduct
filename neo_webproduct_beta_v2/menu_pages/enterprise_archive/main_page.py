@@ -24,16 +24,16 @@ def enterprise_archive_content():
     with ui.splitter(value=10).classes('w-full h-full') as splitter:
         with splitter.before:
             with ui.tabs().props('vertical') as tabs:
-                ai_query = ui.tab('智能问数', icon='tips_and_updates')
-                create_archive = ui.tab('创建档案', icon='precision_manufacturing')
-                read_archive = ui.tab('查看档案', icon='plagiarism')
-                edit_archive = ui.tab('修改档案', icon='edit_note')
+                ai_query = ui.tab('智能问数', icon='tips_and_updates').tooltip('使用大模型进行问数')
+                create_archive = ui.tab('创建档案', icon='precision_manufacturing').tooltip('登记/创建企业档案')
+                read_archive = ui.tab('查看档案', icon='plagiarism').tooltip('查询/查看企业档案')
+                edit_archive = ui.tab('修改档案', icon='edit_note').tooltip('查询/修改企业档案')
                 # add_archive_filed = ui.tab('添加属性', icon='note_add')
-                delete_archive = ui.tab('删除档案', icon='delete_forever')
+                delete_archive = ui.tab('删除档案', icon='delete_forever').tooltip('查询/删除企业档案')
                 separate_line = ui.tab('________')
-                bi_analysis = ui.tab('BI分析',icon='auto_graph')
-                dynamic_analysis = ui.tab("动态分析",icon="stacked_bar_chart")
-                analysis_report = ui.tab("智能报告",icon="auto_fix_high")
+                bi_analysis = ui.tab('BI分析',icon='auto_graph').tooltip('企业档案BI报表/AI交互分析')
+                dynamic_analysis = ui.tab("动态分析",icon="stacked_bar_chart").tooltip('动态配置分析企业数据')
+                analysis_report = ui.tab("智能报告",icon="auto_fix_high").tooltip('AI分析企业档案生成报告')
 
 
         with splitter.after:

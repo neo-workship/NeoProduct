@@ -1,4 +1,4 @@
-import re
+from abc import ABC, abstractmethod
 import asyncio
 from datetime import datetime
 from nicegui import ui, app
@@ -7,14 +7,375 @@ from component import static_manager
 from .chat_data_state import ChatDataState
 from .markdown_ui_parser import MarkdownUIParser
 
+class ThinkContentParser:
+    """思考内容解析器 - 专门处理<think>标签"""
+    
+    def __init__(self):
+        self.is_in_think = False
+        self.think_start_pos = -1
+        self.think_content = ""
+    
+    def parse_chunk(self, full_content: str) -> Dict[str, Any]:
+        """解析内容块，返回处理结果"""
+        result = {
+            'has_think': False,
+            'think_content': '',
+            'display_content': full_content,
+            'think_complete': False,
+            'think_updated': False
+        }
+        
+        # 检测思考开始
+        if '<think>' in full_content and not self.is_in_think:
+            self.is_in_think = True
+            self.think_start_pos = full_content.find('<think>')
+            result['has_think'] = True
+        
+        # 检测思考结束
+        if '</think>' in full_content and self.is_in_think:
+            think_end_pos = full_content.find('</think>') + 8
+            self.think_content = full_content[self.think_start_pos + 7:think_end_pos - 8]
+            result['display_content'] = full_content[:self.think_start_pos] + full_content[think_end_pos:]
+            result['think_content'] = self.think_content.strip()
+            result['think_complete'] = True
+            self.is_in_think = False
+        elif self.is_in_think:
+            # 正在思考中
+            if self.think_start_pos >= 0:
+                current_think = full_content[self.think_start_pos + 7:]
+                result['display_content'] = full_content[:self.think_start_pos]
+                result['think_content'] = current_think.strip()
+                result['think_updated'] = True
+        
+        result['has_think'] = self.think_start_pos >= 0
+        return result
+
+class MessagePreprocessor:
+    """消息预处理器"""
+    
+    def __init__(self, chat_data_state):
+        self.chat_data_state = chat_data_state
+    
+    def enhance_user_message(self, user_message: str) -> str:
+        """增强用户消息（原有逻辑保持不变）"""
+        try:
+            if not self.chat_data_state.switch:
+                return user_message
+                
+            if not (self.chat_data_state.current_state.prompt_select_widget and 
+                    self.chat_data_state.current_state.prompt_select_widget.value == "一企一档专家"):
+                ui.notify("上下文模板未选择'一企一档专家'", type="warning")
+                return user_message
+                
+            selected_values = self.chat_data_state.selected_values
+            if not (selected_values and selected_values['l3']):
+                ui.notify("未选择足够的层级数据（至少需要3级）", type="warning")
+                return user_message
+                
+            append_text = ""
+            if selected_values['field']:
+                full_path_code = selected_values['full_path_code']
+                field_value = selected_values['field']
+                append_text = f"\n\n[数据路径] {full_path_code} \n\n [字段信息] {field_value}"
+            else:
+                full_path_code = selected_values['full_path_code']
+                append_text = f"\n\n[数据路径] {full_path_code}"
+            
+            if append_text:
+                return f"{user_message}{append_text}"
+                
+            return user_message
+    
+        except Exception as e:
+            ui.notify(f"[ERROR] 增强用户消息时发生异常: {e}", type="negative")
+            return user_message
+
+class AIClientManager:
+    """AI客户端管理器"""
+    
+    def __init__(self, chat_data_state):
+        self.chat_data_state = chat_data_state
+    
+    async def get_client(self):
+        """获取AI客户端"""
+        from common.safe_openai_client_pool import get_openai_client
+        
+        selected_model = self.chat_data_state.current_model_config['selected_model']
+        model_config = self.chat_data_state.current_model_config['config']
+        
+        client = await get_openai_client(selected_model, model_config)
+        if not client:
+            raise Exception(f"无法连接到模型 {selected_model}")
+        
+        return client, model_config
+    
+    def prepare_messages(self) -> List[Dict[str, str]]:
+        """准备发送给AI的消息列表"""
+        recent_messages = self.chat_data_state.current_chat_messages[-20:]
+        
+        if (self.chat_data_state.current_state.prompt_select_widget and 
+            self.chat_data_state.current_prompt_config.system_prompt):
+            system_message = {
+                "role": "system", 
+                "content": self.chat_data_state.current_prompt_config.system_prompt
+            }
+            recent_messages = [system_message] + recent_messages
+        
+        return recent_messages
+
+class ContentDisplayStrategy(ABC):
+    """内容展示策略抽象基类"""
+    def __init__(self, ui_components):
+        self.ui_components = ui_components
+        self.think_parser = ThinkContentParser()
+        self.structure_created = False
+        self.reply_created = False
+        self.think_expansion = None
+        self.think_label = None
+        self.reply_label = None
+        self.chat_content_container = None
+    
+    @abstractmethod
+    def create_ui_structure(self, has_think: bool):
+        """创建UI结构"""
+        pass
+    
+    @abstractmethod
+    def update_content(self, parse_result: Dict[str, Any]) -> bool:
+        """更新内容显示，返回是否需要滚动"""
+        pass
+    
+    def process_stream_chunk(self, full_content: str) -> bool:
+        """处理流式数据块 - 模板方法"""
+        parse_result = self.think_parser.parse_chunk(full_content)
+        
+        # 创建UI结构（如果需要）
+        if not self.structure_created:
+            self.create_ui_structure(parse_result['has_think'])
+            self.structure_created = True
+        
+        # 更新内容
+        need_scroll = self.update_content(parse_result)
+        return need_scroll
+    
+    async def finalize_content(self, final_content: str):
+        """完成内容显示"""
+        final_result = self.think_parser.parse_chunk(final_content)
+        
+        if final_result['think_complete'] and self.think_label:
+            self.think_label.set_text(final_result['think_content'])
+        
+        if self.reply_label and final_result['display_content'].strip():
+            self.reply_label.set_content(final_result['display_content'].strip())
+            # 调用markdown优化显示
+            if hasattr(self.ui_components, 'markdown_parser'):
+                await self.ui_components.markdown_parser.optimize_content_display(
+                    self.reply_label, final_result['display_content'], self.chat_content_container
+                )
+
+class DefaultDisplayStrategy(ContentDisplayStrategy):
+    """默认展示策略"""
+    
+    def create_ui_structure(self, has_think: bool):
+        """创建默认UI结构"""
+        self.ui_components.waiting_ai_message_container.clear()
+        with self.ui_components.waiting_ai_message_container:
+            with ui.column().classes('w-full') as self.chat_content_container:
+                if has_think:
+                    self.think_expansion = ui.expansion(
+                        '💭 AI思考过程...(可点击打开查看)', 
+                        icon='psychology'
+                    ).classes('w-full mb-2')
+                    with self.think_expansion:
+                        self.think_label = ui.label('').classes(
+                            'whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none'
+                        )
+                else:
+                    self.reply_label = ui.markdown('').classes('w-full')
+                    self.reply_created = True
+    
+    def update_content(self, parse_result: Dict[str, Any]) -> bool:
+        """更新默认展示内容"""
+        if parse_result['think_updated'] and self.think_label:
+            self.think_label.set_text(parse_result['think_content'])
+        
+        if parse_result['think_complete']:
+            # 思考完成，创建回复组件
+            if self.chat_content_container and not self.reply_created:
+                with self.chat_content_container:
+                    self.reply_label = ui.markdown('').classes('w-full')
+                self.reply_created = True
+            
+            if self.think_label:
+                self.think_label.set_text(parse_result['think_content'])
+        
+        # 更新显示内容
+        if self.reply_label and parse_result['display_content'].strip():
+            self.reply_label.set_content(parse_result['display_content'].strip())
+        
+        return True  # 需要滚动
+
+class ExpertDisplayStrategy(ContentDisplayStrategy):
+    """专家模式展示策略 - 可以有不同的展示样式"""
+    
+    def create_ui_structure(self, has_think: bool):
+        """创建专家模式UI结构"""
+        self.ui_components.waiting_ai_message_container.clear()
+        with self.ui_components.waiting_ai_message_container:
+            with ui.column().classes('w-full') as self.chat_content_container:
+                if has_think:
+                    # 专家模式可以有不同的思考区域样式
+                    self.think_expansion = ui.expansion(
+                        '🧠 专家思考分析...(点击查看详细分析)', 
+                        icon='psychology'
+                    ).classes('w-full mb-2')
+                    with self.think_expansion:
+                        self.think_label = ui.label('').classes(
+                            'whitespace-pre-wrap bg-[#81c784] border-l-4 border-blue-500 p-3'
+                        )
+                else:
+                    self.reply_label = ui.markdown('').classes('w-full')
+                    self.reply_created = True
+    
+    def update_content(self, parse_result: Dict[str, Any]) -> bool:
+        """更新专家模式展示内容"""
+        # 与默认策略类似的逻辑，但可以有不同的处理方式
+        return self.update_content_common(parse_result)
+    
+    def update_content_common(self, parse_result: Dict[str, Any]) -> bool:
+        """通用内容更新逻辑"""
+        if parse_result['think_updated'] and self.think_label:
+            self.think_label.set_text(parse_result['think_content'])
+        
+        if parse_result['think_complete']:
+            if self.chat_content_container and not self.reply_created:
+                with self.chat_content_container:
+                    self.reply_label = ui.markdown('').classes('w-full')
+                self.reply_created = True
+            
+            if self.think_label:
+                self.think_label.set_text(parse_result['think_content'])
+        
+        if self.reply_label and parse_result['display_content'].strip():
+            self.reply_label.set_content(parse_result['display_content'].strip())
+        
+        return True
+
+class StreamResponseProcessor:
+    """流式响应处理器"""
+    
+    def __init__(self, chat_area_manager):
+        self.chat_area_manager = chat_area_manager
+        self.display_strategy = None
+    
+    def get_display_strategy(self) -> ContentDisplayStrategy:
+        """根据prompt配置选择展示策略"""
+        prompt_name = getattr(
+            self.chat_area_manager.chat_data_state.current_prompt_config, 
+            'selected_prompt', 
+            'default'
+        )
+        
+        if prompt_name == '一企一档专家':
+            return ExpertDisplayStrategy(self.chat_area_manager)
+        else:
+            return DefaultDisplayStrategy(self.chat_area_manager)
+    
+    async def process_stream_response(self, stream_response) -> str:
+        """处理流式响应"""
+        self.display_strategy = self.get_display_strategy()
+        assistant_reply = ""
+        
+        for chunk in stream_response:
+            if chunk.choices[0].delta.content:
+                chunk_content = chunk.choices[0].delta.content
+                assistant_reply += chunk_content
+                
+                # 使用策略处理内容
+                need_scroll = self.display_strategy.process_stream_chunk(assistant_reply)
+                
+                if need_scroll:
+                    await self.chat_area_manager.scroll_to_bottom_smooth()
+                    await asyncio.sleep(0.05)
+        
+        # 完成内容显示
+        await self.display_strategy.finalize_content(assistant_reply)
+        return assistant_reply
+
+class MessageProcessor:
+    """消息处理门面类"""
+    
+    def __init__(self, chat_area_manager):
+        self.chat_area_manager = chat_area_manager
+        self.preprocessor = MessagePreprocessor(chat_area_manager.chat_data_state)
+        self.ai_client_manager = AIClientManager(chat_area_manager.chat_data_state)
+        self.stream_processor = StreamResponseProcessor(chat_area_manager)
+    
+    async def process_user_message(self, user_message: str) -> str:
+        """处理用户消息并返回AI回复"""
+        # 1. 预处理用户消息
+        enhanced_message = self.preprocessor.enhance_user_message(user_message)
+        
+        # 2. 保存用户消息到历史
+        user_msg_dict = {
+            'role': 'user',
+            'content': enhanced_message,
+            'timestamp': datetime.now().isoformat()
+        }
+        self.chat_area_manager.chat_data_state.current_chat_messages.append(user_msg_dict)
+        
+        # 3. 渲染用户消息
+        await self.chat_area_manager.render_single_message(user_msg_dict)
+        await self.chat_area_manager.scroll_to_bottom_smooth()
+        
+        # 4. 启动等待效果
+        await self.chat_area_manager.start_waiting_effect("正在处理")
+        
+        try:
+            # 5. 获取AI客户端
+            client, model_config = await self.ai_client_manager.get_client()
+            
+            # 6. 准备消息列表
+            messages = self.ai_client_manager.prepare_messages()
+            
+            # 7. 调用AI API
+            actual_model_name = model_config.get('model_name', 
+                self.chat_area_manager.chat_data_state.current_model_config['selected_model']
+            ) if model_config else self.chat_area_manager.chat_data_state.current_model_config['selected_model']
+            
+            stream_response = await asyncio.to_thread(
+                client.chat.completions.create,
+                model=actual_model_name,
+                messages=messages,
+                max_tokens=2000,
+                temperature=0.7,
+                stream=True
+            )
+            
+            # 8. 停止等待效果并处理流式响应
+            await self.chat_area_manager.stop_waiting_effect()
+            assistant_reply = await self.stream_processor.process_stream_response(stream_response)
+            
+            return assistant_reply
+            
+        except Exception as e:
+            # 错误处理
+            error_message = f"抱歉，调用AI服务时出现错误：{str(e)[:300]}..."
+            ui.notify('AI服务调用失败，请稍后重试', type='negative')
+            
+            await self.chat_area_manager.stop_waiting_effect()
+            if self.chat_area_manager.waiting_message_label:
+                self.chat_area_manager.waiting_message_label.set_text(error_message)
+                self.chat_area_manager.waiting_message_label.classes(remove='text-gray-500 italic')
+            
+            return error_message
+
+# 更新后的 ChatAreaManager 类
 class ChatAreaManager:
     """主聊天区域管理器 - 负责聊天内容展示和用户交互"""
     
-    def __init__(self, chat_data_state: ChatDataState):
-        """初始化聊天区域管理器
-        Args:
-            chat_data_state: 聊天数据状态对象
-        """
+    def __init__(self, chat_data_state):
+        """初始化聊天区域管理器"""
         self.chat_data_state = chat_data_state
         self.markdown_parser = MarkdownUIParser()
         # UI组件引用
@@ -23,6 +384,7 @@ class ChatAreaManager:
         self.welcome_message_container = None
         self.input_ref = {'widget': None}
         self.send_button_ref = {'widget': None}
+        self.clear_button_ref = {'widget': None}
         # 其他UI引用
         self.switch = None
         self.hierarchy_selector = None
@@ -35,24 +397,23 @@ class ChatAreaManager:
         self.waiting_ai_message_container = None
         # 聊天头像
         self.user_avatar = static_manager.get_fallback_path(
-                    static_manager.get_logo_path('user.svg'),
-                    'https://robohash.org/user'
+            static_manager.get_logo_path('user.svg'),
+            static_manager.get_logo_path('ProfileHeader.gif'),
         )
         self.robot_avatar = static_manager.get_fallback_path(
-                    static_manager.get_logo_path('robot_txt.svg'),
-                    'https://robohash.org/ui'
+            static_manager.get_logo_path('robot_txt.svg'),
+            static_manager.get_logo_path('Live chatbot.gif'),
         )
+        
+        # 初始化消息处理器
+        self.message_processor = MessageProcessor(self)
 
-    #region 等待效果相关方法
+    #region 等待效果相关方法 - 保持原有代码不变
     async def start_waiting_effect(self, message="正在处理"):
-        """启动等待效果
-        Args:
-            message: 等待提示文本，默认为"正在处理"
-        """
+        """启动等待效果"""
         # 添加等待效果的机器人消息容器
         with self.chat_messages_container:
             self.waiting_ai_message_container = ui.chat_message(
-                name='AI',
                 avatar=self.robot_avatar
             ).classes('w-full')
             
@@ -94,7 +455,7 @@ class ChatAreaManager:
         self.waiting_ai_message_container = None
     #endregion
 
-    #region 用户输入提交相关处理逻辑
+    #region 滚动和渲染方法 - 保持原有代码不变
     async def scroll_to_bottom_smooth(self):
         """平滑滚动到底部，使用更可靠的方法"""
         try:
@@ -106,69 +467,14 @@ class ChatAreaManager:
         except Exception as e:
             ui.notify(f"滚动出错: {e}")
 
-    def enhance_user_message(self, user_message: str) -> str:
-        """
-        在用户输入中动态添加 select数据expansion组件 的内容
-        Args:
-            user_message: 用户原始输入消息
-        Returns:
-            str: 增强后的用户消息（如果不满足条件则返回原消息）
-        """
-        try:
-            # 2. 检查 select数据expansion组件 中的 switch 是否打开
-            if not self.chat_data_state.switch:
-                return user_message
-            # 3. 检查上下文模板expansion组件中的 prompt_select_widget 是否选择"一企一档专家"
-            if not (self.chat_data_state.current_state.prompt_select_widget and 
-                    self.chat_data_state.current_state.prompt_select_widget.value == "一企一档专家"):
-                ui.notify("上下文模板未选择'一企一档专家'",type="warning")
-                return user_message
-                
-            # 4. 检查 selected_values 至少选择3级数据
-            selected_values = self.chat_data_state.selected_values
-            
-            if not (selected_values and selected_values['l3']):
-                ui.notify("未选择足够的层级数据（至少需要3级）",type="warning")
-                return user_message
-                
-            # 5. 根据是否选择4级数据决定拼接内容
-            append_text = ""
-            
-            if selected_values['field']:  # 选择了4级数据
-                # 处理字段信息进行拼接
-                full_path_code = selected_values['full_path_code']
-                field_value = selected_values['field']
-                
-                append_text = f"\n\n[数据路径] {full_path_code} \n\n [字段信息] {field_value}"
-                
-            else:  # 未选择4级，使用3级内容
-                full_path_code = selected_values['full_path_code']
-                append_text = f"\n\n[数据路径] {full_path_code}"
-            
-            # 6. 拼接到用户消息
-            if append_text:
-                enhanced_message = f"{user_message}{append_text}"
-                return enhanced_message
-                
-            return user_message
-            
-        except Exception as e:
-            # 异常处理：确保即使出错也不影响正常聊天功能
-            ui.notify(f"[ERROR] 增强用户消息时发生异常: {e}",type="negative")
-            return user_message
-
     async def render_single_message(self, message: Dict[str, Any], container=None):
-        """渲染单条消息
-        Args:
-            message: 消息字典，包含role、content等字段
-            container: 可选的容器，如果不提供则使用self.chat_messages_container
-        """
+        """渲染单条消息"""
         target_container = container if container is not None else self.chat_messages_container
         
         with target_container:
             if message['role'] == 'user':
                 with ui.chat_message(
-                    name='您',
+                    # name='您',
                     avatar=self.user_avatar,
                     sent=True
                 ).classes('w-full'):
@@ -176,7 +482,7 @@ class ChatAreaManager:
             
             elif message['role'] == 'assistant':
                 with ui.chat_message(
-                    name='AI',
+                    # name='AI',
                     avatar=self.robot_avatar
                 ).classes('w-full'):
                     # 创建临时的chat_content_container用于单条消息渲染
@@ -188,234 +494,26 @@ class ChatAreaManager:
                             message['content'], 
                             self.chat_content_container
                         )
+    #endregion
 
+    # 重构后的 handle_message 方法
     async def handle_message(self, event=None):
-        """处理用户消息发送"""
+        """处理用户消息发送 - 重构后的精简版本"""
         user_message = self.input_ref['widget'].value.strip()
         if not user_message:
             return
             
-        # 🔒 禁用输入框和发送按钮，防止重复发送
+        # 🔒 禁用输入控件
         self.input_ref['widget'].set_enabled(False)
         self.send_button_ref['widget'].set_enabled(False)
-        # 清空输入框
         self.input_ref['widget'].set_value('')
-        # 等待效果相关变量
-        assistant_reply = ""
         
         try:
             # 删除欢迎消息
             if self.welcome_message_container:
                 self.welcome_message_container.clear()
-
-            # 动态添加提示数据
-            user_message = self.enhance_user_message(user_message)
-            user_msg_dict = {
-                'role': 'user',
-                'content': user_message,
-                'timestamp': datetime.now().isoformat()
-            }
-            self.chat_data_state.current_chat_messages.append(user_msg_dict)
-
-            # 使用统一的消息渲染方法渲染用户消息
-            await self.render_single_message(user_msg_dict)
-            # 添加用户消息后立即滚动到底部
-            await self.scroll_to_bottom_smooth()
-            # 启动等待效果
-            await self.start_waiting_effect("正在处理")
-
-            # 调用AI API
-            try:
-                # 构建发送给AI的消息列表
-                from common.safe_openai_client_pool import get_openai_client
-                # 使用 current_model_config 获取当前选择的模型，确保状态一致性
-                selected_model = self.chat_data_state.current_model_config['selected_model']
-                model_config = self.chat_data_state.current_model_config['config']
-                # 创建 OpenAI 客户端
-                client = await get_openai_client(selected_model, model_config)
-                
-                if not client:
-                    assistant_reply = f"抱歉，无法连接到模型 {selected_model}，请检查配置或稍后重试。"
-                    ui.notify(f'模型 {selected_model} 连接失败', type='negative')
-                    
-                    # 停止等待动画并更新消息
-                    await self.stop_waiting_effect()
-                    if self.waiting_message_label:
-                        self.waiting_message_label.set_text(assistant_reply)
-                        self.waiting_message_label.classes(remove='text-gray-500 italic')
-                else:
-                    # 准备对话历史（取最近20条消息）
-                    recent_messages = self.chat_data_state.current_chat_messages[-20:]
-                    if self.chat_data_state.current_state.prompt_select_widget \
-                        and self.chat_data_state.current_prompt_config.system_prompt:
-                        system_message = {
-                            "role": "system", 
-                            "content": self.chat_data_state.current_prompt_config.system_prompt
-                        }
-                        # 将系统消息插入到历史消息的最前面
-                        recent_messages = [system_message] + recent_messages
-                    
-                    # 获取实际的模型名称
-                    actual_model_name = model_config.get('model_name', selected_model) if model_config else selected_model
-                    
-                    # 流式调用 OpenAI API
-                    stream_response = await asyncio.to_thread(
-                        client.chat.completions.create,
-                        model=actual_model_name,
-                        messages=recent_messages,
-                        max_tokens=2000,
-                        temperature=0.7,
-                        stream=True  # 启用流式响应
-                    )
-
-                     # ⭐ 关键修复：在开始处理流式响应时才停止等待动画
-                    await self.stop_waiting_effect()
-                    
-                    # 处理流式响应
-                    is_in_think = False
-                    think_start_pos = -1
-
-                    # 清空等待消息，准备流式显示
-                    self.waiting_ai_message_container.clear()
-                    # 初始化组件变量 - 关键：不预先创建任何组件
-                    think_expansion = None
-                    think_label = None
-                    # 重置类属性
-                    self.reply_label = None
-                    self.chat_content_container = None
-                    # 用于跟踪是否已经创建了基础结构
-                    structure_created = False
-                    reply_created = False
-
-                    # 处理流式数据
-                    for chunk in stream_response:
-                        if chunk.choices[0].delta.content:
-                            chunk_content = chunk.choices[0].delta.content
-                            assistant_reply += chunk_content
-            
-                            # 🔥 检测和处理思考内容
-                            temp_content = assistant_reply
-                            # 检查是否开始思考内容
-                            if '<think>' in temp_content and not is_in_think:
-                                is_in_think = True
-                                think_start_pos = temp_content.find('<think>')
-                                # 创建包含思考内容的完整结构
-                                if not structure_created:
-                                    self.waiting_ai_message_container.clear()
-                                    with self.waiting_ai_message_container:
-                                        with ui.column().classes('w-full') as self.chat_content_container:
-                                            # 创建思考区域
-                                            think_expansion = ui.expansion(
-                                                '💭 AI思考过程...(可点击打开查看)', 
-                                                icon='psychology'
-                                            ).classes('w-full mb-2')
-                                            with think_expansion:
-                                                think_label = ui.label('').classes('whitespace-pre-wrap bg-[#81c784] border-0 shadow-none rounded-none')           
-                                    structure_created = True
-                            # 如果没有思考内容，且尚未创建结构，创建普通回复结构
-                            elif not structure_created and '<think>' not in temp_content:
-                                self.waiting_ai_message_container.clear()
-                                with self.waiting_ai_message_container:
-                                    with ui.column().classes('w-full') as self.chat_content_container:
-                                        self.reply_label = ui.markdown('').classes('w-full')
-                                structure_created = True
-                                reply_created = True
-                            # 检查是否结束思考内容
-                            if '</think>' in temp_content and is_in_think:
-                                is_in_think = False
-                                think_end_pos = temp_content.find('</think>') + 8
-                                
-                                # 提取思考内容
-                                think_content = temp_content[think_start_pos + 7:think_end_pos - 8]
-                                if think_label:
-                                    think_label.set_text(think_content.strip())
-                                
-                                # 移除思考标签，保留其他内容
-                                display_content = temp_content[:think_start_pos] + temp_content[think_end_pos:]
-                                
-                                # 现在在容器中创建回复组件
-                                if self.chat_content_container and not reply_created:
-                                    with self.chat_content_container:
-                                        self.reply_label = ui.markdown('').classes('w-full')
-                                    reply_created = True
-                                
-                                # 更新回复内容
-                                if self.reply_label and display_content.strip():
-                                    self.reply_label.set_content(display_content.strip())
-                            else:
-                                # 根据当前状态更新显示内容
-                                if is_in_think:
-                                    # 在思考中：显示思考前的内容（如果有），更新思考内容
-                                    if think_start_pos >= 0:
-                                        display_content = temp_content[:think_start_pos]
-                                        
-                                        # 更新思考内容（去除标签）
-                                        current_think = temp_content[think_start_pos + 7:]
-                                        if current_think and think_label:
-                                            think_label.set_text(current_think.strip())
-                                        
-                                        # 如果有前置内容且还未创建回复组件，先创建
-                                        if display_content.strip() and self.chat_content_container and not reply_created:
-                                            with self.chat_content_container:
-                                                self.reply_label = ui.markdown('').classes('w-full')
-                                            reply_created = True
-                                        
-                                        # 更新前置内容
-                                        if self.reply_label and display_content.strip():
-                                            self.reply_label.set_content(display_content.strip())
-                                else:
-                                    # 正常显示内容：没有思考标签
-                                    if self.reply_label:
-                                        self.reply_label.set_content(temp_content) 
-                            # 流式更新时滚动到底部
-                            await self.scroll_to_bottom_smooth()
-                            await asyncio.sleep(0.05)  # 流式显示的间隔
-
-                    # 最终处理：确保所有内容正确显示
-                    final_content = assistant_reply
-                     # 如果包含思考内容，进行最终清理
-                    if '<think>' in final_content and '</think>' in final_content:
-                        think_start = final_content.find('<think>')
-                        think_end = final_content.find('</think>') + 8
-                        
-                        # 最终的思考内容
-                        final_think_content = final_content[think_start + 7:think_end - 8]
-                        if think_label:
-                            think_label.set_text(final_think_content.strip())
-                        # 最终的回复内容（移除思考标签）
-                        final_reply_content = final_content[:think_start] + final_content[think_end:]
-                        # 确保回复组件已创建
-                        if self.chat_content_container and not reply_created and final_reply_content.strip():
-                            with self.chat_content_container:
-                                self.reply_label = ui.markdown('').classes('w-full')
-                            reply_created = True
-                        
-                        if self.reply_label and final_reply_content.strip():
-                            self.reply_label.set_content(final_reply_content.strip())
-                            await self.markdown_parser.optimize_content_display(self.reply_label, final_reply_content, self.chat_content_container)
-                        # 用于记录到聊天历史的内容（保留思考标签）
-                        assistant_reply = final_content
-                    else:
-                        # 没有思考内容，直接显示
-                        if not structure_created:
-                            self.waiting_ai_message_container.clear()
-                            with self.waiting_ai_message_container:
-                                with ui.column().classes('w-full') as self.chat_content_container:
-                                    self.reply_label = ui.markdown('').classes('w-full')
-                        
-                        if self.reply_label:
-                            self.reply_label.set_content(final_content)
-                            await self.markdown_parser.optimize_content_display(self.reply_label, final_content, self.chat_content_container)        
-            except Exception as api_error:
-                print(f"api error:{str(api_error)}")
-                assistant_reply = f"抱歉，调用AI服务时出现错误：{str(api_error)[:300]}..."
-                ui.notify('AI服务调用失败，请稍后重试', type='negative')
-                # 停止等待动画并显示错误信息
-                await self.stop_waiting_effect()
-                if self.waiting_message_label:
-                    self.waiting_message_label.set_text(assistant_reply)
-                    self.waiting_message_label.classes(remove='text-gray-500 italic')
-            
+            # 使用消息处理器处理用户消息
+            assistant_reply = await self.message_processor.process_user_message(user_message)
             # 🔥 记录AI回复到聊天历史
             self.chat_data_state.current_chat_messages.append({
                 'role': 'assistant', 
@@ -426,12 +524,10 @@ class ChatAreaManager:
             # 完成回复后最终滚动
             await self.scroll_to_bottom_smooth()
         finally:
-            # 确保等待动画任务被取消
+            # 🔓 恢复输入控件
             await self.stop_waiting_effect()
-            # 🔓 无论是否出现异常，都要重新启用输入框和发送按钮
             self.input_ref['widget'].set_enabled(True)
             self.send_button_ref['widget'].set_enabled(True)
-            # 重新聚焦到输入框，提升用户体验
             self.input_ref['widget'].run_method('focus')
 
     def has_think_content(self, messages):
@@ -456,7 +552,8 @@ class ChatAreaManager:
                     cleaned_msg['content'] = cleaned_content.strip()
             cleaned_messages.append(cleaned_msg)
         return cleaned_messages
-
+    
+    #region 其他原有方法 - 保持不变
     def handle_keydown(self, e):
         """处理键盘事件 - 使用NiceGUI原生方法"""
         # 检查输入框是否已禁用，如果禁用则不处理按键事件
@@ -477,9 +574,21 @@ class ChatAreaManager:
                 ui.run_javascript('event.preventDefault();')
                 # 异步调用消息处理函数
                 ui.timer(0.01, lambda: self.handle_message(), once=True)
-    #endregion 用户输入提交相关处理逻辑
+    
+    def clear_chat_content(self):
+        """清空当前聊天内容"""
+        try:
+            # 清空聊天消息容器
+            self.chat_messages_container.clear()
+            # 清空聊天数据状态中的消息
+            self.chat_data_state.current_chat_messages.clear()
+            # 恢复欢迎消息
+            self.restore_welcome_message()
+            # 显示成功提示
+            ui.notify('聊天内容已清空', type='positive')
+        except Exception as e:
+            ui.notify(f'清空聊天失败: {str(e)}', type='negative')
 
-    # 重置和加载历史对话内容
     def restore_welcome_message(self):
         """恢复欢迎消息"""
         self.chat_messages_container.clear()
@@ -539,18 +648,15 @@ class ChatAreaManager:
             ui.timer(0.1, lambda: self.scroll_area.scroll_to(percent=1), once=True)
             ui.notify(f'已加载聊天: {chat_title}', type='positive') 
             # -----------------------------
-            # print(f"model:{model_name}\n model_config:{self.chat_data_state.current_model_config['config']}")
-            # print(f"prompt:{prompt_name}\n prompt_config:{self.chat_data_state.current_prompt_config.system_prompt}")           
             self.chat_data_state.current_state.model_select_widget.set_value(model_name)
             self.chat_data_state.current_state.prompt_select_widget.set_value(prompt_name)
-            self.chat_data_state.switch =  (prompt_name == '一企一档专家')
+            self.chat_data_state.switch = (prompt_name == '一企一档专家')
         except Exception as e:
             await self.stop_waiting_effect()
             await self.cleanup_waiting_effect()
             self.restore_welcome_message()
             ui.notify('加载聊天失败', type='negative')    
 
-    # UI主聊天区域渲染函数
     def render_ui(self):
         """渲染主聊天区域UI"""
         # 主聊天区域 - 占据剩余空间
@@ -574,7 +680,7 @@ class ChatAreaManager:
                     placeholder='请输入您的消息...(Enter发送，Shift+Enter换行)'
                 ).classes('flex-grow').style(
                     'min-height: 44px; max-height: 120px; resize: none;'
-                ).props('outlined dense rounded rows=3')
+                ).props('outlined dense rounded rows=3').tooltip('输入聊天内容')
 
                 # 使用.on()方法监听keydown事件
                 self.input_ref['widget'].on('keydown', self.handle_keydown)
@@ -582,4 +688,11 @@ class ChatAreaManager:
                 self.send_button_ref['widget'] = ui.button(
                     icon='send',
                     on_click=self.handle_message
-                ).props('round dense ').classes('ml-2')
+                ).props('round dense ').classes('ml-2').tooltip('发送聊天内容')
+
+                # 清空聊天按钮
+                self.clear_button_ref['widget'] = ui.button(
+                    icon='cleaning_services',
+                    on_click=self.clear_chat_content
+                ).props('round dense').classes('ml-2').tooltip('清空聊天内容')
+    #endregion

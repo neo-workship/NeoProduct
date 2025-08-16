@@ -180,7 +180,7 @@ class SimpleLayoutManager:
                 return
             
             print(f"🔄 恢复保存的路由: {saved_route}")
-            print(f"📋 可用路由映射: {list(self.all_routes.keys())}")
+            # print(f"📋 可用路由映射: {list(self.all_routes.keys())}")
             
             # 检查路由是否在已知路由中
             if saved_route in self.all_routes:
@@ -224,7 +224,6 @@ class SimpleLayoutManager:
 
     def handle_header_config_item_click(self, item: HeaderConfigItem):
         """处理头部配置项点击事件"""
-        print(f"🖱️ 点击头部配置项: {item.label or item.key}")
         ui.notify(f'点击了头部配置项: {item.label or item.key}')
         
         if item.on_click:

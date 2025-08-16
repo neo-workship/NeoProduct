@@ -613,10 +613,10 @@ class ChatSidebarManager:
             # 侧边栏内容
             with ui.column().classes('w-full items-center'):
                 # 新建对话按钮
-                ui.button('新建对话', icon='add', on_click=self.on_create_new_chat).classes('w-64').props('outlined rounded')
-                
+                ui.button('新建对话', icon='add', on_click=self.on_create_new_chat).classes('w-64').props('outlined rounded').tooltip('创建新聊天/保存当前聊天')
+                        
                 # 选择模型expansion组件
-                with ui.expansion('选择模型', icon='view_in_ar').classes('w-full'):
+                with ui.expansion('选择模型', icon='view_in_ar').classes('w-full').tooltip('选择大语言模型'):
                     with ui.column().classes('w-full'):
                         # 配置管理按钮行
                         with ui.row().classes('w-full'):
@@ -625,7 +625,6 @@ class ChatSidebarManager:
                                 icon='refresh',
                                 on_click=self.on_refresh_model_config
                             ).classes('text-xs').props('dense flat color="primary"').style('min-width: 80px;')
-                        
                         # 模型选择下拉框
                         self.chat_data_state.current_state.model_select_widget = ui.select(
                             options=self.chat_data_state.current_state.model_options,
@@ -635,7 +634,7 @@ class ChatSidebarManager:
                         ).classes('w-full').props('autofocus dense')
 
                 # 上下文模板expansion组件
-                with ui.expansion('上下文模板', icon='pattern').classes('w-full'):
+                with ui.expansion('上下文模板', icon='pattern').classes('w-full').tooltip('选择上下文模型'):
                     with ui.column().classes('w-full'):
                         # 配置管理按钮行
                         with ui.row().classes('w-full'):
@@ -654,7 +653,7 @@ class ChatSidebarManager:
                         ).classes('w-full').props('autofocus dense')
 
                 # select数据expansion组件
-                with ui.expansion('提示数据', icon='tips_and_updates').classes('w-full'):
+                with ui.expansion('提示数据', icon='tips_and_updates').classes('w-full').tooltip('选择提示数据'):
                     with ui.column().classes('w-full chathistorylist-hide-scrollbar').style('flex-grow: 1; '):
                         self.switch = ui.switch('启用', value=False).bind_value(self.chat_data_state, 'switch')
                         
@@ -664,7 +663,7 @@ class ChatSidebarManager:
                         self.chat_data_state.selected_values = self.hierarchy_selector.selected_values
                        
                 # 聊天历史expansion组件
-                with ui.expansion('历史消息', icon='history').classes('w-full'):
+                with ui.expansion('历史消息', icon='history').classes('w-full').tooltip('操作历史聊天内容'):
                     with ui.column().classes('w-full'):
                         # 添加刷新按钮
                         with ui.row().classes('w-full'):
