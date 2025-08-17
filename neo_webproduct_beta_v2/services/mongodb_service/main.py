@@ -1,9 +1,13 @@
 # services/mongodb_service/main.py
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional,List
+from typing import Dict, Any, Optional,List,Tuple
 import sys
 import os
+import re
+import json
+import time
+from typing import Union
 from contextlib import asynccontextmanager # 导入 asynccontextmanager
 
 # 添加项目根目录到Python路径
@@ -701,6 +705,8 @@ async def delete_many_documents(
             status_code=500,
             detail=f"批量删除文档失败: {str(e)}"
         )
+
+# ==================== 执行原生MongoDB查询命令 ====================
 
 # ==================== 错误处理 ====================
 

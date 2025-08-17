@@ -254,3 +254,5 @@ class DeleteManyDocumentsResponse(BaseModel):
                 }
             }
         }
+
+# --------------------------执行原生MongoDB查询模型--------------------------

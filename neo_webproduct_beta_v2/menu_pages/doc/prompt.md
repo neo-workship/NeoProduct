@@ -42,6 +42,14 @@ value_video_url: http://get_pic*{enterprise*code}*{full_path_code }/video （此
 
 3、请编写高效、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
 
+### /api/v1/enterprises/execute_mongo_cmd
+
+在 \services\mongodb_service\main.py 中添加一个 API: /api/v1/enterprises/execute_mongo_cmd。
+1、API 参数：字符串 query_cmd 原始查询语句
+2、接受参数后：预处理阶段-使用正则表达式和语法分析修复常见错误；解析阶段:-提取操作类型、集合名、查询条件、选项参数；转换阶段: 将解析结果转换为 MongoDB motor 库驱动的原生 API 调用
+3、返回数据：固定格式返回数据，包括 2 部分，分别是 查询到数据的总体统计；查询到的具体数据。
+3、请编写高效、精简、稳定的 API，并充分复用包中的已有功能，如\services\mongodb_service\mongodb_manager.py。 由于其他逻辑可复用，**只要编写 API 对应的数据模型和 API 路由函数**，数据模型编写在\services\mongodb_service\schemas.py 中
+
 ## UI 编写
 
 ### read_archive_tab 页面
