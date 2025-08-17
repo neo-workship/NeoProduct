@@ -211,7 +211,8 @@ class DefaultDisplayStrategy(ContentDisplayStrategy):
         
         # 更新显示内容
         if self.reply_label and parse_result['display_content'].strip():
-            self.reply_label.set_content(parse_result['display_content'].strip())
+            with self.chat_content_container:
+                self.reply_label.set_content(parse_result['display_content'].strip())
         
         return True  # 需要滚动
 
@@ -257,7 +258,8 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 self.think_label.set_text(parse_result['think_content'])
         
         if self.reply_label and parse_result['display_content'].strip():
-            self.reply_label.set_content(parse_result['display_content'].strip())
+            with self.chat_content_container:
+                self.reply_label.set_content(parse_result['display_content'].strip())
         
         return True
 

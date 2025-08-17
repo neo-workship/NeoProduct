@@ -2,7 +2,9 @@ import re
 import asyncio
 from typing import Optional, List, Dict, Any
 from nicegui import ui
-
+import io
+import json
+import csv
 
 class MarkdownUIParser:
     """
@@ -309,18 +311,323 @@ class MarkdownUIParser:
     def create_table_component(self, table_data: Dict[str, Any]):
         """创建表格组件"""
         if table_data and 'columns' in table_data and 'rows' in table_data:
-            ui.table(
-                columns=table_data['columns'],
-                rows=table_data['rows']
-            ).classes('w-full max-w-full')
+            
+            # 创建容器来包含表格和下载按钮
+            with ui.card().classes('w-full relative bg-[#81c784]'):
+                # 下载按钮 - 绝对定位在右上角
+                with ui.row().classes('absolute top-2 right-2 z-10'):
+                    ui.button(
+                        # '下载', 
+                        icon='download',
+                        on_click=lambda: self.download_table_data(table_data)
+                    ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载')     
+                    # 表格组件
+                ui.table(
+                    columns=table_data['columns'],
+                    rows=table_data['rows'],
+                    column_defaults={
+                        'align': 'left',
+                        'headerClasses': 'uppercase text-primary',
+                    },
+                    pagination=5
+                ).classes('w-full bg-[#81c784] text-gray-800')
+
+    def download_table_data(self,table_data: Dict[str, Any]):
+        """下载表格数据为CSV文件"""
+        if not table_data or 'columns' not in table_data or 'rows' not in table_data:
+            ui.notify('没有可下载的数据', type='warning')
+            return
+        try:
+            # 创建CSV内容
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # 写入表头
+            headers = [col['label'] if isinstance(col, dict) else col for col in table_data['columns']]
+            writer.writerow(headers)
+            
+            # 写入数据行
+            for row in table_data['rows']:
+                if isinstance(row, dict):
+                    # 如果行是字典，按列的顺序提取值
+                    row_values = []
+                    for col in table_data['columns']:
+                        col_name = col['name'] if isinstance(col, dict) else col
+                        row_values.append(row.get(col_name, ''))
+                    writer.writerow(row_values)
+                else:
+                    # 如果行是列表，直接写入
+                    writer.writerow(row)
+            # 获取CSV内容
+            csv_content = output.getvalue()
+            output.close()
+            
+            # 触发下载
+            ui.download(csv_content.encode('utf-8-sig'), 'table_data.csv')
+            ui.notify('文件下载成功', type='positive')
+        except Exception as e:
+            ui.notify(f'下载失败: {str(e)}', type='negative')
 
     def create_mermaid_component(self, mermaid_content: str):
         """创建Mermaid图表组件"""
         try:
-            ui.mermaid(mermaid_content).classes('w-full')
+            # 创建容器，使用相对定位
+            with ui.row().classes('w-full relative bg-[#81c784]'):
+                # 右上角全屏按钮
+                with ui.row().classes('absolute top-2 right-2 z-10'):
+                    ui.button(
+                        icon='fullscreen', 
+                        on_click=lambda: self.show_fullscreen_mermaid_enhanced(mermaid_content)
+                    ).props('flat round size=sm').classes('bg-blue-500 hover:bg-blue-600 text-white').tooltip('全屏显示') 
+                # Mermaid图表
+                ui.mermaid(mermaid_content).classes('w-full')     
         except Exception as e:
-            ui.notify(f"流程图渲染失败: {e}",type="info")
+            ui.notify(f"流程图渲染失败: {e}", type="info")
+            # 错误情况下也保持相同的布局结构
             ui.code(mermaid_content, language='mermaid').classes('w-full')
+
+    def show_fullscreen_mermaid_enhanced(self, mermaid_content: str):
+        """增强版全屏显示Mermaid图表"""
+        
+        mermaid_id = 'neo_container'
+        
+        def close_dialog():
+            dialog.close()
+
+        def export_image():
+            """导出Mermaid图表为PNG图片"""
+            try:
+                # JavaScript代码：使用多种方法导出SVG
+                js_code = f"""
+                async function exportMermaidImage() {{
+                    try {{
+                        // 查找mermaid容器
+                        const mermaidContainer = document.getElementById('{mermaid_id}');
+                        if (!mermaidContainer) {{
+                            console.error('未找到Mermaid容器');
+                            return false;
+                        }}
+                        
+                        // 查找SVG元素
+                        const svgElement = mermaidContainer.querySelector('svg');
+                        if (!svgElement) {{
+                            console.error('未找到SVG元素');
+                            return false;
+                        }}
+                        
+                        // 克隆SVG元素以避免修改原始元素
+                        const clonedSvg = svgElement.cloneNode(true);
+                        
+                        // 获取SVG的实际尺寸
+                        const bbox = svgElement.getBBox();
+                        const width = Math.max(bbox.width, svgElement.clientWidth, 400);
+                        const height = Math.max(bbox.height, svgElement.clientHeight, 300);
+                        
+                        // 设置克隆SVG的属性
+                        clonedSvg.setAttribute('width', width);
+                        clonedSvg.setAttribute('height', height);
+                        clonedSvg.setAttribute('viewBox', `0 0 ${{width}} ${{height}}`);
+                        clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                        clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+                        
+                        // 内联样式到SVG中
+                        const styleSheets = Array.from(document.styleSheets);
+                        let allStyles = '';
+                        
+                        try {{
+                            for (let sheet of styleSheets) {{
+                                try {{
+                                    const rules = Array.from(sheet.cssRules || sheet.rules || []);
+                                    for (let rule of rules) {{
+                                        if (rule.type === CSSRule.STYLE_RULE) {{
+                                            allStyles += rule.cssText + '\\n';
+                                        }}
+                                    }}
+                                }} catch (e) {{
+                                    // 跳过跨域样式表
+                                    console.warn('跳过样式表:', e);
+                                }}
+                            }}
+                            
+                            if (allStyles) {{
+                                const styleElement = document.createElement('style');
+                                styleElement.textContent = allStyles;
+                                clonedSvg.insertBefore(styleElement, clonedSvg.firstChild);
+                            }}
+                        }} catch (e) {{
+                            console.warn('样式处理失败:', e);
+                        }}
+                        
+                        // 序列化SVG
+                        const serializer = new XMLSerializer();
+                        let svgString = serializer.serializeToString(clonedSvg);
+                        
+                        // 方法1：尝试使用html2canvas式的方法
+                        try {{
+                            return await exportViaCanvas(svgString, width, height);
+                        }} catch (canvasError) {{
+                            console.warn('Canvas方法失败，尝试直接下载SVG:', canvasError);
+                            // 方法2：直接下载SVG文件
+                            return exportAsSVG(svgString);
+                        }}
+                        
+                    }} catch (error) {{
+                        console.error('导出图片错误:', error);
+                        return false;
+                    }}
+                }}
+                
+                async function exportViaCanvas(svgString, width, height) {{
+                    return new Promise((resolve, reject) => {{
+                        // 创建canvas
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const scale = 2; // 高分辨率
+                        
+                        canvas.width = width * scale;
+                        canvas.height = height * scale;
+                        ctx.scale(scale, scale);
+                        
+                        // 白色背景
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, width, height);
+                        
+                        // 创建Data URL
+                        const svgBlob = new Blob([svgString], {{ type: 'image/svg+xml;charset=utf-8' }});
+                        const url = URL.createObjectURL(svgBlob);
+                        
+                        const img = new Image();
+                        img.onload = function() {{
+                            try {{
+                                ctx.drawImage(img, 0, 0, width, height);
+                                
+                                // 使用getImageData方式避免toBlob的跨域问题
+                                try {{
+                                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                    const newCanvas = document.createElement('canvas');
+                                    const newCtx = newCanvas.getContext('2d');
+                                    newCanvas.width = canvas.width;
+                                    newCanvas.height = canvas.height;
+                                    newCtx.putImageData(imageData, 0, 0);
+                                    
+                                    newCanvas.toBlob(function(blob) {{
+                                        if (blob) {{
+                                            downloadBlob(blob, 'flowchart_' + new Date().getTime() + '.png');
+                                            resolve(true);
+                                        }} else {{
+                                            reject('Blob转换失败');
+                                        }}
+                                    }}, 'image/png', 1.0);
+                                }} catch (e) {{
+                                    // 如果还是失败，使用toDataURL
+                                    const dataUrl = canvas.toDataURL('image/png', 1.0);
+                                    downloadDataUrl(dataUrl, 'flowchart_' + new Date().getTime() + '.png');
+                                    resolve(true);
+                                }}
+                            }} catch (error) {{
+                                reject('绘制失败: ' + error.message);
+                            }} finally {{
+                                URL.revokeObjectURL(url);
+                            }}
+                        }};
+                        
+                        img.onerror = function() {{
+                            URL.revokeObjectURL(url);
+                            reject('图像加载失败');
+                        }};
+                        
+                        img.src = url;
+                    }});
+                }}
+                
+                function exportAsSVG(svgString) {{
+                    try {{
+                        const blob = new Blob([svgString], {{ type: 'image/svg+xml;charset=utf-8' }});
+                        downloadBlob(blob, 'flowchart_' + new Date().getTime() + '.svg');
+                        return true;
+                    }} catch (error) {{
+                        console.error('SVG导出失败:', error);
+                        return false;
+                    }}
+                }}
+                
+                function downloadBlob(blob, filename) {{
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                }}
+                
+                function downloadDataUrl(dataUrl, filename) {{
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }}
+                
+                // 执行导出
+                exportMermaidImage().then(result => {{
+                    if (result) {{
+                        console.log('图片导出成功');
+                    }} else {{
+                        console.error('图片导出失败');
+                    }}
+                }}).catch(error => {{
+                    console.error('导出过程中出错:', error);
+                }});
+                """
+                
+                # 执行JavaScript代码
+                ui.run_javascript(js_code)
+                
+                # 给用户反馈
+                ui.notify('正在导出图片...', type='info')
+                
+            except Exception as e:
+                ui.notify(f'导出失败: {str(e)}', type='negative')
+                print(f"Export error: {e}")
+        
+        # 创建全屏对话框
+        with ui.dialog().props('maximized transition-show="slide-up" transition-hide="slide-down"') as dialog:
+            with ui.card().classes('w-full no-shadow bg-white'):
+                # 顶部工具栏
+                with ui.row().classes('w-full justify-between items-center p-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white'):
+                    with ui.row().classes('items-center gap-3'):
+                        ui.icon('account_tree', size='md')
+                        ui.label('流程图全屏显示').classes('text-xl font-bold')
+                    
+                    with ui.row().classes('gap-1'):
+                        ui.button(
+                            icon='download',
+                            on_click=export_image
+                        ).props('flat round').classes('text-white hover:bg-white/20').tooltip('导出图片')
+                        
+                        ui.button(
+                            icon='close',
+                            on_click=close_dialog
+                        ).props('flat round').classes('text-white hover:bg-white/20').tooltip('退出全屏')
+                
+                # 图表容器
+                with ui.scroll_area().classes('flex-1 p-6 bg-gray-50'):
+                    try:
+                        # 重点：为ui.mermaid组件添加一个ID
+                        ui.mermaid(mermaid_content).classes('w-full min-h-96 bg-white rounded-lg shadow-sm p-4').props(f'id="{mermaid_id}"')
+                    except Exception as e:
+                        ui.notify(f"全屏图表渲染失败: {e}", type="warning")
+                        with ui.card().classes('w-full bg-white'):
+                            ui.label('图表渲染失败，显示源代码:').classes('font-semibold mb-2 text-red-600')
+                            ui.code(mermaid_content, language='mermaid').classes('w-full')
+        
+        # 添加键盘事件监听（ESC键关闭）
+        dialog.on('keydown.esc', close_dialog)
+        # 打开对话框
+        dialog.open()
 
     def create_code_component(self, code_content: str, language: str):
         """创建代码组件"""
