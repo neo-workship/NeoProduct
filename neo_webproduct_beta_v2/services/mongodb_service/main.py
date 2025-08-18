@@ -717,12 +717,7 @@ async def execute_mongo_command(
     解析和执行原始MongoDB查询语句，返回分类后的数据
     
     支持的查询类型：
-    - db.collection.find() - 查询文档 (明细)
-    - db.collection.findOne() - 查询单个文档 (明细)
-    - db.collection.aggregate() - 聚合查询 (明细)
-    - db.collection.count() - 计数查询 (汇总)
-    - db.collection.countDocuments() - 统计文档数量查询 (汇总)
-    - db.collection.distinct() - 去重统计 (汇总)
+    - db.collection.find()、db.collection.findOne()、db.collection.aggregate()、db.collection.count()、db.collection.countDocuments()、db.collection.distinct()
     
     注意：
     - 查询将在配置文件指定的数据库("数字政府")和集合("一企一档")中执行
@@ -758,8 +753,6 @@ async def execute_mongo_command(
         result_data, total_count = await _execute_mongodb_query(
             manager, query_type, query_params
         )
-        print(f"_classify_query_result result_data:{result_data} ， total_count:{total_count}")
-
         # 2.5 根据查询类型对返回数据进行分类处理
         response_data = _classify_query_result(query_type, result_data, total_count)
         
@@ -888,6 +881,7 @@ def _extract_field_value(field_doc: Dict[str, Any]) -> Dict[str, Any]:
     
     # 提取字段数据值相关字段
     value_fields = [
+        "enterprise_code","enterprise_name","full_path_name","field_name",
         "value", "value_text", "value_pic_url", 
         "value_doc_url", "value_video_url"
     ]
