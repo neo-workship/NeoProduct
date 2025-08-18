@@ -256,3 +256,50 @@ class DeleteManyDocumentsResponse(BaseModel):
         }
 
 # --------------------------执行原生MongoDB查询模型--------------------------
+class ExecuteMongoQueryRequest(BaseModel):
+    """执行MongoDB原生查询请求模型"""
+    query_cmd: str = Field(..., description="原始MongoDB查询语句", min_length=1)
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query_cmd": "db.collection.find({\"enterprise_code\": \"TEST001\"})"
+            }
+        }
+
+class QueryStatistics(BaseModel):
+    """查询统计信息模型"""
+    total_documents: int = Field(..., description="总文档数量")
+    returned_documents: int = Field(..., description="返回的文档数量")
+    field_count: int = Field(..., description="文档中字段数")
+    execution_time_ms: float = Field(..., description="执行时间(毫秒)")
+    query_type: str = Field(..., description="查询类型(find/findOne/aggregate/count/distinct)")
+
+class ExecuteMongoQueryResponse(BaseModel):
+    """执行MongoDB原生查询响应模型"""
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="响应消息")
+    statistics: Optional[QueryStatistics] = Field(None, description="查询统计信息")
+    data: Optional[List[Dict[str, Any]]] = Field(None, description="查询具体数据")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "message": "查询执行成功",
+                "statistics": {
+                    "total_documents": 100,
+                    "returned_documents": 5,
+                    "field_count": 15,
+                    "execution_time_ms": 25.6,
+                    "query_type": "find"
+                },
+                "data": [
+                    {
+                        "_id": "TEST001",
+                        "enterprise_name": "测试企业",
+                        "enterprise_code": "TEST001"
+                    }
+                ]
+            }
+        }

@@ -707,7 +707,324 @@ async def delete_many_documents(
         )
 
 # ==================== 执行原生MongoDB查询命令 ====================
+@app.post("/api/v1/enterprises/execute_mongo_cmd",
+          response_model=ExecuteMongoQueryResponse,
+          summary="执行原始MongoDB查询语句")
+async def execute_mongo_command(
+    request: ExecuteMongoQueryRequest,
+    manager: MongoDBManager = Depends(get_mongodb_manager)
+) -> ExecuteMongoQueryResponse:
+    """
+    解析和执行原始MongoDB查询语句
+    
+    支持的查询类型：
+    - db.collection.find() - 查询文档
+    - db.collection.findOne() - 查询单个文档  
+    - db.collection.aggregate() - 聚合查询
+    - db.collection.count() - 计数查询
+    - db.collection.distinct() - 去重统计
+    
+    Args:
+        request: 包含原始查询语句的请求模型
+        
+    Returns:
+        包含查询统计信息和具体数据的响应模型
+    """
+    start_time = time.time()
+    
+    try:
+        log_info("开始执行MongoDB原生查询", 
+                extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}..."}}')
+        
+        # 2.1 解析查询操作类型
+        query_type = _parse_query_type(request.query_cmd)
+        if not query_type:
+            raise HTTPException(
+                status_code=400,
+                detail="不支持的查询类型，只支持 find/findOne/aggregate/count/distinct 操作"
+            )
+        
+        # 2.2 修复和预处理查询语句
+        fixed_query = _fix_query_syntax(request.query_cmd)
+        
+        # 2.3 解析查询参数
+        collection_name, query_params = _parse_query_parameters(fixed_query, query_type)
+        
+        # 2.4 执行MongoDB查询
+        result_data, total_count = await _execute_mongodb_query(
+            manager, query_type, query_params
+        )
+        
+        # 计算执行时间
+        execution_time = (time.time() - start_time) * 1000
+        
+        # 3. 构建返回数据
+        field_count = len(result_data[0]) if result_data else 0
+        
+        statistics = QueryStatistics(
+            total_documents=total_count,
+            returned_documents=len(result_data),
+            field_count=field_count,
+            execution_time_ms=round(execution_time, 2),
+            query_type=query_type
+        )
+        
+        log_info("MongoDB原生查询执行成功", 
+                extra_data=f'{{"query_type": "{query_type}", "returned_count": {len(result_data)}, "execution_time_ms": {statistics.execution_time_ms}}}')
+        
+        return ExecuteMongoQueryResponse(
+            success=True,
+            message="查询执行成功",
+            statistics=statistics,
+            data=result_data
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        log_error("MongoDB原生查询执行失败", exception=e,
+                 extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}...", "execution_time_ms": {execution_time}}}')
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"查询执行失败: {str(e)}"
+        )
 
+# 辅助函数实现
+
+def _parse_query_type(query_cmd: str) -> Optional[str]:
+    """
+    解析查询操作类型
+    
+    Args:
+        query_cmd: 原始查询命令
+        
+    Returns:
+        查询类型字符串或None
+    """
+    query_cmd_clean = query_cmd.strip().lower()
+    
+    if ".find(" in query_cmd_clean and ".findone(" not in query_cmd_clean:
+        return "find"
+    elif ".findone(" in query_cmd_clean:
+        return "findOne"
+    elif ".aggregate(" in query_cmd_clean:
+        return "aggregate"
+    elif ".count(" in query_cmd_clean:
+        return "count"
+    elif ".distinct(" in query_cmd_clean:
+        return "distinct"
+    
+    return None
+
+def _fix_query_syntax(query_cmd: str) -> str:
+    """
+    修复查询语句的语法问题
+    
+    Args:
+        query_cmd: 原始查询命令
+        
+    Returns:
+        修复后的查询命令
+    """
+    # 移除前后空白字符
+    fixed_query = query_cmd.strip()
+    
+    # 括号匹配检查和修复
+    open_brackets = fixed_query.count('(')
+    close_brackets = fixed_query.count(')')
+    if open_brackets > close_brackets:
+        fixed_query += ')' * (open_brackets - close_brackets)
+    
+    open_braces = fixed_query.count('{')
+    close_braces = fixed_query.count('}')
+    if open_braces > close_braces:
+        fixed_query += '}' * (open_braces - close_braces)
+    
+    open_squares = fixed_query.count('[')
+    close_squares = fixed_query.count(']')
+    if open_squares > close_squares:
+        fixed_query += ']' * (open_squares - close_squares)
+    
+    # JSON引号修复：将单引号替换为双引号（在字符串内容中）
+    fixed_query = re.sub(r"'([^']*)'", r'"\1"', fixed_query)
+    
+    # 字段名标准化：为未加引号的字段名添加双引号
+    fixed_query = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed_query)
+    
+    # 修复缺失的逗号（简单情况）
+    fixed_query = re.sub(r'}\s*{', '},{', fixed_query)
+    fixed_query = re.sub(r']\s*\[', '],[', fixed_query)
+    print(f"--> fixed_query:{fixed_query}")
+    return fixed_query
+
+def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[str, Dict[str, Any]]:
+    """
+    解析查询参数
+    
+    Args:
+        query_cmd: 查询命令
+        query_type: 查询类型
+        
+    Returns:
+        (集合名, 查询参数字典)
+    """
+    # 提取集合名 - 假设使用默认集合名，实际可根据需要调整
+    collection_name = "default_collection"
+    
+    try:
+        # 根据查询类型提取参数
+        if query_type in ["find", "findOne"]:
+            # 提取find/findOne的参数
+            match = re.search(rf'\.{query_type}\((.*)\)', query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    # 尝试解析JSON参数
+                    try:
+                        # 简单处理：如果有多个参数，取第一个作为filter
+                        if ',' in params_str:
+                            filter_part = params_str.split(',')[0].strip()
+                        else:
+                            filter_part = params_str
+                        
+                        filter_dict = json.loads(filter_part) if filter_part else {}
+                        return collection_name, {"filter": filter_dict}
+                    except json.JSONDecodeError:
+                        return collection_name, {"filter": {}}
+                else:
+                    return collection_name, {"filter": {}}
+        
+        elif query_type == "aggregate":
+            # 提取aggregate的pipeline参数
+            match = re.search(r'\.aggregate\((.*)\)', query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    try:
+                        pipeline = json.loads(params_str)
+                        return collection_name, {"pipeline": pipeline}
+                    except json.JSONDecodeError:
+                        return collection_name, {"pipeline": []}
+                else:
+                    return collection_name, {"pipeline": []}
+        
+        elif query_type == "count":
+            # 提取count的参数
+            match = re.search(r'\.count\((.*)\)', query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    try:
+                        filter_dict = json.loads(params_str)
+                        return collection_name, {"filter": filter_dict}
+                    except json.JSONDecodeError:
+                        return collection_name, {"filter": {}}
+                else:
+                    return collection_name, {"filter": {}}
+        
+        elif query_type == "distinct":
+            # 提取distinct的参数
+            match = re.search(r'\.distinct\((.*)\)', query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                params_list = [p.strip(' "\'') for p in params_str.split(',')]
+                field_name = params_list[0] if params_list else ""
+                filter_dict = {}
+                if len(params_list) > 1:
+                    try:
+                        filter_dict = json.loads(params_list[1])
+                    except json.JSONDecodeError:
+                        pass
+                
+                return collection_name, {"field": field_name, "filter": filter_dict}
+        
+        return collection_name, {}
+        
+    except Exception as e:
+        log_error("解析查询参数失败", exception=e)
+        return collection_name, {}
+
+async def _execute_mongodb_query(
+    manager: MongoDBManager, 
+    query_type: str, 
+    query_params: Dict[str, Any]
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    执行MongoDB查询
+    
+    Args:
+        manager: MongoDB管理器
+        query_type: 查询类型
+        query_params: 查询参数
+        
+    Returns:
+        (查询结果数据, 总文档数)
+    """
+    if manager.collection is None:
+        raise Exception("MongoDB集合未初始化")
+    
+    total_count = 0
+    result_data = []
+    
+    try:
+        if query_type == "find":
+            filter_dict = query_params.get("filter", {})
+            
+            # 获取总数
+            total_count = await manager.count_documents(filter_dict)
+            
+            # 执行查询（限制返回数量避免内存问题）
+            cursor = manager.collection.find(filter_dict).limit(1000)
+            result_data = await cursor.to_list(length=1000)
+            
+        elif query_type == "findOne":
+            filter_dict = query_params.get("filter", {})
+            
+            # findOne只返回一个文档
+            doc = await manager.collection.find_one(filter_dict)
+            result_data = [doc] if doc else []
+            total_count = 1 if doc else 0
+            
+        elif query_type == "aggregate":
+            pipeline = query_params.get("pipeline", [])
+            
+            # 执行聚合查询
+            cursor = manager.collection.aggregate(pipeline)
+            result_data = await cursor.to_list(length=1000)
+            total_count = len(result_data)
+            
+        elif query_type == "count":
+            filter_dict = query_params.get("filter", {})
+            
+            # 执行计数查询
+            count_result = await manager.count_documents(filter_dict)
+            result_data = [{"count": count_result}]
+            total_count = 1
+            
+        elif query_type == "distinct":
+            field_name = query_params.get("field", "")
+            filter_dict = query_params.get("filter", {})
+            
+            if not field_name:
+                raise Exception("distinct查询缺少字段名")
+            
+            # 执行去重查询
+            distinct_values = await manager.collection.distinct(field_name, filter_dict)
+            result_data = [{"distinct_values": distinct_values, "count": len(distinct_values)}]
+            total_count = 1
+        
+        # 转换ObjectId为字符串，确保JSON序列化
+        for doc in result_data:
+            if isinstance(doc, dict) and "_id" in doc:
+                doc["_id"] = str(doc["_id"])
+        
+        return result_data, total_count
+        
+    except Exception as e:
+        log_error(f"执行{query_type}查询失败", exception=e)
+        raise
 # ==================== 错误处理 ====================
 
 @app.exception_handler(Exception)
