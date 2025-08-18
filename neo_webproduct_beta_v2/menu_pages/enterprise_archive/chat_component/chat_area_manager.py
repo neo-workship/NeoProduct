@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 import asyncio
+import aiohttp
+import re
+import json
 from datetime import datetime
 from nicegui import ui, app
 from typing import Optional, List, Dict, Any
@@ -217,7 +220,12 @@ class DefaultDisplayStrategy(ContentDisplayStrategy):
         return True  # 需要滚动
 
 class ExpertDisplayStrategy(ContentDisplayStrategy):
-    """专家模式展示策略 - 可以有不同的展示样式"""
+    """专家模式展示策略 - 支持MongoDB查询检测和执行"""
+    
+    def __init__(self, chat_area_manager):
+        super().__init__(chat_area_manager)
+        self.query_result_label = None
+        self.mongodb_api_base = "http://localhost:8001"  # MongoDB服务API地址，与项目中一致
     
     def create_ui_structure(self, has_think: bool):
         """创建专家模式UI结构"""
@@ -225,7 +233,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         with self.ui_components.waiting_ai_message_container:
             with ui.column().classes('w-full') as self.chat_content_container:
                 if has_think:
-                    # 专家模式可以有不同的思考区域样式
+                    # 专家模式思考区域
                     self.think_expansion = ui.expansion(
                         '🧠 专家思考分析...(点击查看详细分析)', 
                         icon='psychology'
@@ -238,9 +246,166 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     self.reply_label = ui.markdown('').classes('w-full')
                     self.reply_created = True
     
+    def _detect_mongodb_query(self, content: str) -> Optional[str]:
+        """
+        简单检测MongoDB查询语句
+        返回检测到的查询语句，如果没有检测到则返回None
+        """
+        # 首先移除代码块标记
+        cleaned_content = self._extract_from_code_blocks(content)
+        
+        # 扩展的MongoDB查询模式，支持更多查询格式
+        patterns = [
+            # 标准格式：db.collection.method()
+            r'db\.\w+\.find\([^)]*\)',
+            r'db\.\w+\.findOne\([^)]*\)',
+            r'db\.\w+\.aggregate\([^)]*\)',
+            r'db\.\w+\.count\([^)]*\)',
+            r'db\.\w+\.distinct\([^)]*\)',
+            r'db\.\w+\.countDocuments\([^)]*\)',
+            
+            # getCollection格式：db.getCollection('name').method()
+            r'db\.getCollection\([\'"][^\'"]*[\'"]\)\.\w+\([^)]*\)',
+            
+            # 带链式调用的格式：db.collection.method().method()
+            r'db\.\w+\.\w+\([^)]*\)\.\w+',
+            r'db\.getCollection\([\'"][^\'"]*[\'"]\)\.\w+\([^)]*\)\.\w+',
+            
+            # 更复杂的链式调用
+            r'db\.getCollection\([\'"][^\'"]*[\'"]\)\.distinct\([^)]*\)\.length',
+            r'db\.\w+\.distinct\([^)]*\)\.length',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, cleaned_content, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+            if match:
+                query = match.group(0).strip()
+                # 进一步清理查询语句
+                query = self._clean_query_string(query)
+                return query
+        
+        return None
+    
+    def _extract_from_code_blocks(self, content: str) -> str:
+        """
+        从代码块中提取内容，移除 ``` 标记
+        """
+        # 匹配各种代码块格式
+        code_block_patterns = [
+            r'```javascript\s*(.*?)\s*```',
+            r'```js\s*(.*?)\s*```', 
+            r'```mongodb\s*(.*?)\s*```',
+            r'```\s*(.*?)\s*```',  # 无语言标识的代码块
+        ]
+        
+        for pattern in code_block_patterns:
+            matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
+            if matches:
+                # 返回第一个匹配的代码块内容
+                return matches[0].strip()
+        
+        # 如果没有代码块，返回原内容
+        return content
+    
+    def _clean_query_string(self, query: str) -> str:
+        """
+        清理查询字符串，移除多余的空白字符
+        """
+        # 移除行首行尾空白
+        query = query.strip()
+        # 压缩多个空白字符为单个空格
+        query = re.sub(r'\s+', ' ', query)
+        return query
+    
+    async def _execute_mongodb_query(self, query_cmd: str) -> Dict[str, Any]:
+        """
+        调用MongoDB服务API执行查询
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                # 构建请求数据
+                request_data = {"query_cmd": query_cmd}
+                
+                async with session.post(
+                    f"{self.mongodb_api_base}/api/v1/enterprises/execute_mongo_cmd",
+                    json=request_data,
+                    headers={'Content-Type': 'application/json'}
+                ) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    else:
+                        error_text = await response.text()
+                        return {
+                            "success": False,
+                            "message": f"API调用失败: HTTP {response.status}, response={error_text}",
+                            "statistics": None,
+                            "data": []
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"网络请求失败: {str(e)}",
+                "statistics": None,
+                "data": []
+            }
+    
+    def _display_query_result(self, result: Dict[str, Any]):
+        """
+        使用ui.label展示查询结果
+        """
+        if not self.chat_content_container:
+            return
+            
+        with self.chat_content_container:
+            # 显示查询统计信息
+            if result.get("statistics"):
+                stats = result["statistics"]
+                stats_text = (
+                    f"📊 查询统计:\n"
+                    f"• 查询类型: {stats.get('query_type', 'N/A')}\n"
+                    f"• 总文档数: {stats.get('total_documents', 0)}\n"
+                    f"• 返回文档数: {stats.get('returned_documents', 0)}\n"
+                    f"• 字段数: {stats.get('field_count', 0)}\n"
+                    f"• 执行时间: {stats.get('execution_time_ms', 0)}ms"
+                )
+                ui.label(stats_text).classes(
+                    'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
+                )
+            
+            # 显示查询结果数据
+            if result.get("success"):
+                data = result.get("data", [])
+                if data:
+                    # 格式化显示前几条数据
+                    display_count = min(3, len(data))  # 最多显示3条
+                    result_text = f"🔍 查询结果 (显示前{display_count}条):\n\n"
+                    
+                    for i, item in enumerate(data[:display_count]):
+                        result_text += f"📄 记录 {i+1}:\n"
+                        # 格式化JSON数据
+                        formatted_json = json.dumps(item, ensure_ascii=False, indent=2)
+                        result_text += f"{formatted_json}\n\n"
+                    
+                    if len(data) > display_count:
+                        result_text += f"... 还有 {len(data) - display_count} 条记录"
+                    
+                    self.query_result_label = ui.label(result_text).classes(
+                        'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
+                    )
+                else:
+                    ui.label("📝 查询结果: 未找到匹配的数据").classes(
+                        'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
+                    )
+            else:
+                # 显示错误信息
+                error_msg = f"❌ 查询失败: {result.get('message', '未知错误')}"
+                ui.label(error_msg).classes(
+                    'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+                )
+    
     def update_content(self, parse_result: Dict[str, Any]) -> bool:
         """更新专家模式展示内容"""
-        # 与默认策略类似的逻辑，但可以有不同的处理方式
+        # 只执行通用内容更新，不进行MongoDB查询检测
         return self.update_content_common(parse_result)
     
     def update_content_common(self, parse_result: Dict[str, Any]) -> bool:
@@ -261,7 +426,38 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             with self.chat_content_container:
                 self.reply_label.set_content(parse_result['display_content'].strip())
         
-        return True
+        return True  # 需要滚动
+    
+    async def finalize_content(self, final_content: str):
+        """完成内容显示，并检测和执行MongoDB查询"""
+        final_result = self.think_parser.parse_chunk(final_content)
+        
+        if final_result['think_complete'] and self.think_label:
+            self.think_label.set_text(final_result['think_content'])
+        
+        if self.reply_label and final_result['display_content'].strip():
+            self.reply_label.set_content(final_result['display_content'].strip())
+        
+        # 在内容完全处理完毕后，检测MongoDB查询并执行
+        display_content = final_result.get('display_content', '')
+        if display_content.strip():
+            query_cmd = self._detect_mongodb_query(display_content)
+            if query_cmd:
+                # 异步执行查询
+                try:
+                    result = await self._execute_mongodb_query(query_cmd)
+                    self._display_query_result(result)
+                    # 执行完查询后滚动到底部
+                    if hasattr(self.ui_components, 'scroll_to_bottom_smooth'):
+                        await self.ui_components.scroll_to_bottom_smooth()
+                except Exception as e:
+                    # 查询执行失败时显示错误信息
+                    error_msg = f"❌ MongoDB查询执行失败: {str(e)}"
+                    if self.chat_content_container:
+                        with self.chat_content_container:
+                            ui.label(error_msg).classes(
+                                'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+                            )
 
 class StreamResponseProcessor:
     """流式响应处理器"""
@@ -277,7 +473,7 @@ class StreamResponseProcessor:
             'selected_prompt', 
             'default'
         )
-        
+        print(f"##->get_display_strategy prompt:{prompt_name}")
         if prompt_name == '一企一档专家':
             return ExpertDisplayStrategy(self.chat_area_manager)
         else:
