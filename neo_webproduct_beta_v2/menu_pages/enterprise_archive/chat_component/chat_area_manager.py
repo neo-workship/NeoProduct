@@ -261,8 +261,8 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             r'db\.\w+\.findOne\([^)]*\)',
             r'db\.\w+\.aggregate\([^)]*\)',
             r'db\.\w+\.count\([^)]*\)',
+            r'db\.\w+\.countDocuments\([^)]*\)',  # 新增：countDocuments 模式
             r'db\.\w+\.distinct\([^)]*\)',
-            r'db\.\w+\.countDocuments\([^)]*\)',
             
             # getCollection格式：db.getCollection('name').method()
             r'db\.getCollection\([\'"][^\'"]*[\'"]\)\.\w+\([^)]*\)',
@@ -274,6 +274,8 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             # 更复杂的链式调用
             r'db\.getCollection\([\'"][^\'"]*[\'"]\)\.distinct\([^)]*\)\.length',
             r'db\.\w+\.distinct\([^)]*\)\.length',
+            r'db\.\w+\.countDocuments\([^)]*\)',  # 新增：直接 countDocuments 调用
+            r'db\.getCollection\([\'"][^\'"]*[\'"]\)\.countDocuments\([^)]*\)',  # 新增：getCollection + countDocuments
         ]
         
         for pattern in patterns:
@@ -473,7 +475,7 @@ class StreamResponseProcessor:
             'selected_prompt', 
             'default'
         )
-        print(f"##->get_display_strategy prompt:{prompt_name}")
+
         if prompt_name == '一企一档专家':
             return ExpertDisplayStrategy(self.chat_area_manager)
         else:

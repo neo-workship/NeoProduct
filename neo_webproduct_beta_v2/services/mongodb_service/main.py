@@ -721,7 +721,12 @@ async def execute_mongo_command(
     - db.collection.findOne() - 查询单个文档 (明细)
     - db.collection.aggregate() - 聚合查询 (明细)
     - db.collection.count() - 计数查询 (汇总)
+    - db.collection.countDocuments() - 统计文档数量查询 (汇总)
     - db.collection.distinct() - 去重统计 (汇总)
+    
+    注意：
+    - 查询将在配置文件指定的数据库("数字政府")和集合("一企一档")中执行
+    - 查询语句中的集合名会被忽略，始终使用配置的集合
     
     Args:
         request: 包含原始查询语句的请求模型
@@ -733,27 +738,28 @@ async def execute_mongo_command(
     
     try:
         log_info("开始执行MongoDB原生查询", 
-                extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}..."}}')
+                extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}...", "database": "{manager.database.name if manager.database is not None else "未知"}", "collection": "{manager.collection_name}"}}')
         
         # 2.1 解析查询操作类型
         query_type = _parse_query_type(request.query_cmd)
         if not query_type:
             raise HTTPException(
                 status_code=400,
-                detail="不支持的查询类型，只支持 find/findOne/aggregate/count/distinct 操作"
+                detail="不支持的查询类型，只支持 find/findOne/aggregate/count/countDocuments/distinct 操作"
             )
         
         # 2.2 修复和预处理查询语句
         fixed_query = _fix_query_syntax(request.query_cmd)
         
-        # 2.3 解析查询参数
-        collection_name, query_params = _parse_query_parameters(fixed_query, query_type)
+        # 2.3 解析查询参数（集合名将被忽略，使用配置的集合）
+        _, query_params = _parse_query_parameters(fixed_query, query_type)
         
-        # 2.4 执行MongoDB查询
+        # 2.4 执行MongoDB查询（使用配置的集合）
         result_data, total_count = await _execute_mongodb_query(
             manager, query_type, query_params
         )
-        
+        print(f"_classify_query_result result_data:{result_data} ， total_count:{total_count}")
+
         # 2.5 根据查询类型对返回数据进行分类处理
         response_data = _classify_query_result(query_type, result_data, total_count)
         
@@ -765,7 +771,7 @@ async def execute_mongo_command(
         }
         
         log_info("MongoDB原生查询执行成功", 
-                extra_data=f'{{"query_type": "{query_type}", "result_type": "{response_data["type"]}", "execution_time_ms": {execution_time}}}')
+                extra_data=f'{{"query_type": "{query_type}", "result_type": "{response_data["type"]}", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name}"}}')
         
         return ExecuteMongoQueryResponse(
             success=True,
@@ -779,13 +785,13 @@ async def execute_mongo_command(
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
         log_error("MongoDB原生查询执行失败", exception=e,
-                 extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}...", "execution_time_ms": {execution_time}}}')
+                 extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}...", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name if manager else "未知"}"}}')
         
         raise HTTPException(
             status_code=500,
             detail=f"查询执行失败: {str(e)}"
         )
-
+    
 # 响应结果分类处理
 def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], total_count: int) -> Dict[str, Any]:
     """
@@ -799,9 +805,9 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
     Returns:
         分类后的数据字典
     """
-    if query_type in ["count", "distinct"]:
-        # 汇总类型：count、distinct
-        if query_type == "count":
+    if query_type in ["count", "countDocuments", "distinct"]:  # 修改：将 countDocuments 加入汇总类型
+        # 汇总类型：count、countDocuments、distinct
+        if query_type in ["count", "countDocuments"]:  # 修改：count 和 countDocuments 统一处理
             field_value = total_count
         elif query_type == "distinct":
             # distinct返回的是去重后的值列表的数量
@@ -928,6 +934,8 @@ def _parse_query_type(query_cmd: str) -> Optional[str]:
         return "findOne"
     elif ".aggregate(" in query_cmd_clean:
         return "aggregate"
+    elif ".countdocuments(" in query_cmd_clean:  # 新增：countDocuments 支持
+        return "countDocuments"
     elif ".count(" in query_cmd_clean:
         return "count"
     elif ".distinct(" in query_cmd_clean:
@@ -976,7 +984,7 @@ def _fix_query_syntax(query_cmd: str) -> str:
     print(f"--> fixed_query:{fixed_query}")
     return fixed_query
 
-def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[str, Dict[str, Any]]:
+def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[Optional[str], Dict[str, Any]]:
     """
     解析查询参数
     
@@ -985,10 +993,11 @@ def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[str, Dict[
         query_type: 查询类型
         
     Returns:
-        (集合名, 查询参数字典)
+        (集合名(始终返回None表示使用配置的默认集合), 查询参数字典)
     """
-    # 提取集合名 - 假设使用默认集合名，实际可根据需要调整
-    collection_name = "default_collection"
+    # 重要：不再解析集合名，始终返回None表示使用配置文件中的默认集合
+    # 这样可以确保使用配置文件中的 "一企一档" 集合
+    collection_name = None  # 让MongoDB管理器使用配置的默认集合
     
     try:
         # 根据查询类型提取参数
@@ -1027,9 +1036,13 @@ def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[str, Dict[
                 else:
                     return collection_name, {"pipeline": []}
         
-        elif query_type == "count":
-            # 提取count的参数
-            match = re.search(r'\.count\((.*)\)', query_cmd, re.DOTALL)
+        elif query_type in ["count", "countDocuments"]:  # 支持 countDocuments
+            # 提取count/countDocuments的参数
+            if query_type == "countDocuments":
+                match = re.search(r'\.countDocuments\((.*)\)', query_cmd, re.DOTALL)
+            else:
+                match = re.search(r'\.count\((.*)\)', query_cmd, re.DOTALL)
+                
             if match:
                 params_str = match.group(1).strip()
                 if params_str:
@@ -1072,7 +1085,7 @@ async def _execute_mongodb_query(
     执行MongoDB查询
     
     Args:
-        manager: MongoDB管理器
+        manager: MongoDB管理器（已经连接到配置的数据库和集合）
         query_type: 查询类型
         query_params: 查询参数
         
@@ -1082,6 +1095,10 @@ async def _execute_mongodb_query(
     if manager.collection is None:
         raise Exception("MongoDB集合未初始化")
     
+    # 直接使用管理器中配置的集合（"一企一档"）
+    collection = manager.collection
+    log_info(f"使用配置的集合: {manager.collection_name}")
+    
     total_count = 0
     result_data = []
     
@@ -1090,17 +1107,17 @@ async def _execute_mongodb_query(
             filter_dict = query_params.get("filter", {})
             
             # 获取总数
-            total_count = await manager.count_documents(filter_dict)
+            total_count = await collection.count_documents(filter_dict)
             
             # 执行查询（限制返回数量避免内存问题）
-            cursor = manager.collection.find(filter_dict).limit(1000)
+            cursor = collection.find(filter_dict).limit(1000)
             result_data = await cursor.to_list(length=1000)
             
         elif query_type == "findOne":
             filter_dict = query_params.get("filter", {})
             
             # findOne只返回一个文档
-            doc = await manager.collection.find_one(filter_dict)
+            doc = await collection.find_one(filter_dict)
             result_data = [doc] if doc else []
             total_count = 1 if doc else 0
             
@@ -1108,17 +1125,17 @@ async def _execute_mongodb_query(
             pipeline = query_params.get("pipeline", [])
             
             # 执行聚合查询
-            cursor = manager.collection.aggregate(pipeline)
+            cursor = collection.aggregate(pipeline)
             result_data = await cursor.to_list(length=1000)
             total_count = len(result_data)
             
-        elif query_type == "count":
+        elif query_type in ["count", "countDocuments"]:  # 支持 countDocuments
             filter_dict = query_params.get("filter", {})
             
             # 执行计数查询
-            count_result = await manager.count_documents(filter_dict)
+            count_result = await collection.count_documents(filter_dict)
             result_data = [{"count": count_result}]
-            total_count = 1
+            total_count = 1  # 保持原逻辑：对于count查询，total_count返回1
             
         elif query_type == "distinct":
             field_name = query_params.get("field", "")
@@ -1128,19 +1145,21 @@ async def _execute_mongodb_query(
                 raise Exception("distinct查询缺少字段名")
             
             # 执行去重查询
-            distinct_values = await manager.collection.distinct(field_name, filter_dict)
+            distinct_values = await collection.distinct(field_name, filter_dict)
             result_data = [{"count": len(distinct_values)}]
-            total_count = 1
+            total_count = len(distinct_values)
         
-        # 转换ObjectId为字符串，确保JSON序列化
-        for doc in result_data:
-            if isinstance(doc, dict) and "_id" in doc:
-                doc["_id"] = str(doc["_id"])
+        else:
+            raise Exception(f"不支持的查询类型: {query_type}")
+        
+        log_info(f"查询执行成功", 
+                extra_data=f'{{"query_type": "{query_type}", "collection": "{manager.collection_name}", "result_count": {len(result_data)}, "total_count": {total_count}}}')
         
         return result_data, total_count
         
     except Exception as e:
-        log_error(f"执行{query_type}查询失败", exception=e)
+        log_error("MongoDB查询执行失败", exception=e, 
+                 extra_data=f'{{"query_type": "{query_type}", "query_params": {query_params}, "collection": "{manager.collection_name}"}}')
         raise
 # ==================== 错误处理 ====================
 
