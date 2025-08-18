@@ -806,9 +806,9 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
     Returns:
         分类后的数据字典
     """
-    if query_type in ["count", "countDocuments", "distinct"]:  # 修改：将 countDocuments 加入汇总类型
+    if query_type in ["count", "countDocuments", "distinct"]:
         # 汇总类型：count、countDocuments、distinct
-        if query_type in ["count", "countDocuments"]:  # 修改：count 和 countDocuments 统一处理
+        if query_type in ["count", "countDocuments"]:
             field_value = total_count
         elif query_type == "distinct":
             # distinct返回的是去重后的值列表的数量

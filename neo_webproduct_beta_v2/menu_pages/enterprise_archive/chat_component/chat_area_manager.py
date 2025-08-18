@@ -79,10 +79,10 @@ class MessagePreprocessor:
             if selected_values['field']:
                 full_path_code = selected_values['full_path_code']
                 field_value = selected_values['field']
-                append_text = f"\n\n[path_code] {'.'.join(full_path_code.split('.')[:3])} \n\n [fields_code] {field_value}"
+                append_text = f"\n\n 同时满足在一个子文档中：[path_code] = {'.'.join(full_path_code.split('.')[:3])} 且 [field_code] in {field_value}"
             else:
                 full_path_code = selected_values['full_path_code']
-                append_text = f"\n\n[path_code] {full_path_code}"
+                append_text = f"\n\n[path_code] = {full_path_code}"
             
             if append_text:
                 return f"{user_message}{append_text}"

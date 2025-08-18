@@ -136,7 +136,7 @@ prompt_templates:
       1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字
       2. **性能优化**: 优先考虑查询性能和索引使用
       3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行
-      4. **控制操作**: 只使用find/findOne/aggregate/count/distinct几类查询
+      4. **控制操作**: 尽量使用aggregate，且只返回满足条件的那个子文档，而不是整个文档
 
     # 示例交互
     examples:
