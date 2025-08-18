@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional,List
+from typing import Dict, Any, Optional,List,Union
 
 # --------------------------创建档案模型--------------------------
 class CreateDocumentRequest(BaseModel):
@@ -267,39 +267,106 @@ class ExecuteMongoQueryRequest(BaseModel):
             }
         }
 
-class QueryStatistics(BaseModel):
-    """查询统计信息模型"""
-    total_documents: int = Field(..., description="总文档数量")
-    returned_documents: int = Field(..., description="返回的文档数量")
-    field_count: int = Field(..., description="文档中字段数")
-    execution_time_ms: float = Field(..., description="执行时间(毫秒)")
-    query_type: str = Field(..., description="查询类型(find/findOne/aggregate/count/distinct)")
-
-class ExecuteMongoQueryResponse(BaseModel):
-    """执行MongoDB原生查询响应模型"""
-    success: bool = Field(..., description="是否成功")
-    message: str = Field(..., description="响应消息")
-    statistics: Optional[QueryStatistics] = Field(None, description="查询统计信息")
-    data: Optional[List[Dict[str, Any]]] = Field(None, description="查询具体数据")
+class QueryResultData(BaseModel):
+    """查询结果统一返回数据模型"""
+    type: str = Field(..., description="数据类型：'汇总'或'明细'")
+    statis: Dict[str, Any] = Field(..., description="统计信息：耗时ms、文档数等")
+    field_value: Union[int, str, Dict[str, Any], List[Dict[str, Any]]] = Field(..., description="汇总值或明细数据")
+    field_meta: Optional[Dict[str, Any]] = Field(None, description="元数据信息，仅明细数据时使用")
     
     class Config:
         json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "查询执行成功",
-                "statistics": {
-                    "total_documents": 100,
-                    "returned_documents": 5,
-                    "field_count": 15,
-                    "execution_time_ms": 25.6,
-                    "query_type": "find"
+            "examples": [
+                {
+                    "type": "汇总",
+                    "statis": {
+                        "耗时": "25.6ms",
+                        "文档数": 150
+                    },
+                    "field_value": 150,
+                    "field_meta": None
                 },
-                "data": [
-                    {
-                        "_id": "TEST001",
-                        "enterprise_name": "测试企业",
-                        "enterprise_code": "TEST001"
+                {
+                    "type": "明细",
+                    "statis": {
+                        "耗时": "32.1ms",
+                        "文档数": 5
+                    },
+                    "field_value": {
+                        "value": "91110000MA001234XA",
+                        "value_text": "统一社会信用代码",
+                        "value_pic_url": "http://example.com/pic.jpg",
+                        "value_doc_url": "http://example.com/doc.pdf",
+                        "value_video_url": "http://example.com/video.mp4"
+                    },
+                    "field_meta": {
+                        "remark": "企业统一社会信用代码",
+                        "data_url": "http://data.source.com",
+                        "is_required": True,
+                        "data_source": "工商局",
+                        "encoding": "UTF-8",
+                        "format": "18位字符",
+                        "license": "公开",
+                        "rights": "查看",
+                        "update_frequency": "实时",
+                        "value_dict": ""
                     }
-                ]
-            }
+                }
+            ]
+        }
+
+class ExecuteMongoQueryResponse(BaseModel):
+    """执行MongoDB原生查询响应模型 - 修改版"""
+    success: bool = Field(..., description="是否成功")
+    message: str = Field(..., description="响应消息")
+    type: str = Field(..., description="查询类型：'汇总'或'明细'")
+    statis: Dict[str, Any] = Field(..., description="统计信息：耗时ms、文档数等")
+    field_value: Union[int, str, Dict[str, Any], List[Dict[str, Any]]] = Field(..., description="汇总值或明细数据")
+    field_meta: Optional[Dict[str, Any]] = Field(None, description="元数据信息，仅明细数据时使用")
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "message": "查询执行成功",
+                    "type": "汇总",
+                    "statis": {
+                        "耗时": "25.6ms",
+                        "文档数": 150
+                    },
+                    "field_value": 150,
+                    "field_meta": None
+                },
+                {
+                    "success": True,
+                    "message": "查询执行成功", 
+                    "type": "明细",
+                    "statis": {
+                        "耗时": "32.1ms", 
+                        "文档数": 5
+                    },
+                    "field_value": [
+                        {
+                            "value": "91110000MA001234XA",
+                            "value_text": "统一社会信用代码",
+                            "value_pic_url": "http://example.com/pic.jpg",
+                            "value_doc_url": "http://example.com/doc.pdf",
+                            "value_video_url": "http://example.com/video.mp4"
+                        }
+                    ],
+                    "field_meta": {
+                        "remark": "企业统一社会信用代码",
+                        "data_url": "http://data.source.com", 
+                        "is_required": True,
+                        "data_source": "工商局",
+                        "encoding": "UTF-8",
+                        "format": "18位字符",
+                        "license": "公开",
+                        "rights": "查看",
+                        "update_frequency": "实时",
+                        "value_dict": ""
+                    }
+                }
+            ]
         }

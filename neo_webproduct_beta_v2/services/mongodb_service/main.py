@@ -630,7 +630,6 @@ async def edit_field_value(
             detail=f"批量编辑字段值失败: {str(e)}"
         )
 
-
 @app.delete("/api/v1/documents/batch", 
             response_model=DeleteManyDocumentsResponse, 
             summary="批量删除MongoDB文档")
@@ -715,20 +714,20 @@ async def execute_mongo_command(
     manager: MongoDBManager = Depends(get_mongodb_manager)
 ) -> ExecuteMongoQueryResponse:
     """
-    解析和执行原始MongoDB查询语句
+    解析和执行原始MongoDB查询语句，返回分类后的数据
     
     支持的查询类型：
-    - db.collection.find() - 查询文档
-    - db.collection.findOne() - 查询单个文档  
-    - db.collection.aggregate() - 聚合查询
-    - db.collection.count() - 计数查询
-    - db.collection.distinct() - 去重统计
+    - db.collection.find() - 查询文档 (明细)
+    - db.collection.findOne() - 查询单个文档 (明细)
+    - db.collection.aggregate() - 聚合查询 (明细)
+    - db.collection.count() - 计数查询 (汇总)
+    - db.collection.distinct() - 去重统计 (汇总)
     
     Args:
         request: 包含原始查询语句的请求模型
         
     Returns:
-        包含查询统计信息和具体数据的响应模型
+        包含分类后数据的响应模型
     """
     start_time = time.time()
     
@@ -755,28 +754,24 @@ async def execute_mongo_command(
             manager, query_type, query_params
         )
         
-        # 计算执行时间
+        # 2.5 根据查询类型对返回数据进行分类处理
+        response_data = _classify_query_result(query_type, result_data, total_count)
+        
+        # 2.6 计算统计信息
         execution_time = (time.time() - start_time) * 1000
-        
-        # 3. 构建返回数据
-        field_count = len(result_data[0]) if result_data else 0
-        
-        statistics = QueryStatistics(
-            total_documents=total_count,
-            returned_documents=len(result_data),
-            field_count=field_count,
-            execution_time_ms=round(execution_time, 2),
-            query_type=query_type
-        )
+        statis = {
+            "耗时": f"{round(execution_time, 2)}ms",
+            "文档数": len(result_data) if result_data else total_count
+        }
         
         log_info("MongoDB原生查询执行成功", 
-                extra_data=f'{{"query_type": "{query_type}", "returned_count": {len(result_data)}, "execution_time_ms": {statistics.execution_time_ms}}}')
+                extra_data=f'{{"query_type": "{query_type}", "result_type": "{response_data["type"]}", "execution_time_ms": {execution_time}}}')
         
         return ExecuteMongoQueryResponse(
             success=True,
             message="查询执行成功",
-            statistics=statistics,
-            data=result_data
+            statis=statis,
+            **response_data
         )
         
     except HTTPException:
@@ -791,8 +786,130 @@ async def execute_mongo_command(
             detail=f"查询执行失败: {str(e)}"
         )
 
-# 辅助函数实现
+# 响应结果分类处理
+def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], total_count: int) -> Dict[str, Any]:
+    """
+    根据查询类型对返回结果进行分类处理
+    
+    Args:
+        query_type: 查询类型
+        result_data: 查询结果数据
+        total_count: 总数量
+        
+    Returns:
+        分类后的数据字典
+    """
+    if query_type in ["count", "distinct"]:
+        # 汇总类型：count、distinct
+        if query_type == "count":
+            field_value = total_count
+        elif query_type == "distinct":
+            # distinct返回的是去重后的值列表的数量
+            field_value = len(result_data) if result_data else 0
+            
+        return {
+            "type": "汇总",
+            "field_value": field_value,
+            "field_meta": None
+        }
+    
+    elif query_type in ["find", "findOne", "aggregate"]:
+        # 明细类型：find、findOne、aggregate
+        
+        # 提取字段数据值（根据文档结构提取）
+        field_value_list = []
+        field_meta = None
+        
+        for doc in result_data:
+            if "fields" in doc and isinstance(doc["fields"], list):
+                # 如果是企业档案文档，提取fields数组中的数据
+                for field in doc["fields"]:
+                    field_data = _extract_field_value(field)
+                    if field_data:
+                        field_value_list.append(field_data)
+                        
+                        # 设置元数据（取第一个字段的元数据作为代表）
+                        if field_meta is None:
+                            field_meta = _extract_field_meta(field)
+            else:
+                # 普通文档，直接提取
+                field_data = _extract_field_value(doc)
+                if field_data:
+                    field_value_list.append(field_data)
+                    
+                    if field_meta is None:
+                        field_meta = _extract_field_meta(doc)
+        
+        # 如果是findOne，只返回第一个结果
+        if query_type == "findOne":
+            field_value = field_value_list[0] if field_value_list else {}
+        else:
+            field_value = field_value_list
+            
+        return {
+            "type": "明细", 
+            "field_value": field_value,
+            "field_meta": field_meta or {}
+        }
+    
+    else:
+        # 默认返回明细类型
+        return {
+            "type": "明细",
+            "field_value": result_data,
+            "field_meta": {}
+        }
 
+def _extract_field_value(field_doc: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    从字段文档中提取字段数据值部分
+    
+    Args:
+        field_doc: 字段文档
+        
+    Returns:
+        字段数据值字典
+    """
+    field_value = {}
+    
+    # 提取字段数据值相关字段
+    value_fields = [
+        "value", "value_text", "value_pic_url", 
+        "value_doc_url", "value_video_url"
+    ]
+    
+    for field_name in value_fields:
+        if field_name in field_doc:
+            field_value[field_name] = field_doc[field_name]
+    
+    return field_value
+
+def _extract_field_meta(field_doc: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    从字段文档中提取元数据部分
+    
+    Args:
+        field_doc: 字段文档
+        
+    Returns:
+        元数据字典
+    """
+    field_meta = {}
+    
+    # 提取元数据相关字段
+    meta_fields = [
+        "remark", "data_url", "is_required", "data_source",
+        "encoding", "format", "license", "rights", 
+        "update_frequency", "value_dict"
+    ]
+    
+    for field_name in meta_fields:
+        if field_name in field_doc:
+            field_meta[field_name] = field_doc[field_name]
+    
+    return field_meta
+
+# 辅助函数实现
 def _parse_query_type(query_cmd: str) -> Optional[str]:
     """
     解析查询操作类型
@@ -1012,7 +1129,7 @@ async def _execute_mongodb_query(
             
             # 执行去重查询
             distinct_values = await manager.collection.distinct(field_name, filter_dict)
-            result_data = [{"distinct_values": distinct_values, "count": len(distinct_values)}]
+            result_data = [{"count": len(distinct_values)}]
             total_count = 1
         
         # 转换ObjectId为字符串，确保JSON序列化

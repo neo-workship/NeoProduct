@@ -68,59 +68,67 @@ prompt_templates:
 
       ```javascript
       {
-        "enterprise_code": "",      // 企业统一信用编码
-        "enterprise_name": "",      // 企业名称
-        
-        // === 三级分类层级 ===
-        "l1_code": "L19E5FFA",      // 一级代码
-        "l1_name": "基本信息",       // 一级名称
-        "l2_code": "L279A000",      // 二级代码
-        "l2_name": "登记信息",       // 二级名称
-        "l3_code": "L336E6A6",      // 三级代码
-        "l3_name": "企业基本信息",   // 三级名称
+        "_id": "",
+        "enterprise_code": "",         // 企业统一信用编码
+        "enterprise_name": "",         // 企业名称
+        "fields": [
+          {
+            "enterprise_code": "",      // 企业统一信用编码
+            "enterprise_name": "",      // 企业名称
 
-        // === 路径信息 ===
-        "path_code": "L19E5FFA.L279A000.L336E6A6",       // 三级结构完整代码
-        "path_name": "基本信息.登记信息.企业基本信息",     //  三级结构完整名称
-        "full_path_code": "L19E5FFA.L279A000.L336E6A6.F1BDA09",   // 字段完整代码
-        "full_path_name": "基本信息.登记信息.企业基本信息.统一社会信用代码",   // 字段完整名称
+            // === 三级分类层级 ===
+            "l1_code": "L19E5FFA",      // 一级代码
+            "l1_name": "基本信息",       // 一级名称
+            "l2_code": "L279A000",      // 二级代码
+            "l2_name": "登记信息",       // 二级名称
+            "l3_code": "L336E6A6",      // 三级代码
+            "l3_name": "企业基本信息",   // 三级名称
 
-        // === 字段信息 ===
-        "field_code": "F1BDA09",          // 字段代码
-        "field_name": "统一社会信用代码",   // 字段名称
-        "field_type": "",                 // 字段类型
+            // === 路径信息 ===
+            "path_code": "L19E5FFA.L279A000.L336E6A6",       // 三级结构完整代码
+            "path_name": "基本信息.登记信息.企业基本信息",     //  三级结构完整名称
+            "full_path_code": "L19E5FFA.L279A000.L336E6A6.F1BDA09",   // 字段完整代码
+            "full_path_name": "基本信息.登记信息.企业基本信息.统一社会信用代码",   // 字段完整名称
 
-        // === 字段数据值 ===
-        "value": "",                      // 字段值
-        "value_text": "",                 // 文本描述值
-        "value_pic_url": "",              // 字段关联图片
-        "value_doc_url": "",              // 字段关联文档
-        "value_video_url": "",            // 字段关联视频
+            // === 字段信息 ===
+            "field_code": "F1BDA09",          // 字段代码
+            "field_name": "统一社会信用代码",   // 字段名称
+            "field_type": "",                 // 字段类型
 
-        // === 元数据 ===
-        "remark": "",                     // 字段说明
-        "data_url": "",                   // 字段数据源url
-        "is_required": false,             // 是否必填
-        "data_source": "",                // 数据来源
-        "encoding": "",                   // 编码格式
-        "format": "",                     // 数据格式
-        "license": "",                    // 许可证
-        "rights": "",                     // 使用权限
-        "update_frequency": "",           // 更新频率
-        "value_dict": "",                 // 字典值选项
+            // === 字段数据值 ===
+            "value": "",                      // 字段值
+            "value_text": "",                 // 文本描述值
+            "value_pic_url": "",              // 字段关联图片
+            "value_doc_url": "",              // 字段关联文档
+            "value_video_url": "",            // 字段关联视频
 
-        // === 排序显示 ===
-        "l1_order": ,                     // 一级分类排序
-        "l2_order": ,                     // 二级分类排序
-        "l3_order": ,                     // 三级分类排序
-        "field_order": ,                  // 字段排序
+            // === 元数据 ===
+            "remark": "",                     // 字段说明
+            "data_url": "",                   // 字段数据源url
+            "is_required": false,             // 是否必填
+            "data_source": "",                // 数据来源
+            "encoding": "",                   // 编码格式
+            "format": "",                     // 数据格式
+            "license": "",                    // 许可证
+            "rights": "",                     // 使用权限
+            "update_frequency": "",           // 更新频率
+            "value_dict": "",                 // 字典值选项
 
-        // === 时间戳 ===
-        "create_time": "",                // 创建时间
-        "update_time": "",                // 更新时间
+            // === 排序显示 ===
+            "l1_order": ,                     // 一级分类排序
+            "l2_order": ,                     // 二级分类排序
+            "l3_order": ,                     // 三级分类排序
+            "field_order": ,                  // 字段排序
 
-        // === 状态 ===
-        "status": ""                      // 数据状态
+            // === 时间戳 ===
+            "create_time": "",                // 创建时间
+            "update_time": "",                // 更新时间
+
+            // === 状态 ===
+            "status": ""                      // 数据状态
+          },
+          ......
+        ]
       }
       ```
 
@@ -128,6 +136,7 @@ prompt_templates:
       1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字
       2. **性能优化**: 优先考虑查询性能和索引使用
       3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行
+      4. **控制操作**: 只使用find/findOne/aggregate/count/distinct几类查询
 
     # 示例交互
     examples:
