@@ -787,9 +787,17 @@ async def execute_mongo_command(
         log_error("MongoDB原生查询执行失败", exception=e,
                  extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}...", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name if manager else "未知"}"}}')
         
-        raise HTTPException(
-            status_code=500,
-            detail=f"查询执行失败: {str(e)}"
+        # 错误时也返回 ExecuteMongoQueryResponse 格式
+        return ExecuteMongoQueryResponse(
+            success=False,
+            message=f"查询执行失败: {str(e)}",
+            type="错误",
+            statis={
+                "耗时": f"{round(execution_time, 2)}ms",
+                "文档数": 0
+            },
+            field_value=[],
+            field_meta=None
         )
     
 # 响应结果分类处理

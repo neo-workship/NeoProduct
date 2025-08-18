@@ -337,18 +337,30 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         return await response.json()
                     else:
                         error_text = await response.text()
+                        # 返回与API一致的格式
                         return {
                             "success": False,
                             "message": f"API调用失败: HTTP {response.status}, response={error_text}",
-                            "statistics": None,
-                            "data": []
+                            "type": "错误",
+                            "statis": {
+                                "耗时": "0ms",
+                                "文档数": 0
+                            },
+                            "field_value": [],
+                            "field_meta": None
                         }
         except Exception as e:
+            # 返回与API一致的格式
             return {
                 "success": False,
                 "message": f"网络请求失败: {str(e)}",
-                "statistics": None,
-                "data": []
+                "type": "错误",
+                "statis": {
+                    "耗时": "0ms",
+                    "文档数": 0
+                },
+                "field_value": [],
+                "field_meta": None
             }
     
     def _display_query_result(self, result: Dict[str, Any]):
@@ -360,15 +372,13 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             
         with self.chat_content_container:
             # 显示查询统计信息
-            if result.get("statistics"):
-                stats = result["statistics"]
+            if result.get("statis"):
+                stats = result["statis"]
                 stats_text = (
                     f"📊 查询统计:\n"
-                    f"• 查询类型: {stats.get('query_type', 'N/A')}\n"
-                    f"• 总文档数: {stats.get('total_documents', 0)}\n"
-                    f"• 返回文档数: {stats.get('returned_documents', 0)}\n"
-                    f"• 字段数: {stats.get('field_count', 0)}\n"
-                    f"• 执行时间: {stats.get('execution_time_ms', 0)}ms"
+                    f"• 查询类型: {result.get('type', 'N/A')}\n"
+                    f"• 耗时: {stats.get('耗时', '0ms')}\n"
+                    f"• 文档数: {stats.get('文档数', 0)}"
                 )
                 ui.label(stats_text).classes(
                     'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
@@ -376,28 +386,50 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             
             # 显示查询结果数据
             if result.get("success"):
-                data = result.get("data", [])
-                if data:
-                    # 格式化显示前几条数据
-                    display_count = min(3, len(data))  # 最多显示3条
-                    result_text = f"🔍 查询结果 (显示前{display_count}条):\n\n"
-                    
-                    for i, item in enumerate(data[:display_count]):
-                        result_text += f"📄 记录 {i+1}:\n"
-                        # 格式化JSON数据
-                        formatted_json = json.dumps(item, ensure_ascii=False, indent=2)
-                        result_text += f"{formatted_json}\n\n"
-                    
-                    if len(data) > display_count:
-                        result_text += f"... 还有 {len(data) - display_count} 条记录"
-                    
-                    self.query_result_label = ui.label(result_text).classes(
+                field_value = result.get("field_value", [])
+                query_type = result.get("type", "")
+                
+                if query_type == "汇总":
+                    # 显示汇总结果
+                    result_text = f"🔢 汇总结果: {field_value}"
+                    ui.label(result_text).classes(
                         'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                     )
+                elif query_type == "明细":
+                    # 显示明细结果
+                    if isinstance(field_value, list) and field_value:
+                        # 格式化显示前几条数据
+                        display_count = min(3, len(field_value))  # 最多显示3条
+                        result_text = f"🔍 查询结果 (显示前{display_count}条):\n\n"
+                        
+                        for i, item in enumerate(field_value[:display_count]):
+                            result_text += f"📄 记录 {i+1}:\n"
+                            # 格式化JSON数据
+                            formatted_json = json.dumps(item, ensure_ascii=False, indent=2)
+                            result_text += f"{formatted_json}\n\n"
+                        
+                        if len(field_value) > display_count:
+                            result_text += f"... 还有 {len(field_value) - display_count} 条记录"
+                        
+                        self.query_result_label = ui.label(result_text).classes(
+                            'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
+                        )
+                    else:
+                        ui.label("📝 查询结果: 未找到匹配的数据").classes(
+                            'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
+                        )
                 else:
-                    ui.label("📝 查询结果: 未找到匹配的数据").classes(
-                        'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
-                    )
+                    # 其他类型或未知类型
+                    if field_value:
+                        formatted_data = json.dumps(field_value, ensure_ascii=False, indent=2)
+                        result_text = f"📄 查询结果:\n{formatted_data}"
+                        ui.label(result_text).classes(
+                            'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
+                        )
+                    else:
+                        ui.label("📝 查询结果: 未找到匹配的数据").classes(
+                            'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
+                        )
             else:
                 # 显示错误信息
                 error_msg = f"❌ 查询失败: {result.get('message', '未知错误')}"
