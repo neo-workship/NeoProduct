@@ -321,7 +321,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     
     async def _execute_mongodb_query(self, query_cmd: str) -> Dict[str, Any]:
         """
-        调用MongoDB服务API执行查询
+        调用MongoDB服务API执行查询 - 适应新格式
         """
         try:
             async with aiohttp.ClientSession() as session:
@@ -334,59 +334,56 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     headers={'Content-Type': 'application/json'}
                 ) as response:
                     if response.status == 200:
-                        return await response.json()
+                        result = await response.json()
+                        # 新格式已包含所需字段：type, period, field_value, field_meta
+                        # 添加 success 字段以保持兼容性
+                        result["success"] = True
+                        # result["message"] = "查询执行成功"
+                        return result
                     else:
                         error_text = await response.text()
-                        # 返回与API一致的格式
+                        # 返回与新API格式一致的错误响应
                         return {
                             "success": False,
                             "message": f"API调用失败: HTTP {response.status}, response={error_text}",
                             "type": "错误",
-                            "statis": {
-                                "耗时": "0ms",
-                                "文档数": 0
-                            },
+                            "period": "0ms",
                             "field_value": [],
-                            "field_meta": None
+                            "field_meta": ""
                         }
         except Exception as e:
-            # 返回与API一致的格式
+            # 返回与新API格式一致的错误响应
             return {
                 "success": False,
                 "message": f"网络请求失败: {str(e)}",
                 "type": "错误",
-                "statis": {
-                    "耗时": "0ms",
-                    "文档数": 0
-                },
+                "period": "0ms",
                 "field_value": [],
-                "field_meta": None
+                "field_meta": ""
             }
     
     def _display_query_result(self, result: Dict[str, Any]):
         """
-        使用ui.label展示查询结果
+        使用ui.label展示查询结果 - 修正版
         """
         if not self.chat_content_container:
             return
             
         with self.chat_content_container:
             # 显示查询统计信息
-            if result.get("statis"):
-                stats = result["statis"]
-                stats_text = (
-                    f"📊 查询统计:\n"
-                    f"• 查询类型: {result.get('type', 'N/A')}\n"
-                    f"• 耗时: {stats.get('耗时', '0ms')}\n"
-                    f"• 文档数: {stats.get('文档数', 0)}"
-                )
-                ui.label(stats_text).classes(
-                    'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
-                )
+            stats_text = (
+                f"📊 查询统计:\n"
+                f"• 查询类型: {result.get('type', 'N/A')}\n"
+                f"• 运行耗时: {result.get('period', '0ms')}\n"
+            )
+            ui.label(stats_text).classes(
+                'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
+            )
             
             # 显示查询结果数据
-            if result.get("success"):
+            if result.get("success", True):  # 默认为成功，除非明确标记为失败
                 field_value = result.get("field_value", [])
+                field_meta = result.get("field_meta", "")
                 query_type = result.get("type", "")
                 
                 if query_type == "汇总":
@@ -395,34 +392,77 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     ui.label(result_text).classes(
                         'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                     )
+                    
                 elif query_type == "明细":
                     # 显示明细结果
                     if isinstance(field_value, list) and field_value:
                         # 格式化显示前几条数据
                         display_count = min(3, len(field_value))  # 最多显示3条
-                        result_text = f"🔍 查询结果 (显示前{display_count}条):\n\n"
+                        result_text = f"🔍 查询结果 (显示前{display_count}条，共{len(field_value)}条):\n\n"
                         
                         for i, item in enumerate(field_value[:display_count]):
                             result_text += f"📄 记录 {i+1}:\n"
-                            # 格式化JSON数据
-                            formatted_json = json.dumps(item, ensure_ascii=False, indent=2)
-                            result_text += f"{formatted_json}\n\n"
+                            
+                            if isinstance(item, dict):
+                                # 按照新格式显示字段数据值
+                                if item.get('value'):
+                                    result_text += f"  • 字段值: {item.get('value')}\n"
+                                if item.get('value_text'):
+                                    result_text += f"  • 文本描述: {item.get('value_text')}\n"
+                                if item.get('value_pic_url'):
+                                    result_text += f"  • 图片链接: {item.get('value_pic_url')}\n"
+                                if item.get('value_doc_url'):
+                                    result_text += f"  • 文档链接: {item.get('value_doc_url')}\n"
+                                if item.get('value_video_url'):
+                                    result_text += f"  • 视频链接: {item.get('value_video_url')}\n"
+                            else:
+                                # 如果不是字典格式，直接显示
+                                result_text += f"  • 内容: {str(item)}\n"
+                            
+                            result_text += "\n"
                         
                         if len(field_value) > display_count:
-                            result_text += f"... 还有 {len(field_value) - display_count} 条记录"
+                            result_text += f"... 还有 {len(field_value) - display_count} 条记录\n"
                         
-                        self.query_result_label = ui.label(result_text).classes(
+                        ui.label(result_text).classes(
                             'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                         )
+                        
+                        # 显示元数据信息（如果存在且非空）
+                        if isinstance(field_meta, dict) and field_meta:
+                            meta_text = "📋 字段元数据信息:\n\n"
+                            displayed_meta = 0
+                            for field_key, meta_info in field_meta.items():
+                                if isinstance(meta_info, dict) and displayed_meta < 3:  # 最多显示3个字段的元数据
+                                    meta_text += f"字段路径: {field_key}\n"
+                                    for key, value in meta_info.items():
+                                        if value and str(value).strip():  # 只显示有值的元数据
+                                            meta_text += f"  • {key}: {value}\n"
+                                    meta_text += "\n"
+                                    displayed_meta += 1
+                            
+                            if len(meta_text) > len("📋 字段元数据信息:\n\n"):  # 有实际内容才显示
+                                if len(field_meta) > displayed_meta:
+                                    meta_text += f"... 还有 {len(field_meta) - displayed_meta} 个字段的元数据\n"
+                                
+                                ui.label(meta_text).classes(
+                                    'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2'
+                                )
                     else:
                         ui.label("📝 查询结果: 未找到匹配的数据").classes(
                             'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
                         )
+                        
+                elif query_type == "错误":
+                    # 显示错误信息
+                    error_msg = f"❌ 查询执行失败: {result.get('message', '未知错误')}"
+                    ui.label(error_msg).classes(
+                        'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+                    )
                 else:
-                    # 其他类型或未知类型
+                    # 其他类型
                     if field_value:
-                        formatted_data = json.dumps(field_value, ensure_ascii=False, indent=2)
-                        result_text = f"📄 查询结果:\n{formatted_data}"
+                        result_text = f"📄 查询结果: {field_value}"
                         ui.label(result_text).classes(
                             'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                         )

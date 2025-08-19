@@ -256,6 +256,9 @@ class DeleteManyDocumentsResponse(BaseModel):
         }
 
 # --------------------------执行原生MongoDB查询模型--------------------------
+# ==================== 修改 services/mongodb_service/schemas.py 中的相关模型 ====================
+
+# 保持原有的 ExecuteMongoQueryRequest 不变
 class ExecuteMongoQueryRequest(BaseModel):
     """执行MongoDB原生查询请求模型"""
     query_cmd: str = Field(..., description="原始MongoDB查询语句", min_length=1)
@@ -267,85 +270,49 @@ class ExecuteMongoQueryRequest(BaseModel):
             }
         }
 
-class QueryResultData(BaseModel):
-    """查询结果统一返回数据模型"""
-    type: str = Field(..., description="数据类型：'汇总'或'明细'")
-    statis: Dict[str, Any] = Field(..., description="统计信息：耗时ms、文档数等")
-    field_value: Union[int, str, Dict[str, Any], List[Dict[str, Any]]] = Field(..., description="汇总值或明细数据")
-    field_meta: Optional[Dict[str, Any]] = Field(None, description="元数据信息，仅明细数据时使用")
-    
-    class Config:
-        json_schema_extra = {
-            "examples": [
-                {
-                    "type": "汇总",
-                    "statis": {
-                        "耗时": "25.6ms",
-                        "文档数": 150
-                    },
-                    "field_value": 150,
-                    "field_meta": None
-                },
-                {
-                    "type": "明细",
-                    "statis": {
-                        "耗时": "32.1ms",
-                        "文档数": 5
-                    },
-                    "field_value": {
-                        "value": "91110000MA001234XA",
-                        "value_text": "统一社会信用代码",
-                        "value_pic_url": "http://example.com/pic.jpg",
-                        "value_doc_url": "http://example.com/doc.pdf",
-                        "value_video_url": "http://example.com/video.mp4"
-                    },
-                    "field_meta": {
-                        "remark": "企业统一社会信用代码",
-                        "data_url": "http://data.source.com",
-                        "is_required": True,
-                        "data_source": "工商局",
-                        "encoding": "UTF-8",
-                        "format": "18位字符",
-                        "license": "公开",
-                        "rights": "查看",
-                        "update_frequency": "实时",
-                        "value_dict": ""
-                    }
-                }
-            ]
-        }
+# 新增字段数据值模型
+class FieldValueModel(BaseModel):
+    """字段数据值模型"""
+    value: Optional[str] = Field("", description="字段值")
+    value_text: Optional[str] = Field("", description="文本描述值")
+    value_pic_url: Optional[str] = Field("", description="字段关联图片")
+    value_doc_url: Optional[str] = Field("", description="字段关联文档")
+    value_video_url: Optional[str] = Field("", description="字段关联视频")
 
+# 新增字段元数据模型
+class FieldMetaModel(BaseModel):
+    """字段元数据模型"""
+    remark: Optional[str] = Field("", description="字段说明")
+    data_url: Optional[str] = Field("", description="字段数据源url")
+    is_required: Optional[bool] = Field(False, description="是否必填")
+    data_source: Optional[str] = Field("", description="数据来源")
+    encoding: Optional[str] = Field("", description="编码格式")
+    format: Optional[str] = Field("", description="数据格式")
+    license: Optional[str] = Field("", description="许可证")
+    rights: Optional[str] = Field("", description="使用权限")
+    update_frequency: Optional[str] = Field("", description="更新频率")
+    value_dict: Optional[str] = Field("", description="字典值选项")
+
+# 完全重写 ExecuteMongoQueryResponse 以匹配新格式
 class ExecuteMongoQueryResponse(BaseModel):
-    """执行MongoDB原生查询响应模型 - 修改版"""
-    success: bool = Field(..., description="是否成功")
-    message: str = Field(..., description="响应消息")
-    type: str = Field(..., description="查询类型：'汇总'或'明细'")
-    statis: Dict[str, Any] = Field(..., description="统计信息：耗时ms、文档数等")
-    field_value: Union[int, str, Dict[str, Any], List[Dict[str, Any]]] = Field(..., description="汇总值或明细数据")
-    field_meta: Optional[Dict[str, Any]] = Field(None, description="元数据信息，仅明细数据时使用")
+    """执行MongoDB原生查询响应模型 - 新格式"""
+    type: str = Field(..., description="查询类型：'汇总'（对应count、distinct、countDocuments）或'明细'（对应find、findOne、aggregate）")
+    period: str = Field(..., description="运行耗时，单位为ms")
+    field_value: Union[int, str, List[FieldValueModel], List[Dict[str, Any]]] = Field(..., description="若type='汇总'时为统计值；若type='明细'时为字段数据值列表")
+    field_meta: Union[str, Dict[str, FieldMetaModel], Dict[str, Any]] = Field(..., description="若type='汇总'时为空字符串；若type='明细'时为元数据字典")
     
     class Config:
         json_schema_extra = {
             "examples": [
                 {
-                    "success": True,
-                    "message": "查询执行成功",
                     "type": "汇总",
-                    "statis": {
-                        "耗时": "25.6ms",
-                        "文档数": 150
-                    },
+                    "period": "25.6ms",
                     "field_value": 150,
-                    "field_meta": None
+                    "field_meta": ""
                 },
                 {
-                    "success": True,
-                    "message": "查询执行成功", 
                     "type": "明细",
-                    "statis": {
-                        "耗时": "32.1ms", 
-                        "文档数": 5
-                    },
+                    "period": "32.1ms",
                     "field_value": [
                         {
                             "value": "91110000MA001234XA",
@@ -353,20 +320,15 @@ class ExecuteMongoQueryResponse(BaseModel):
                             "value_pic_url": "http://example.com/pic.jpg",
                             "value_doc_url": "http://example.com/doc.pdf",
                             "value_video_url": "http://example.com/video.mp4"
+                        },
+                        {
+                            "value": "测试企业有限公司",
+                            "value_text": "企业名称",
+                            "value_pic_url": "",
+                            "value_doc_url": "",
+                            "value_video_url": ""
                         }
-                    ],
-                    "field_meta": {
-                        "remark": "企业统一社会信用代码",
-                        "data_url": "http://data.source.com", 
-                        "is_required": True,
-                        "data_source": "工商局",
-                        "encoding": "UTF-8",
-                        "format": "18位字符",
-                        "license": "公开",
-                        "rights": "查看",
-                        "update_frequency": "实时",
-                        "value_dict": ""
-                    }
+                    ]
                 }
             ]
         }

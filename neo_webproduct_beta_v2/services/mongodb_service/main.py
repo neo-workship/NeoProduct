@@ -1,5 +1,6 @@
 # services/mongodb_service/main.py
 from fastapi import FastAPI, HTTPException, Depends
+from motor.motor_asyncio import AsyncIOMotorCollection
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional,List,Tuple
 import sys
@@ -714,7 +715,7 @@ async def execute_mongo_command(
     manager: MongoDBManager = Depends(get_mongodb_manager)
 ) -> ExecuteMongoQueryResponse:
     """
-    解析和执行原始MongoDB查询语句，返回分类后的数据
+    解析和执行原始MongoDB查询语句，返回新格式的分类数据
     
     支持的查询类型：
     - db.collection.find()、db.collection.findOne()、db.collection.aggregate()、db.collection.count()、db.collection.countDocuments()、db.collection.distinct()
@@ -727,7 +728,7 @@ async def execute_mongo_command(
         request: 包含原始查询语句的请求模型
         
     Returns:
-        包含分类后数据的响应模型
+        包含新格式分类后数据的响应模型
     """
     start_time = time.time()
     
@@ -747,30 +748,27 @@ async def execute_mongo_command(
         fixed_query = _fix_query_syntax(request.query_cmd)
         
         # 2.3 解析查询参数（集合名将被忽略，使用配置的集合）
-        _, query_params = _parse_query_parameters(fixed_query, query_type)
+        _, query_params = _parse_query_parameters_v1_simple(fixed_query, query_type)
         
         # 2.4 执行MongoDB查询（使用配置的集合）
         result_data, total_count = await _execute_mongodb_query(
             manager, query_type, query_params
         )
-        # 2.5 根据查询类型对返回数据进行分类处理
+        
+        # 2.5 根据查询类型对返回数据进行分类处理 - 使用新格式
         response_data = _classify_query_result(query_type, result_data, total_count)
         
-        # 2.6 计算统计信息
+        # 2.6 计算统计信息 - 运行耗时以ms为单位
         execution_time = (time.time() - start_time) * 1000
-        statis = {
-            "耗时": f"{round(execution_time, 2)}ms",
-            "文档数": len(result_data) if result_data else total_count
-        }
         
-        log_info("MongoDB原生查询执行成功", 
-                extra_data=f'{{"query_type": "{query_type}", "result_type": "{response_data["type"]}", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name}"}}')
+        log_info("MongoDB原生查询执行成功", extra_data=f'{{"query_type": "{query_type}", "result_type": "{response_data["type"]}", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name}"}}')
         
+        # 2.7 直接返回新格式的响应数据
         return ExecuteMongoQueryResponse(
-            success=True,
-            message="查询执行成功",
-            statis=statis,
-            **response_data
+            type=response_data["type"],
+            period=f"{round(execution_time, 2)}ms",
+            field_value=response_data["field_value"],
+            field_meta=response_data["field_meta"]
         )
         
     except HTTPException:
@@ -780,143 +778,128 @@ async def execute_mongo_command(
         log_error("MongoDB原生查询执行失败", exception=e,
                  extra_data=f'{{"query_cmd": "{request.query_cmd[:200]}...", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name if manager else "未知"}"}}')
         
-        # 错误时也返回 ExecuteMongoQueryResponse 格式
+        # 错误时也返回新格式
         return ExecuteMongoQueryResponse(
-            success=False,
-            message=f"查询执行失败: {str(e)}",
             type="错误",
-            statis={
-                "耗时": f"{round(execution_time, 2)}ms",
-                "文档数": 0
-            },
+            period=f"{round(execution_time, 2)}ms",
             field_value=[],
-            field_meta=None
+            field_meta=""
         )
     
 # 响应结果分类处理
 def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], total_count: int) -> Dict[str, Any]:
     """
-    根据查询类型对返回结果进行分类处理
-    
+    根据查询类型对返回结果进行分类处理 - 修正版
     Args:
         query_type: 查询类型
         result_data: 查询结果数据
         total_count: 总数量
-        
     Returns:
-        分类后的数据字典
+        分类后的数据字典 - 新格式
     """
-    if query_type in ["count", "countDocuments", "distinct"]:
-        # 汇总类型：count、countDocuments、distinct
-        if query_type in ["count", "countDocuments"]:
+    if query_type in ["count", "countDocuments"]:
+        # 汇总类型：count、countDocuments
+        # result_data 格式: [{"count": count_result}]
+        if result_data and len(result_data) > 0 and "count" in result_data[0]:
+            field_value = result_data[0]["count"]
+        else:
             field_value = total_count
-        elif query_type == "distinct":
-            # distinct返回的是去重后的值列表的数量
-            field_value = len(result_data) if result_data else 0
             
         return {
             "type": "汇总",
             "field_value": field_value,
-            "field_meta": None
+            "field_meta": ""  # 汇总时为空字符串
+        }
+    
+    elif query_type == "distinct":
+        # distinct 汇总类型
+        # result_data 格式: [{"count": distinct_count}]
+        if result_data and len(result_data) > 0 and "count" in result_data[0]:
+            field_value = result_data[0]["count"]
+        else:
+            field_value = total_count
+            
+        return {
+            "type": "汇总",
+            "field_value": field_value,
+            "field_meta": ""  # 汇总时为空字符串
         }
     
     elif query_type in ["find", "findOne", "aggregate"]:
         # 明细类型：find、findOne、aggregate
         
-        # 提取字段数据值（根据文档结构提取）
+        # 提取字段数据值和元数据
         field_value_list = []
-        field_meta = None
+        field_meta_dict = {}
         
         for doc in result_data:
             if "fields" in doc and isinstance(doc["fields"], list):
                 # 如果是企业档案文档，提取fields数组中的数据
                 for field in doc["fields"]:
-                    field_data = _extract_field_value(field)
-                    if field_data:
-                        field_value_list.append(field_data)
-                        
-                        # 设置元数据（取第一个字段的元数据作为代表）
-                        if field_meta is None:
-                            field_meta = _extract_field_meta(field)
-            else:
-                # 普通文档，直接提取
-                field_data = _extract_field_value(doc)
-                if field_data:
+                    # === 字段数据值 === （匹配 FieldValueModel）
+                    field_data = {
+                        "value": field.get("value", ""),
+                        "value_text": field.get("value_text", ""),
+                        "value_pic_url": field.get("value_pic_url", ""),
+                        "value_doc_url": field.get("value_doc_url", ""),
+                        "value_video_url": field.get("value_video_url", "")
+                    }
+                    
+                    # === 元数据 === （匹配 FieldMetaModel）
+                    field_meta = {
+                        "remark": field.get("remark", ""),
+                        "data_url": field.get("data_url", ""),
+                        "is_required": field.get("is_required", False),
+                        "data_source": field.get("data_source", ""),
+                        "encoding": field.get("encoding", ""),
+                        "format": field.get("format", ""),
+                        "license": field.get("license", ""),
+                        "rights": field.get("rights", ""),
+                        "update_frequency": field.get("update_frequency", ""),
+                        "value_dict": field.get("value_dict", "")
+                    }
+                    
                     field_value_list.append(field_data)
                     
-                    if field_meta is None:
-                        field_meta = _extract_field_meta(doc)
+                    # 使用字段的完整路径代码作为key存储元数据
+                    field_key = field.get("full_path_code", f"field_{len(field_value_list)}")
+                    field_meta_dict[field_key] = field_meta
+            else:
+                # 如果不是标准企业档案文档，转换为标准格式
+                field_data = {
+                    "value": str(doc) if not isinstance(doc, dict) else json.dumps(doc, ensure_ascii=False),
+                    "value_text": "",
+                    "value_pic_url": "",
+                    "value_doc_url": "",
+                    "value_video_url": ""
+                }
+                field_value_list.append(field_data)
         
-        # 如果是findOne，只返回第一个结果
-        if query_type == "findOne":
-            field_value = field_value_list[0] if field_value_list else {}
-        else:
-            field_value = field_value_list
-            
         return {
-            "type": "明细", 
-            "field_value": field_value,
-            "field_meta": field_meta or {}
+            "type": "明细",
+            "field_value": field_value_list,
+            "field_meta": field_meta_dict if field_meta_dict else {}
         }
     
     else:
-        # 默认返回明细类型
+        # 未知查询类型，按明细处理
+        field_value_list = []
+        for item in result_data:
+            field_data = {
+                "value": str(item) if not isinstance(item, dict) else json.dumps(item, ensure_ascii=False),
+                "value_text": "",
+                "value_pic_url": "",
+                "value_doc_url": "",
+                "value_video_url": ""
+            }
+            field_value_list.append(field_data)
+            
         return {
             "type": "明细",
-            "field_value": result_data,
+            "field_value": field_value_list,
             "field_meta": {}
         }
-
-def _extract_field_value(field_doc: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    从字段文档中提取字段数据值部分
     
-    Args:
-        field_doc: 字段文档
-        
-    Returns:
-        字段数据值字典
-    """
-    field_value = {}
-    
-    # 提取字段数据值相关字段
-    value_fields = [
-        "enterprise_code","enterprise_name","full_path_name","field_name",
-        "value", "value_text", "value_pic_url", 
-        "value_doc_url", "value_video_url"
-    ]
-    
-    for field_name in value_fields:
-        if field_name in field_doc:
-            field_value[field_name] = field_doc[field_name]
-    
-    return field_value
-
-def _extract_field_meta(field_doc: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    从字段文档中提取元数据部分
-    
-    Args:
-        field_doc: 字段文档
-        
-    Returns:
-        元数据字典
-    """
-    field_meta = {}
-    
-    # 提取元数据相关字段
-    meta_fields = [
-        "remark", "data_url", "is_required", "data_source",
-        "encoding", "format", "license", "rights", 
-        "update_frequency", "value_dict"
-    ]
-    
-    for field_name in meta_fields:
-        if field_name in field_doc:
-            field_meta[field_name] = field_doc[field_name]
-    
-    return field_meta
-
 # 辅助函数实现
 def _parse_query_type(query_cmd: str) -> Optional[str]:
     """
@@ -989,18 +972,16 @@ def _fix_query_syntax(query_cmd: str) -> str:
 def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[Optional[str], Dict[str, Any]]:
     """
     解析查询参数
-    
     Args:
         query_cmd: 查询命令
         query_type: 查询类型
-        
     Returns:
         (集合名(始终返回None表示使用配置的默认集合), 查询参数字典)
     """
     # 重要：不再解析集合名，始终返回None表示使用配置文件中的默认集合
     # 这样可以确保使用配置文件中的 "一企一档" 集合
     collection_name = None  # 让MongoDB管理器使用配置的默认集合
-    
+    print(f"--> _parse_query_parameters query_cmd: {query_cmd}")
     try:
         # 根据查询类型提取参数
         if query_type in ["find", "findOne"]:
@@ -1078,19 +1059,233 @@ def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[Optional[s
         log_error("解析查询参数失败", exception=e)
         return collection_name, {}
 
+# ==================== 版本1: 整体提取版本 (推荐) ====================
+def _parse_query_parameters_v1_simple(query_cmd: str, query_type: str) -> Tuple[Optional[str], Dict[str, Any]]:
+    """
+    版本1: 整体提取参数版本
+    Args:
+        query_cmd: 已经过_fix_query_syntax处理的查询命令
+        query_type: 查询类型
+    Returns:
+        (集合名(始终返回None表示使用配置的默认集合), 查询参数字典)
+    """
+    # 重要：不再解析集合名，始终返回None表示使用配置文件中的默认集合
+    collection_name = None  # 让MongoDB管理器使用配置的默认集合
+    
+    try:
+        if query_type in ["find", "findOne"]:
+            # 提取find/findOne的参数
+            return _extract_find_params_v1(query_cmd, query_type, collection_name)
+            
+        elif query_type == "aggregate":
+            # 提取aggregate的pipeline参数
+            return _extract_aggregate_params_v1(query_cmd, collection_name)
+            
+        elif query_type in ["count", "countDocuments"]:
+            # 提取count/countDocuments的参数
+            return _extract_count_params_v1(query_cmd, query_type, collection_name)
+            
+        elif query_type == "distinct":
+            # 提取distinct的参数
+            return _extract_distinct_params_v1(query_cmd, collection_name)
+        
+        return collection_name, {}
+        
+    except Exception as e:
+        print(f"[V1] 解析查询参数失败: {e}")
+        return collection_name, {}
+
+def _extract_find_params_v1(query_cmd: str, query_type: str, collection_name: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """版本1: 提取find/findOne参数"""
+    try:
+        # 找到方法调用的位置
+        method_pattern = rf'\.{query_type}\s*\('
+        method_match = re.search(method_pattern, query_cmd)
+        
+        if method_match:
+            # 从方法调用开始位置提取参数
+            start_pos = method_match.end()
+            
+            # 使用括号计数法找到参数结束位置
+            bracket_count = 1
+            pos = start_pos
+            
+            while pos < len(query_cmd) and bracket_count > 0:
+                char = query_cmd[pos]
+                if char == '(':
+                    bracket_count += 1
+                elif char == ')':
+                    bracket_count -= 1
+                pos += 1
+            
+            if bracket_count == 0:
+                # 提取完整参数内容
+                params_str = query_cmd[start_pos:pos-1].strip()
+                print(f"[V1-Find] 提取的参数: {params_str}")
+                
+                if params_str:
+                    try:
+                        # 简单处理：如果有多个参数，取第一个作为filter
+                        if ',' in params_str:
+                            filter_part = params_str.split(',')[0].strip()
+                        else:
+                            filter_part = params_str
+                        
+                        filter_dict = json.loads(filter_part) if filter_part else {}
+                        return collection_name, {"filter": filter_dict}
+                    except json.JSONDecodeError as e:
+                        print(f"[V1-Find] JSON解析失败: {e}")
+                        return collection_name, {"filter": {}}
+                else:
+                    return collection_name, {"filter": {}}
+        
+        return collection_name, {"filter": {}}
+        
+    except Exception as e:
+        print(f"[V1-Find] 提取参数失败: {e}")
+        return collection_name, {"filter": {}}
+
+def _extract_aggregate_params_v1(query_cmd: str, collection_name: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """版本1: 提取aggregate参数"""
+    try:
+        # 找到 .aggregate( 的位置
+        start_pattern = r'\.aggregate\s*\('
+        start_match = re.search(start_pattern, query_cmd)
+        print(f" _extract_aggregate_params_v1 --> query_cmd:{query_cmd} ")
+        if start_match:
+            # 从 .aggregate( 后开始查找
+            start_pos = start_match.end()
+            
+            # 使用括号计数法找到匹配的结束位置
+            bracket_count = 1
+            pos = start_pos
+            
+            while pos < len(query_cmd) and bracket_count > 0:
+                char = query_cmd[pos]
+                if char == '(':
+                    bracket_count += 1
+                elif char == ')':
+                    bracket_count -= 1
+                pos += 1
+            
+            if bracket_count == 0:
+                # 提取完整的pipeline内容
+                pipeline_str = query_cmd[start_pos:pos-1].strip()
+                print(f"[V1-Aggregate] 提取的pipeline字符串: {pipeline_str}")
+                return collection_name, {"pipeline": pipeline_str}
+            else:
+                print("[V1-Aggregate] 括号不匹配")
+                return collection_name, {"pipeline": []}
+        else:
+            print("[V1-Aggregate] 未找到.aggregate(模式")
+            return collection_name, {"pipeline": []}
+        
+    except Exception as e:
+        print(f"[V1-Aggregate] 提取参数失败: {e}")
+        return collection_name, {"pipeline": []}
+
+def _extract_count_params_v1(query_cmd: str, query_type: str, collection_name: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """版本1: 提取count/countDocuments参数"""
+    try:
+        # 找到方法调用的位置
+        method_pattern = rf'\.{query_type}\s*\('
+        method_match = re.search(method_pattern, query_cmd)
+        
+        if method_match:
+            # 从方法调用开始位置提取参数
+            start_pos = method_match.end()
+            
+            # 使用括号计数法找到参数结束位置
+            bracket_count = 1
+            pos = start_pos
+            
+            while pos < len(query_cmd) and bracket_count > 0:
+                char = query_cmd[pos]
+                if char == '(':
+                    bracket_count += 1
+                elif char == ')':
+                    bracket_count -= 1
+                pos += 1
+            
+            if bracket_count == 0:
+                # 提取完整参数内容
+                params_str = query_cmd[start_pos:pos-1].strip()
+                print(f"[V1-Count] 提取的参数: {params_str}")
+                
+                if params_str:
+                    try:
+                        filter_dict = json.loads(params_str)
+                        return collection_name, {"filter": filter_dict}
+                    except json.JSONDecodeError as e:
+                        print(f"[V1-Count] JSON解析失败: {e}")
+                        return collection_name, {"filter": {}}
+                else:
+                    return collection_name, {"filter": {}}
+        
+        return collection_name, {"filter": {}}
+        
+    except Exception as e:
+        print(f"[V1-Count] 提取参数失败: {e}")
+        return collection_name, {"filter": {}}
+
+def _extract_distinct_params_v1(query_cmd: str, collection_name: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """版本1: 提取distinct参数"""
+    try:
+        # 找到 .distinct( 的位置
+        start_pattern = r'\.distinct\s*\('
+        start_match = re.search(start_pattern, query_cmd)
+        
+        if start_match:
+            # 从方法调用开始位置提取参数
+            start_pos = start_match.end()
+            
+            # 使用括号计数法找到参数结束位置
+            bracket_count = 1
+            pos = start_pos
+            
+            while pos < len(query_cmd) and bracket_count > 0:
+                char = query_cmd[pos]
+                if char == '(':
+                    bracket_count += 1
+                elif char == ')':
+                    bracket_count -= 1
+                pos += 1
+            
+            if bracket_count == 0:
+                # 提取完整参数内容
+                params_str = query_cmd[start_pos:pos-1].strip()
+                print(f"[V1-Distinct] 提取的参数: {params_str}")
+                
+                # 解析distinct的参数：field_name, filter
+                params_list = [p.strip(' "\'') for p in params_str.split(',')]
+                field_name = params_list[0] if params_list else ""
+                filter_dict = {}
+                
+                if len(params_list) > 1:
+                    try:
+                        filter_dict = json.loads(params_list[1])
+                    except json.JSONDecodeError:
+                        pass
+                
+                return collection_name, {"field": field_name, "filter": filter_dict}
+        
+        return collection_name, {"field": "", "filter": {}}
+        
+    except Exception as e:
+        print(f"[V1-Distinct] 提取参数失败: {e}")
+        return collection_name, {"field": "", "filter": {}}
+
 async def _execute_mongodb_query(
     manager: MongoDBManager, 
     query_type: str, 
     query_params: Dict[str, Any]
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
-    执行MongoDB查询
-    
+    执行MongoDB查询 - 修正版
     Args:
         manager: MongoDB管理器（已经连接到配置的数据库和集合）
         query_type: 查询类型
-        query_params: 查询参数
-        
+        query_params: 查询参数 
     Returns:
         (查询结果数据, 总文档数)
     """
@@ -1103,7 +1298,7 @@ async def _execute_mongodb_query(
     
     total_count = 0
     result_data = []
-    
+    print(f"query_params: {query_params}")
     try:
         if query_type == "find":
             filter_dict = query_params.get("filter", {})
@@ -1125,19 +1320,19 @@ async def _execute_mongodb_query(
             
         elif query_type == "aggregate":
             pipeline = query_params.get("pipeline", [])
-            
+            print(f"aggregate ==> {pipeline}")
             # 执行聚合查询
             cursor = collection.aggregate(pipeline)
             result_data = await cursor.to_list(length=1000)
             total_count = len(result_data)
             
-        elif query_type in ["count", "countDocuments"]:  # 支持 countDocuments
+        elif query_type in ["count", "countDocuments"]:
             filter_dict = query_params.get("filter", {})
-            
             # 执行计数查询
             count_result = await collection.count_documents(filter_dict)
+            # 修正：确保 result_data 格式正确，包含 count 字段
             result_data = [{"count": count_result}]
-            total_count = 1  # 保持原逻辑：对于count查询，total_count返回1
+            total_count = count_result  # 修正：total_count 应该是实际计数结果
             
         elif query_type == "distinct":
             field_name = query_params.get("field", "")
@@ -1148,6 +1343,7 @@ async def _execute_mongodb_query(
             
             # 执行去重查询
             distinct_values = await collection.distinct(field_name, filter_dict)
+            # 修正：确保 result_data 格式正确，包含 count 字段
             result_data = [{"count": len(distinct_values)}]
             total_count = len(distinct_values)
         
@@ -1163,6 +1359,7 @@ async def _execute_mongodb_query(
         log_error("MongoDB查询执行失败", exception=e, 
                  extra_data=f'{{"query_type": "{query_type}", "query_params": {query_params}, "collection": "{manager.collection_name}"}}')
         raise
+
 # ==================== 错误处理 ====================
 
 @app.exception_handler(Exception)
