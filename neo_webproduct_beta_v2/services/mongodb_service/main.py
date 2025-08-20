@@ -2,12 +2,15 @@
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional,List,Tuple
+import json5
 import sys
 import os
 import re
 import json
 import time
-from typing import Union
+from datetime import datetime, date
+from decimal import Decimal
+from bson import ObjectId
 from contextlib import asynccontextmanager # 导入 asynccontextmanager
 
 # 添加项目根目录到Python路径
@@ -743,27 +746,24 @@ async def execute_mongo_command(
                 detail="不支持的查询类型，只支持 find/findOne/aggregate/count/countDocuments/distinct 操作"
             )
         
-        # 2.2 修复和预处理查询语句
-        fixed_query = _fix_query_syntax(request.query_cmd)
+        # 2.2 解析查询参数（集合名将被忽略，使用配置的集合）
+        query_params = _parse_query_parameters_with_json5(request.query_cmd, query_type)
         
-        # 2.3 解析查询参数（集合名将被忽略，使用配置的集合）
-        _, query_params = _parse_query_parameters(fixed_query, query_type)
-        
-        # 2.4 执行MongoDB查询（使用配置的集合）
+        # 2.3 执行MongoDB查询（使用配置的集合）
         result_data, total_count = await _execute_mongodb_query(
             manager, query_type, query_params
         )
         
-        # 2.5 根据查询类型对返回数据进行分类处理 - 使用新格式
+        # 2.4 根据查询类型对返回数据进行分类处理 - 使用新格式
         response_data = _classify_query_result(query_type, result_data, total_count)
         
-        # 2.6 计算统计信息 - 运行耗时以ms为单位
+        # 2.5 计算统计信息 - 运行耗时以ms为单位
         execution_time = (time.time() - start_time) * 1000
         
         log_info("MongoDB原生查询执行成功", 
                 extra_data=f'{{"query_type": "{query_type}", "result_type": "{response_data["type"]}", "execution_time_ms": {execution_time}, "collection": "{manager.collection_name}"}}')
         
-        # 2.7 直接返回新格式的响应数据
+        # 2.6 直接返回新格式的响应数据
         return ExecuteMongoQueryResponse(
             type=response_data["type"],
             period=f"{round(execution_time, 2)}ms",
@@ -785,11 +785,386 @@ async def execute_mongo_command(
             field_value=[],
             field_meta=""
         )
+
+def _parse_query_type(query_cmd: str) -> Optional[str]:
+    """
+    解析查询操作类型
     
-# 响应结果分类处理
+    Args:
+        query_cmd: 原始查询命令
+        
+    Returns:
+        查询类型字符串或None
+    """
+    query_cmd_clean = query_cmd.strip().lower()
+    
+    if ".find(" in query_cmd_clean and ".findone(" not in query_cmd_clean:
+        return "find"
+    elif ".findone(" in query_cmd_clean:
+        return "findOne"
+    elif ".aggregate(" in query_cmd_clean:
+        return "aggregate"
+    elif ".countdocuments(" in query_cmd_clean:
+        return "countDocuments"
+    elif ".count(" in query_cmd_clean:
+        return "count"
+    elif ".distinct(" in query_cmd_clean:
+        return "distinct"
+    
+    return None
+
+def _extract_method_params(query_cmd: str, method_name: str) -> str:
+    """
+    提取方法的参数部分
+    
+    Args:
+        query_cmd: 查询命令
+        method_name: 方法名（如 aggregate, find等）
+        
+    Returns:
+        参数字符串
+    """
+    # 使用正则表达式匹配方法调用，支持嵌套括号
+    pattern = rf'\.{method_name}\s*\('
+    match = re.search(pattern, query_cmd, re.IGNORECASE)
+    if not match:
+        return ""
+    
+    start_pos = match.end() - 1  # 从左括号开始
+    bracket_count = 0
+    end_pos = start_pos
+    
+    # 找到匹配的右括号
+    for i in range(start_pos, len(query_cmd)):
+        if query_cmd[i] == '(':
+            bracket_count += 1
+        elif query_cmd[i] == ')':
+            bracket_count -= 1
+            if bracket_count == 0:
+                end_pos = i
+                break
+    
+    # 提取括号内的内容
+    params_str = query_cmd[start_pos + 1:end_pos].strip()
+    return params_str
+
+def _preprocess_js_object(js_str: str) -> str:
+    """
+    预处理JavaScript对象字符串，使其更容易被json5解析
+    
+    Args:
+        js_str: JavaScript对象字符串
+        
+    Returns:
+        预处理后的字符串
+    """
+    if not js_str.strip():
+        return js_str
+    
+    # 移除JavaScript特有的语法
+    # 1. 移除JavaScript注释
+    js_str = re.sub(r'//.*?$', '', js_str, flags=re.MULTILINE)
+    js_str = re.sub(r'/\*.*?\*/', '', js_str, flags=re.DOTALL)
+    
+    # 2. 处理MongoDB特有的操作符（保持$符号）
+    # MongoDB的字段名和操作符通常以$开头，这些是合法的
+    
+    # 3. 处理正则表达式字面量 /pattern/flags -> {"$regex": "pattern", "$options": "flags"}
+    js_str = re.sub(r'/([^/]+)/([gimx]*)', r'{"$regex": "\1", "$options": "\2"}', js_str)
+    
+    # 4. 处理Date对象 Date() -> {"$date": "..."}
+    # 简化处理，实际应用中可能需要更复杂的日期解析
+    js_str = re.sub(r'new\s+Date\s*\(\s*([^)]+)\s*\)', r'{"$date": \1}', js_str)
+    js_str = re.sub(r'Date\s*\(\s*([^)]+)\s*\)', r'{"$date": \1}', js_str)
+    
+    # 5. 处理ObjectId ObjectId("...") -> {"$oid": "..."}
+    js_str = re.sub(r'ObjectId\s*\(\s*["\']([^"\']+)["\']\s*\)', r'{"$oid": "\1"}', js_str)
+    
+    return js_str
+
+def _parse_query_parameters_with_json5(query_cmd: str, query_type: str) -> Dict[str, Any]:
+    """
+    使用json5解析查询参数，更好地处理JavaScript语法
+    
+    Args:
+        query_cmd: 查询命令
+        query_type: 查询类型
+        
+    Returns:
+        查询参数字典
+    """
+    try:
+        if query_type in ["find", "findOne"]:
+            params_str = _extract_method_params(query_cmd, query_type)
+            if not params_str:
+                return {"filter": {}}
+            
+            # 如果有多个参数，用逗号分割（注意处理嵌套对象中的逗号）
+            filter_str = _extract_first_parameter(params_str)
+            filter_str = _preprocess_js_object(filter_str)
+            
+            try:
+                filter_dict = json5.loads(filter_str) if filter_str else {}
+                return {"filter": filter_dict}
+            except Exception as e:
+                log_error(f"解析find/findOne参数失败: {filter_str}", exception=e)
+                return {"filter": {}}
+        
+        elif query_type == "aggregate":
+            params_str = _extract_method_params(query_cmd, "aggregate")
+            if not params_str:
+                return {"pipeline": []}
+            
+            # 预处理JavaScript对象语法
+            params_str = _preprocess_js_object(params_str)
+            
+            try:
+                # 尝试解析为数组
+                pipeline = json5.loads(params_str)
+                
+                # 确保pipeline是列表类型
+                if not isinstance(pipeline, list):
+                    pipeline = [pipeline]
+                
+                # 验证pipeline中的每个阶段都是字典
+                validated_pipeline = []
+                for stage in pipeline:
+                    if isinstance(stage, dict):
+                        validated_pipeline.append(stage)
+                    else:
+                        log_error(f"Invalid pipeline stage (not a dict): {stage}")
+                        # 尝试转换为字典
+                        try:
+                            if isinstance(stage, str):
+                                stage_dict = json5.loads(stage)
+                                if isinstance(stage_dict, dict):
+                                    validated_pipeline.append(stage_dict)
+                            else:
+                                log_error(f"Cannot convert stage to dict: {stage}")
+                        except:
+                            log_error(f"Failed to parse stage: {stage}")
+                
+                return {"pipeline": validated_pipeline}
+                
+            except Exception as e:
+                log_error(f"解析aggregate参数失败: {params_str}", exception=e)
+                return {"pipeline": []}
+        
+        elif query_type in ["count", "countDocuments"]:
+            method = "countDocuments" if query_type == "countDocuments" else "count"
+            params_str = _extract_method_params(query_cmd, method)
+            
+            if not params_str:
+                return {"filter": {}}
+            
+            params_str = _preprocess_js_object(params_str)
+            
+            try:
+                filter_dict = json5.loads(params_str) if params_str else {}
+                return {"filter": filter_dict}
+            except Exception as e:
+                log_error(f"解析{method}参数失败: {params_str}", exception=e)
+                return {"filter": {}}
+        
+        elif query_type == "distinct":
+            params_str = _extract_method_params(query_cmd, "distinct")
+            if not params_str:
+                return {"field": "", "filter": {}}
+            
+            # distinct方法通常有两个参数：字段名和过滤条件
+            params = _split_parameters(params_str)
+            
+            field_name = ""
+            filter_dict = {}
+            
+            if len(params) >= 1:
+                # 第一个参数是字段名（字符串）
+                field_param = params[0].strip().strip('\'"')
+                field_name = field_param
+            
+            if len(params) >= 2:
+                # 第二个参数是过滤条件（对象）
+                filter_str = _preprocess_js_object(params[1])
+                try:
+                    filter_dict = json5.loads(filter_str)
+                except Exception as e:
+                    log_error(f"解析distinct过滤条件失败: {params[1]}", exception=e)
+                    filter_dict = {}
+            
+            return {"field": field_name, "filter": filter_dict}
+        
+        return {}
+        
+    except Exception as e:
+        log_error("解析查询参数失败", exception=e)
+        return {}
+
+def _extract_first_parameter(params_str: str) -> str:
+    """
+    从参数字符串中提取第一个参数（考虑嵌套括号和引号）
+    
+    Args:
+        params_str: 参数字符串
+        
+    Returns:
+        第一个参数的字符串
+    """
+    if not params_str.strip():
+        return ""
+    
+    bracket_count = 0
+    brace_count = 0
+    square_count = 0
+    in_string = False
+    string_char = None
+    escape_next = False
+    
+    for i, char in enumerate(params_str):
+        if escape_next:
+            escape_next = False
+            continue
+        
+        if char == '\\':
+            escape_next = True
+            continue
+        
+        if not in_string:
+            if char in ['"', "'"]:
+                in_string = True
+                string_char = char
+            elif char == '(':
+                bracket_count += 1
+            elif char == ')':
+                bracket_count -= 1
+            elif char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+            elif char == '[':
+                square_count += 1
+            elif char == ']':
+                square_count -= 1
+            elif char == ',' and bracket_count == 0 and brace_count == 0 and square_count == 0:
+                return params_str[:i].strip()
+        else:
+            if char == string_char:
+                in_string = False
+                string_char = None
+    
+    return params_str.strip()
+
+def _split_parameters(params_str: str) -> List[str]:
+    """
+    智能分割参数字符串，考虑嵌套括号和引号
+    
+    Args:
+        params_str: 参数字符串
+        
+    Returns:
+        参数列表
+    """
+    if not params_str.strip():
+        return []
+    
+    params = []
+    current_param = ""
+    bracket_count = 0
+    brace_count = 0
+    square_count = 0
+    in_string = False
+    string_char = None
+    escape_next = False
+    
+    for char in params_str:
+        if escape_next:
+            current_param += char
+            escape_next = False
+            continue
+        
+        if char == '\\':
+            current_param += char
+            escape_next = True
+            continue
+        
+        if not in_string:
+            if char in ['"', "'"]:
+                in_string = True
+                string_char = char
+                current_param += char
+            elif char == '(':
+                bracket_count += 1
+                current_param += char
+            elif char == ')':
+                bracket_count -= 1
+                current_param += char
+            elif char == '{':
+                brace_count += 1
+                current_param += char
+            elif char == '}':
+                brace_count -= 1
+                current_param += char
+            elif char == '[':
+                square_count += 1
+                current_param += char
+            elif char == ']':
+                square_count -= 1
+                current_param += char
+            elif char == ',' and bracket_count == 0 and brace_count == 0 and square_count == 0:
+                params.append(current_param.strip())
+                current_param = ""
+            else:
+                current_param += char
+        else:
+            current_param += char
+            if char == string_char:
+                in_string = False
+                string_char = None
+    
+    if current_param.strip():
+        params.append(current_param.strip())
+    
+    return params
+
+def _serialize_document(doc: Any) -> str:
+    """
+    安全地序列化MongoDB文档，处理datetime、ObjectId等特殊类型
+    
+    Args:
+        doc: 要序列化的文档
+        
+    Returns:
+        JSON字符串
+    """
+    def json_serializer(obj):
+        """JSON序列化器，处理特殊类型"""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, date):
+            return obj.isoformat()
+        elif isinstance(obj, ObjectId):
+            return str(obj)
+        elif isinstance(obj, Decimal):
+            return float(obj)
+        elif hasattr(obj, 'to_dict'):
+            return obj.to_dict()
+        elif hasattr(obj, '__dict__'):
+            return obj.__dict__
+        else:
+            return str(obj)
+    
+    try:
+        if isinstance(doc, dict):
+            return json.dumps(doc, ensure_ascii=False, default=json_serializer)
+        else:
+            return str(doc)
+    except Exception as e:
+        # 如果序列化失败，返回字符串表示
+        return str(doc)
+
+# 保持原有的其他函数不变
 def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], total_count: int) -> Dict[str, Any]:
     """
-    根据查询类型对返回结果进行分类处理 - 新格式匹配Schema
+    根据查询类型对返回结果进行分类处理 - 修正版
     
     Args:
         query_type: 查询类型
@@ -799,13 +1174,27 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
     Returns:
         分类后的数据字典 - 新格式
     """
-    if query_type in ["count", "countDocuments", "distinct"]:
-        # 汇总类型：count、countDocuments、distinct
-        if query_type in ["count", "countDocuments"]:
+    if query_type in ["count", "countDocuments"]:
+        # 汇总类型：count、countDocuments
+        # result_data 格式: [{"count": count_result}]
+        if result_data and len(result_data) > 0 and "count" in result_data[0]:
+            field_value = result_data[0]["count"]
+        else:
             field_value = total_count
-        elif query_type == "distinct":
-            # distinct返回的是去重后的值列表的数量
-            field_value = len(result_data) if result_data else 0
+            
+        return {
+            "type": "汇总",
+            "field_value": field_value,
+            "field_meta": ""  # 汇总时为空字符串
+        }
+    
+    elif query_type == "distinct":
+        # distinct 汇总类型
+        # result_data 格式: [{"count": distinct_count}]
+        if result_data and len(result_data) > 0 and "count" in result_data[0]:
+            field_value = result_data[0]["count"]
+        else:
+            field_value = total_count
             
         return {
             "type": "汇总",
@@ -853,8 +1242,15 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
                     field_key = field.get("full_path_code", f"field_{len(field_value_list)}")
                     field_meta_dict[field_key] = field_meta
             else:
-                # 如果不是标准企业档案文档，直接使用原始数据
-                field_value_list.append(doc)
+                # 如果不是标准企业档案文档，转换为标准格式
+                field_data = {
+                    "value": _serialize_document(doc),
+                    "value_text": "",
+                    "value_pic_url": "",
+                    "value_doc_url": "",
+                    "value_video_url": ""
+                }
+                field_value_list.append(field_data)
         
         return {
             "type": "明细",
@@ -863,174 +1259,23 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
         }
     
     else:
-        # 未知查询类型
+        # 未知查询类型，按明细处理
+        field_value_list = []
+        for item in result_data:
+            field_data = {
+                "value": _serialize_document(item),
+                "value_text": "",
+                "value_pic_url": "",
+                "value_doc_url": "",
+                "value_video_url": ""
+            }
+            field_value_list.append(field_data)
+            
         return {
             "type": "明细",
-            "field_value": result_data if result_data else [],
+            "field_value": field_value_list,
             "field_meta": {}
         }
-
-# 辅助函数实现
-def _parse_query_type(query_cmd: str) -> Optional[str]:
-    """
-    解析查询操作类型
-    
-    Args:
-        query_cmd: 原始查询命令
-        
-    Returns:
-        查询类型字符串或None
-    """
-    query_cmd_clean = query_cmd.strip().lower()
-    
-    if ".find(" in query_cmd_clean and ".findone(" not in query_cmd_clean:
-        return "find"
-    elif ".findone(" in query_cmd_clean:
-        return "findOne"
-    elif ".aggregate(" in query_cmd_clean:
-        return "aggregate"
-    elif ".countdocuments(" in query_cmd_clean:  # 新增：countDocuments 支持
-        return "countDocuments"
-    elif ".count(" in query_cmd_clean:
-        return "count"
-    elif ".distinct(" in query_cmd_clean:
-        return "distinct"
-    
-    return None
-
-def _fix_query_syntax(query_cmd: str) -> str:
-    """
-    修复查询语句的语法问题
-    
-    Args:
-        query_cmd: 原始查询命令
-        
-    Returns:
-        修复后的查询命令
-    """
-    # 移除前后空白字符
-    fixed_query = query_cmd.strip()
-    
-    # 括号匹配检查和修复
-    open_brackets = fixed_query.count('(')
-    close_brackets = fixed_query.count(')')
-    if open_brackets > close_brackets:
-        fixed_query += ')' * (open_brackets - close_brackets)
-    
-    open_braces = fixed_query.count('{')
-    close_braces = fixed_query.count('}')
-    if open_braces > close_braces:
-        fixed_query += '}' * (open_braces - close_braces)
-    
-    open_squares = fixed_query.count('[')
-    close_squares = fixed_query.count(']')
-    if open_squares > close_squares:
-        fixed_query += ']' * (open_squares - close_squares)
-    
-    # JSON引号修复：将单引号替换为双引号（在字符串内容中）
-    fixed_query = re.sub(r"'([^']*)'", r'"\1"', fixed_query)
-    
-    # 字段名标准化：为未加引号的字段名添加双引号
-    fixed_query = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed_query)
-    
-    # 修复缺失的逗号（简单情况）
-    fixed_query = re.sub(r'}\s*{', '},{', fixed_query)
-    fixed_query = re.sub(r']\s*\[', '],[', fixed_query)
-    print(f"--> fixed_query:{fixed_query}")
-    return fixed_query
-
-def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[Optional[str], Dict[str, Any]]:
-    """
-    解析查询参数
-    
-    Args:
-        query_cmd: 查询命令
-        query_type: 查询类型
-        
-    Returns:
-        (集合名(始终返回None表示使用配置的默认集合), 查询参数字典)
-    """
-    # 重要：不再解析集合名，始终返回None表示使用配置文件中的默认集合
-    # 这样可以确保使用配置文件中的 "一企一档" 集合
-    collection_name = None  # 让MongoDB管理器使用配置的默认集合
-    
-    try:
-        # 根据查询类型提取参数
-        if query_type in ["find", "findOne"]:
-            # 提取find/findOne的参数
-            match = re.search(rf'\.{query_type}\((.*)\)', query_cmd, re.DOTALL)
-            if match:
-                params_str = match.group(1).strip()
-                if params_str:
-                    # 尝试解析JSON参数
-                    try:
-                        # 简单处理：如果有多个参数，取第一个作为filter
-                        if ',' in params_str:
-                            filter_part = params_str.split(',')[0].strip()
-                        else:
-                            filter_part = params_str
-                        
-                        filter_dict = json.loads(filter_part) if filter_part else {}
-                        return collection_name, {"filter": filter_dict}
-                    except json.JSONDecodeError:
-                        return collection_name, {"filter": {}}
-                else:
-                    return collection_name, {"filter": {}}
-        
-        elif query_type == "aggregate":
-            # 提取aggregate的pipeline参数
-            match = re.search(r'\.aggregate\((.*)\)', query_cmd, re.DOTALL)
-            if match:
-                params_str = match.group(1).strip()
-                if params_str:
-                    try:
-                        pipeline = json.loads(params_str)
-                        return collection_name, {"pipeline": pipeline}
-                    except json.JSONDecodeError:
-                        return collection_name, {"pipeline": []}
-                else:
-                    return collection_name, {"pipeline": []}
-        
-        elif query_type in ["count", "countDocuments"]:  # 支持 countDocuments
-            # 提取count/countDocuments的参数
-            if query_type == "countDocuments":
-                match = re.search(r'\.countDocuments\((.*)\)', query_cmd, re.DOTALL)
-            else:
-                match = re.search(r'\.count\((.*)\)', query_cmd, re.DOTALL)
-                
-            if match:
-                params_str = match.group(1).strip()
-                if params_str:
-                    try:
-                        filter_dict = json.loads(params_str)
-                        return collection_name, {"filter": filter_dict}
-                    except json.JSONDecodeError:
-                        return collection_name, {"filter": {}}
-                else:
-                    return collection_name, {"filter": {}}
-        
-        elif query_type == "distinct":
-            # 提取distinct的参数
-            match = re.search(r'\.distinct\((.*)\)', query_cmd, re.DOTALL)
-            if match:
-                params_str = match.group(1).strip()
-                params_list = [p.strip(' "\'') for p in params_str.split(',')]
-                field_name = params_list[0] if params_list else ""
-                filter_dict = {}
-                if len(params_list) > 1:
-                    try:
-                        filter_dict = json.loads(params_list[1])
-                    except json.JSONDecodeError:
-                        pass
-                
-                return collection_name, {"field": field_name, "filter": filter_dict}
-        
-        return collection_name, {}
-        
-    except Exception as e:
-        log_error("解析查询参数失败", exception=e)
-        return collection_name, {}
-
 
 async def _execute_mongodb_query(
     manager: MongoDBManager, 
@@ -1038,7 +1283,7 @@ async def _execute_mongodb_query(
     query_params: Dict[str, Any]
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
-    执行MongoDB查询
+    执行MongoDB查询 - 修正版
     
     Args:
         manager: MongoDB管理器（已经连接到配置的数据库和集合）
@@ -1080,18 +1325,29 @@ async def _execute_mongodb_query(
         elif query_type == "aggregate":
             pipeline = query_params.get("pipeline", [])
             
+            # 验证pipeline是字典列表
+            if not isinstance(pipeline, list):
+                raise Exception(f"Pipeline必须是列表类型，当前类型: {type(pipeline)}")
+            
+            for i, stage in enumerate(pipeline):
+                if not isinstance(stage, dict):
+                    raise Exception(f"Pipeline阶段{i}必须是字典类型，当前类型: {type(stage)}")
+            
+            log_info(f"执行聚合查询，pipeline: {pipeline}")
+            
             # 执行聚合查询
             cursor = collection.aggregate(pipeline)
             result_data = await cursor.to_list(length=1000)
             total_count = len(result_data)
             
-        elif query_type in ["count", "countDocuments"]:  # 支持 countDocuments
+        elif query_type in ["count", "countDocuments"]:
             filter_dict = query_params.get("filter", {})
             
             # 执行计数查询
             count_result = await collection.count_documents(filter_dict)
+            # 修正：确保 result_data 格式正确，包含 count 字段
             result_data = [{"count": count_result}]
-            total_count = 1  # 保持原逻辑：对于count查询，total_count返回1
+            total_count = count_result  # 修正：total_count 应该是实际计数结果
             
         elif query_type == "distinct":
             field_name = query_params.get("field", "")
@@ -1102,6 +1358,7 @@ async def _execute_mongodb_query(
             
             # 执行去重查询
             distinct_values = await collection.distinct(field_name, filter_dict)
+            # 修正：确保 result_data 格式正确，包含 count 字段
             result_data = [{"count": len(distinct_values)}]
             total_count = len(distinct_values)
         

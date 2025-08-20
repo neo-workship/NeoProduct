@@ -1,10 +1,15 @@
+import json
 import re
-import logging
-from typing import Any, Dict
+from datetime import datetime, timezone
+from bson import ObjectId, Regex
+from typing import Any, Dict, List, Optional, Tuple, Union
+import ast
 
-def fix_query_syntax(query_cmd: str) -> str:
+
+def _fix_query_syntax(query_cmd: str) -> str:
     """
-    修复MongoDB查询语句 - 支持直接执行和JSON转换两种模式
+    修复查询语句的语法问题 - 改进版
+    专门处理 MongoDB JavaScript 语法转换为 Python 兼容格式
     
     Args:
         query_cmd: 原始查询命令
@@ -12,288 +17,338 @@ def fix_query_syntax(query_cmd: str) -> str:
     Returns:
         修复后的查询命令
     """
+    # 移除前后空白字符
+    fixed_query = query_cmd.strip()
+    
+    # 1. 处理 ObjectId 函数调用
+    fixed_query = re.sub(r'ObjectId\s*\(\s*["\']([^"\']+)["\']\s*\)', 
+                        r'{"$oid": "\1"}', fixed_query)
+    
+    # 2. 处理 ISODate 函数调用
+    fixed_query = re.sub(r'ISODate\s*\(\s*["\']([^"\']+)["\']\s*\)', 
+                        r'{"$date": "\1"}', fixed_query)
+    
+    # 3. 处理正则表达式 /pattern/flags
+    fixed_query = re.sub(r'/([^/]+)/([gimx]*)', 
+                        r'{"$regex": "\1", "$options": "\2"}', fixed_query)
+    
+    # 4. 处理 JavaScript 的 true/false/null
+    fixed_query = re.sub(r'\btrue\b', 'true', fixed_query)
+    fixed_query = re.sub(r'\bfalse\b', 'false', fixed_query)
+    fixed_query = re.sub(r'\bnull\b', 'null', fixed_query)
+    
+    # 5. 处理未加引号的字段名和键名
+    # 匹配 {key: value} 或 key: value 格式，为 key 添加引号
+    fixed_query = re.sub(r'([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:', 
+                        r'\1"\2":', fixed_query)
+    
+    # 6. 处理单引号转双引号
+    fixed_query = re.sub(r"'([^']*)'", r'"\1"', fixed_query)
+    
+    # 7. 处理 JavaScript 注释
+    fixed_query = re.sub(r'//.*$', '', fixed_query, flags=re.MULTILINE)
+    fixed_query = re.sub(r'/\*.*?\*/', '', fixed_query, flags=re.DOTALL)
+    
+    # 8. 修复缺失的括号
+    open_brackets = fixed_query.count('(')
+    close_brackets = fixed_query.count(')')
+    if open_brackets > close_brackets:
+        fixed_query += ')' * (open_brackets - close_brackets)
+    
+    open_braces = fixed_query.count('{')
+    close_braces = fixed_query.count('}')
+    if open_braces > close_braces:
+        fixed_query += '}' * (open_braces - close_braces)
+    
+    open_squares = fixed_query.count('[')
+    close_squares = fixed_query.count(']')
+    if open_squares > close_squares:
+        fixed_query += ']' * (open_squares - close_squares)
+    
+    print(f"--> fixed_query: {fixed_query}")
+    return fixed_query
+
+
+def _convert_js_to_python_value(value: Any) -> Any:
+    """
+    递归转换 JavaScript 风格的值为 Python/MongoDB 兼容的值
+    
+    Args:
+        value: JavaScript 风格的值
+        
+    Returns:
+        Python/MongoDB 兼容的值
+    """
+    if isinstance(value, dict):
+        # 处理特殊的 MongoDB 类型标记
+        if "$oid" in value:
+            return ObjectId(value["$oid"])
+        elif "$date" in value:
+            return datetime.fromisoformat(value["$date"].replace('Z', '+00:00'))
+        elif "$regex" in value:
+            options = value.get("$options", "")
+            flags = 0
+            if 'i' in options:
+                flags |= re.IGNORECASE
+            if 'm' in options:
+                flags |= re.MULTILINE
+            if 's' in options:
+                flags |= re.DOTALL
+            return Regex(value["$regex"], flags)
+        else:
+            # 递归处理字典中的值
+            return {k: _convert_js_to_python_value(v) for k, v in value.items()}
+    
+    elif isinstance(value, list):
+        # 递归处理列表中的值
+        return [_convert_js_to_python_value(item) for item in value]
+    
+    else:
+        # 基本类型直接返回
+        return value
+
+
+def _safe_json_loads(json_str: str) -> Any:
+    """
+    安全的 JSON 解析，支持 MongoDB JavaScript 语法
+    
+    Args:
+        json_str: JSON 字符串
+        
+    Returns:
+        解析后的 Python 对象
+    """
     try:
-        # 尝试直接执行（不转换）
-        if can_execute_directly(query_cmd):
-            print(f"--> 查询语法正确，无需修复: {query_cmd}")
-            return query_cmd.strip()
+        # 首先尝试标准 JSON 解析
+        parsed = json.loads(json_str)
+        return _convert_js_to_python_value(parsed)
+    except json.JSONDecodeError as e:
+        print(f"JSON 解析失败: {e}, 尝试替代方案")
         
-        # 如果直接执行失败，进行最小化修复
-        fixed_query = apply_minimal_fixes(query_cmd)
+        # 如果标准 JSON 解析失败，尝试使用 ast.literal_eval
+        # 但首先需要将一些 JavaScript 语法转换为 Python 语法
+        try:
+            # 将 JavaScript 的 true/false/null 转换为 Python 的 True/False/None
+            python_str = json_str.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+            parsed = ast.literal_eval(python_str)
+            return _convert_js_to_python_value(parsed)
+        except (ValueError, SyntaxError) as e2:
+            print(f"AST 解析也失败: {e2}")
+            # 如果都失败了，返回空字典或空列表
+            stripped = json_str.strip()
+            if stripped.startswith('['):
+                return []
+            else:
+                return {}
+
+
+def _parse_query_parameters(query_cmd: str, query_type: str) -> Tuple[Optional[str], Dict[str, Any]]:
+    """
+    解析查询参数 - 改进版
+    专门处理 MongoDB 的 aggregate pipeline 参数
+    
+    Args:
+        query_cmd: 查询命令
+        query_type: 查询类型
         
-        # 再次尝试执行
-        if can_execute_directly(fixed_query):
-            print(f"--> 修复后可执行: {fixed_query}")
-            return fixed_query
+    Returns:
+        (集合名(始终返回None), 查询参数字典)
+    """
+    collection_name = None  # 使用配置的默认集合
+    
+    try:
+        if query_type in ["find", "findOne"]:
+            # 提取 find/findOne 的参数
+            pattern = rf'\.{query_type}\s*\((.*)\)'
+            match = re.search(pattern, query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    try:
+                        # 处理多个参数的情况：filter, projection, options
+                        # 简单解析：按逗号分割，但要考虑嵌套结构
+                        params = _split_params(params_str)
+                        filter_dict = _safe_json_loads(params[0]) if params else {}
+                        
+                        result = {"filter": filter_dict}
+                        
+                        # 如果有第二个参数（projection）
+                        if len(params) > 1 and params[1].strip():
+                            projection = _safe_json_loads(params[1])
+                            result["projection"] = projection
+                            
+                        return collection_name, result
+                    except Exception as e:
+                        print(f"解析 find/findOne 参数失败: {e}")
+                        return collection_name, {"filter": {}}
+                else:
+                    return collection_name, {"filter": {}}
         
-        # 如果还是不行，使用传统的JSON修复方法
-        fixed_query = apply_json_fixes(query_cmd)
-        print(f"--> 使用JSON修复: {fixed_query}")
-        return fixed_query
+        elif query_type == "aggregate":
+            # 重点改进：提取 aggregate 的 pipeline 参数
+            pattern = r'\.aggregate\s*\((.*)\)'
+            match = re.search(pattern, query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    try:
+                        # pipeline 应该是一个数组
+                        pipeline = _safe_json_loads(params_str)
+                        
+                        # 确保 pipeline 是列表格式
+                        if not isinstance(pipeline, list):
+                            # 如果不是列表，可能是单个 stage，包装成列表
+                            pipeline = [pipeline] if pipeline else []
+                        
+                        # 转换每个 stage 中的特殊值
+                        converted_pipeline = []
+                        for stage in pipeline:
+                            converted_stage = _convert_js_to_python_value(stage)
+                            converted_pipeline.append(converted_stage)
+                        
+                        print(f"解析到的 pipeline: {converted_pipeline}")
+                        return collection_name, {"pipeline": converted_pipeline}
+                        
+                    except Exception as e:
+                        print(f"解析 aggregate pipeline 失败: {e}")
+                        print(f"原始参数: {params_str}")
+                        return collection_name, {"pipeline": []}
+                else:
+                    return collection_name, {"pipeline": []}
+        
+        elif query_type in ["count", "countDocuments"]:
+            # 提取 count/countDocuments 的参数
+            if query_type == "countDocuments":
+                pattern = r'\.countDocuments\s*\((.*)\)'
+            else:
+                pattern = r'\.count\s*\((.*)\)'
+                
+            match = re.search(pattern, query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                if params_str:
+                    try:
+                        filter_dict = _safe_json_loads(params_str)
+                        return collection_name, {"filter": filter_dict}
+                    except Exception as e:
+                        print(f"解析 count 参数失败: {e}")
+                        return collection_name, {"filter": {}}
+                else:
+                    return collection_name, {"filter": {}}
+        
+        elif query_type == "distinct":
+            # 提取 distinct 的参数
+            pattern = r'\.distinct\s*\((.*)\)'
+            match = re.search(pattern, query_cmd, re.DOTALL)
+            if match:
+                params_str = match.group(1).strip()
+                try:
+                    # distinct 参数格式：field, filter
+                    params = _split_params(params_str)
+                    
+                    # 第一个参数是字段名
+                    field_name = params[0].strip(' "\'') if params else ""
+                    
+                    # 第二个参数是过滤条件（可选）
+                    filter_dict = {}
+                    if len(params) > 1 and params[1].strip():
+                        filter_dict = _safe_json_loads(params[1])
+                    
+                    return collection_name, {"field": field_name, "filter": filter_dict}
+                    
+                except Exception as e:
+                    print(f"解析 distinct 参数失败: {e}")
+                    return collection_name, {"field": "", "filter": {}}
+        
+        return collection_name, {}
         
     except Exception as e:
-        logging.error(f"修复查询语法时发生错误: {e}")
-        return query_cmd
+        print(f"解析查询参数失败: {e}")
+        return collection_name, {}
 
-def can_execute_directly(query: str) -> bool:
-    """
-    检查查询是否可以直接执行（使用eval模拟）
-    """
-    try:
-        # 模拟MongoDB环境
-        mock_env = create_mock_mongodb_env()
-        
-        # 清理查询语句
-        clean_query = query.strip()
-        if not clean_query:
-            return False
-        
-        # 尝试执行（安全的eval）
-        result = safe_eval(clean_query, mock_env)
-        return result is not None
-        
-    except Exception:
-        return False
 
-def create_mock_mongodb_env():
+def _split_params(params_str: str) -> List[str]:
     """
-    创建模拟的MongoDB执行环境
+    智能分割参数字符串，考虑嵌套的括号和引号
+    
+    Args:
+        params_str: 参数字符串
+        
+    Returns:
+        参数列表
     """
-    class MockCollection:
-        def __init__(self, name):
-            self.name = name
-        
-        def aggregate(self, pipeline):
-            return f"aggregate({pipeline})"
-        
-        def find(self, *args):
-            return f"find({args})"
-        
-        def findOne(self, *args):
-            return f"findOne({args})"
-        
-        def distinct(self, *args):
-            return f"distinct({args})"
-        
-        def count(self, *args):
-            return f"count({args})"
-        
-        def countDocuments(self, *args):
-            return f"countDocuments({args})"
-    
-    class MockDB:
-        def getCollection(self, name):
-            return MockCollection(name)
-        
-        def __getattr__(self, name):
-            return MockCollection(name)
-    
-    # MongoDB操作符和函数
-    mock_operators = {
-        # 查询操作符
-        '$gt': lambda x: {'$gt': x},
-        '$gte': lambda x: {'$gte': x},
-        '$lt': lambda x: {'$lt': x},
-        '$lte': lambda x: {'$lte': x},
-        '$eq': lambda x: {'$eq': x},
-        '$ne': lambda x: {'$ne': x},
-        '$in': lambda x: {'$in': x},
-        '$nin': lambda x: {'$nin': x},
-        '$exists': lambda x: {'$exists': x},
-        '$regex': lambda x: {'$regex': x},
-        
-        # 聚合操作符
-        '$match': lambda x: {'$match': x},
-        '$group': lambda x: {'$group': x},
-        '$sort': lambda x: {'$sort': x},
-        '$project': lambda x: {'$project': x},
-        '$unwind': lambda x: {'$unwind': x},
-        '$lookup': lambda x: {'$lookup': x},
-        '$replaceRoot': lambda x: {'$replaceRoot': x},
-        '$addFields': lambda x: {'$addFields': x},
-        '$limit': lambda x: {'$limit': x},
-        '$skip': lambda x: {'$skip': x},
-        
-        # 聚合表达式
-        '$sum': lambda x: {'$sum': x},
-        '$avg': lambda x: {'$avg': x},
-        '$max': lambda x: {'$max': x},
-        '$min': lambda x: {'$min': x},
-        '$first': lambda x: {'$first': x},
-        '$last': lambda x: {'$last': x},
-        '$push': lambda x: {'$push': x},
-        '$addToSet': lambda x: {'$addToSet': x},
-        
-        # MongoDB函数
-        'ObjectId': lambda x=None: f"ObjectId({x})" if x else "ObjectId()",
-        'ISODate': lambda x: f"ISODate({x})",
-        'NumberLong': lambda x: f"NumberLong({x})",
-        'NumberInt': lambda x: f"NumberInt({x})",
-    }
-    
-    return {
-        'db': MockDB(),
-        **mock_operators
-    }
-
-def safe_eval(expression: str, env: Dict[str, Any]) -> Any:
-    """
-    安全的eval执行，只允许MongoDB相关的操作
-    """
-    # 检查是否包含危险操作
-    dangerous_keywords = [
-        'import', 'exec', 'eval', '__', 'open', 'file', 'input', 'raw_input',
-        'compile', 'reload', 'globals', 'locals', 'vars', 'dir', 'delattr',
-        'getattr', 'setattr', 'hasattr', 'callable'
-    ]
-    
-    expression_lower = expression.lower()
-    for keyword in dangerous_keywords:
-        if keyword in expression_lower:
-            raise ValueError(f"不安全的操作: {keyword}")
-    
-    # 只允许MongoDB相关的表达式
-    if not (expression.strip().startswith('db.') or 
-            any(op in expression for op in ['aggregate', 'find', 'count', 'distinct'])):
-        raise ValueError("不是有效的MongoDB查询")
-    
-    try:
-        # 使用受限的环境执行
-        return eval(expression, {"__builtins__": {}}, env)
-    except Exception as e:
-        raise ValueError(f"执行失败: {e}")
-
-def apply_minimal_fixes(query: str) -> str:
-    """
-    应用最小化修复，只修复明显的语法错误
-    """
-    fixed = query.strip()
-    
-    # 1. 修复括号匹配
-    fixed = fix_bracket_balance(fixed)
-    
-    # 2. 修复明显的逗号问题
-    fixed = re.sub(r'}\s*{', '},{', fixed)
-    fixed = re.sub(r']\s*\[', '],[', fixed)
-    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
-    
-    # 3. 修复单引号为双引号（只修复字符串值）
-    fixed = re.sub(r":\s*'([^']*)'", r': "\1"', fixed)
-    
-    return fixed
-
-def apply_json_fixes(query: str) -> str:
-    """
-    应用完整的JSON修复（作为最后手段）
-    """
-    fixed = query.strip()
-    
-    # 修复字段名引号（避免MongoDB操作符）
-    mongodb_operators = [
-        '$match', '$group', '$sort', '$project', '$unwind', '$lookup', '$replaceRoot',
-        '$addFields', '$limit', '$skip', '$sum', '$avg', '$max', '$min', '$first',
-        '$last', '$push', '$addToSet', '$gt', '$gte', '$lt', '$lte', '$eq', '$ne',
-        '$in', '$nin', '$exists', '$regex', '$elemMatch', '$all', '$size'
-    ]
-    
-    # 为未加引号的字段名添加引号，但排除MongoDB操作符
-    pattern = r'([{,\[\s]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:'
-    
-    def replace_field_name(match):
-        prefix = match.group(1)
-        field_name = match.group(2)
-        
-        # 不处理MongoDB操作符
-        if field_name.startswith('$') or field_name in ['newRoot', '_id']:
-            return match.group(0)
-        
-        return f'{prefix}"{field_name}":'
-    
-    fixed = re.sub(pattern, replace_field_name, fixed)
-    
-    # 其他修复
-    fixed = apply_minimal_fixes(fixed)
-    
-    return fixed
-
-def fix_bracket_balance(text: str) -> str:
-    """
-    修复括号平衡
-    """
-    # 统计括号
-    brackets = {'(': ')', '{': '}', '[': ']'}
-    counts = {')': 0, '}': 0, ']': 0}
-    
-    for char in text:
-        if char in brackets:
-            counts[brackets[char]] += 1
-        elif char in counts:
-            counts[char] -= 1
-    
-    # 添加缺失的闭合括号
-    for close_bracket, count in counts.items():
-        if count > 0:
-            text += close_bracket * count
-    
-    return text
-
-# 方法2: 使用JavaScript风格的执行
-def execute_mongodb_query_js_style(query: str) -> str:
-    """
-    使用JavaScript风格直接执行MongoDB查询（不需要JSON转换）
-    """
-    try:
-        # 清理查询
-        clean_query = query.strip()
-        
-        # 检查基本语法
-        if not validate_basic_syntax(clean_query):
-            # 只做最基本的修复
-            clean_query = apply_minimal_fixes(clean_query)
-        
-        print(f"--> JavaScript风格执行: {clean_query}")
-        return clean_query
-        
-    except Exception as e:
-        logging.error(f"JavaScript风格执行失败: {e}")
-        return query
-
-def validate_basic_syntax(query: str) -> bool:
-    """
-    验证基本语法（括号匹配等）
-    """
-    stack = []
-    brackets = {'(': ')', '{': '}', '[': ']'}
-    
+    params = []
+    current_param = ""
+    depth = 0
     in_string = False
     string_char = None
     
-    for char in query:
-        if char in ['"', "'"] and not in_string:
-            in_string = True
-            string_char = char
-        elif char == string_char and in_string:
-            in_string = False
-            string_char = None
-        elif not in_string:
-            if char in brackets:
-                stack.append(brackets[char])
-            elif char in brackets.values():
-                if not stack or stack.pop() != char:
-                    return False
+    for i, char in enumerate(params_str):
+        if char in ['"', "'"] and (i == 0 or params_str[i-1] != '\\'):
+            if not in_string:
+                in_string = True
+                string_char = char
+            elif char == string_char:
+                in_string = False
+                string_char = None
+        
+        if not in_string:
+            if char in ['{', '[', '(']:
+                depth += 1
+            elif char in ['}', ']', ')']:
+                depth -= 1
+            elif char == ',' and depth == 0:
+                params.append(current_param.strip())
+                current_param = ""
+                continue
+        
+        current_param += char
     
-    return len(stack) == 0
+    if current_param.strip():
+        params.append(current_param.strip())
+    
+    return params
 
-# 测试函数
-def test_direct_execution():
-    """
-    测试直接执行的效果
-    """
-    test_queries = [
-        # 您的测试用例
-        """db.getCollection('一企一档').aggregate([
+
+# 使用示例和测试
+def test_pipeline_parsing():
+    """测试 pipeline 解析功能"""
+    
+    test_cases = [
+        # 基本聚合查询
+        'db.collection.aggregate([{"$match": {"status": "active"}}, {"$group": {"_id": "$category", "count": {"$sum": 1}}}])',
+        
+        # 包含 ObjectId 的查询
+        'db.collection.aggregate([{"$match": {"_id": ObjectId("507f1f77bcf86cd799439011")}}, {"$project": {"name": 1}}])',
+        
+        # 包含日期的查询
+        'db.collection.aggregate([{"$match": {"createdAt": {"$gte": ISODate("2023-01-01T00:00:00.000Z")}}}, {"$sort": {"createdAt": -1}}])',
+        
+        # 包含正则表达式的查询
+        'db.collection.aggregate([{"$match": {"name": /^test/i}}, {"$count": "total"}])',
+        
+        # 复杂的聚合管道
+        '''db.collection.aggregate([
+            {
+                $unwind: "$fields"
+            },
+            {
+                $match: {
+                "fields.path_code": "L19E5FFA.L279A000.L336E6A6",
+                "fields.field_code": { $in: ["FB17AB0"] }
+                }
+            },
+            {
+                $replaceRoot: {
+                newRoot: "$fields"
+                }
+            }
+        ])'''
+
+        """
+        db.getCollection('一企一档').aggregate([
         {
-            "$unwind": "$fields"
+            $unwind: "$fields"
         },
         {
             $match: {
@@ -303,31 +358,58 @@ def test_direct_execution():
         },
         {
             $replaceRoot: {
-            newRoot: "$fields"
+            newRoot: 22
             }
         }
-        ])""",
-        
-        # 其他测试
-        "db.users.find({name: 'John', age: {$gt: 20}})",
-        "db.users.aggregate([{$match: {status: 'active'}}])",
-        "db.products.count({price: {$lt: 100}})",
+        ])
+        """
     ]
     
-    for i, query in enumerate(test_queries, 1):
-        print(f"\n=== 测试 {i} ===")
-        print("原查询:")
-        print(query)
-        print("\n直接执行结果:")
+    for i, test_case in enumerate(test_cases, 1):
+        print(f"\n=== 测试用例 {i} ===")
+        print(f"原始查询: {test_case}")
         
-        # 方法1: 模拟执行
-        result1 = fix_query_syntax(query)
+        # 修复语法
+        fixed_query = _fix_query_syntax(test_case)
+        print(f"修复后: {fixed_query}")
         
-        print("\nJavaScript风格:")
-        # 方法2: JavaScript风格
-        result2 = execute_mongodb_query_js_style(query)
+        # 解析查询类型
+        query_type = _parse_query_type(fixed_query)
+        print(f"查询类型: {query_type}")
         
-        print("-" * 60)
+        # 解析参数
+        _, params = _parse_query_parameters(fixed_query, query_type)
+        print(f"解析参数: {params}")
+        
+        # 检查 pipeline 类型
+        if "pipeline" in params:
+            pipeline = params["pipeline"]
+            print(f"Pipeline 类型: {type(pipeline)}")
+            print(f"Pipeline 长度: {len(pipeline) if isinstance(pipeline, list) else 'N/A'}")
+            if isinstance(pipeline, list) and pipeline:
+                print(f"第一个 stage: {pipeline[0]}")
+
+
+def _parse_query_type(query_cmd: str) -> Optional[str]:
+    """解析查询操作类型 - 与原代码保持一致"""
+    query_cmd_clean = query_cmd.strip().lower()
+    
+    if ".find(" in query_cmd_clean and ".findone(" not in query_cmd_clean:
+        return "find"
+    elif ".findone(" in query_cmd_clean:
+        return "findOne"
+    elif ".aggregate(" in query_cmd_clean:
+        return "aggregate"
+    elif ".countdocuments(" in query_cmd_clean:
+        return "countDocuments"
+    elif ".count(" in query_cmd_clean:
+        return "count"
+    elif ".distinct(" in query_cmd_clean:
+        return "distinct"
+    
+    return None
+
 
 if __name__ == "__main__":
-    test_direct_execution()
+    # 运行测试
+    test_pipeline_parsing()
