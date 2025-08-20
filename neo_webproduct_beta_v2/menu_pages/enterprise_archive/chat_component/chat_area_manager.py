@@ -375,6 +375,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 f"📊 查询统计:\n"
                 f"• 查询类型: {result.get('type', 'N/A')}\n"
                 f"• 运行耗时: {result.get('period', '0ms')}\n"
+                f"• 文档数: {len(result.get('field_value'))}\n"
             )
             ui.label(stats_text).classes(
                 'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
