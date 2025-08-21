@@ -25,27 +25,7 @@ prompt_templates:
     # 示例交互
     examples:
 
-  # 1. Markdown规范文档编写专家
-  规范内容专家:
-    name: "默认上下文"
-    description: "专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等"
-    enabled: true
-    version: "1.0"
-    category: "文档编写"
-
-    # 系统提示词内容
-    system_prompt: |
-      # 规范内容专家
-
-      ## 🎯 角色定位
-      使用markdown格式内容答复用户问题
-
-    # 示例交互
-    examples:
-      input_example: "请帮我创建一个包含流程图的技术方案文档"
-      output_format: "标准Markdown格式，包含完整的文档结构"
-
-  # 2. MongoDB查询语句生成专家
+  # MongoDB查询语句生成专家
   一企一档专家:
     name: "一企一档"
     description: "基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句"

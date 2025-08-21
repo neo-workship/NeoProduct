@@ -631,7 +631,7 @@ class MarkdownUIParser:
 
     def create_code_component(self, code_content: str, language: str):
         """创建代码组件"""
-        ui.code(code_content, language=language).classes('w-full')
+        ui.code(code_content, language=language).classes('w-full bg-gray-200 dark:bg-zinc-600')
 
     def create_math_component(self, math_content: str, display_mode: str):
         """创建数学公式组件"""
