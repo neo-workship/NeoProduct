@@ -755,7 +755,7 @@ async def execute_mongo_command(
         )
         
         # 2.4 根据查询类型对返回数据进行分类处理 - 使用新格式
-        response_data = _classify_query_result(query_type, result_data, total_count)
+        response_data = _classify_query_result_new_format(query_type, result_data, total_count,query_params)
         
         # 2.5 计算统计信息 - 运行耗时以ms为单位
         execution_time = (time.time() - start_time) * 1000
@@ -767,6 +767,7 @@ async def execute_mongo_command(
         return ExecuteMongoQueryResponse(
             type=response_data["type"],
             period=f"{round(execution_time, 2)}ms",
+            messages="正常处理",
             field_value=response_data["field_value"],
             field_meta=response_data["field_meta"]
         )
@@ -780,10 +781,11 @@ async def execute_mongo_command(
         
         # 错误时也返回新格式
         return ExecuteMongoQueryResponse(
-            type="错误",
+            type="明细",
             period=f"{round(execution_time, 2)}ms",
+            messages=f"执行异常: {str(e)}",
             field_value=[],
-            field_meta=""
+            field_meta={}
         )
 
 def _parse_query_type(query_cmd: str) -> Optional[str]:
@@ -1161,45 +1163,49 @@ def _serialize_document(doc: Any) -> str:
         # 如果序列化失败，返回字符串表示
         return str(doc)
 
-# 保持原有的其他函数不变
-def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], total_count: int) -> Dict[str, Any]:
+def _classify_query_result_new_format(query_type: str, result_data: List[Dict[str, Any]], total_count: int, query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    根据查询类型对返回结果进行分类处理 - 修正版
+    根据查询类型对返回结果进行分类处理 - 新格式
     
     Args:
         query_type: 查询类型
-        result_data: 查询结果数据
+        result_data: 查询结果数据 (对于count/countDocuments/distinct为 [{"count": 数值}])
         total_count: 总数量
+        query_params: 查询参数
         
     Returns:
         分类后的数据字典 - 新格式
     """
-    if query_type in ["count", "countDocuments"]:
-        # 汇总类型：count、countDocuments
-        # result_data 格式: [{"count": count_result}]
-        if result_data and len(result_data) > 0 and "count" in result_data[0]:
-            field_value = result_data[0]["count"]
-        else:
-            field_value = total_count
-            
-        return {
-            "type": "汇总",
-            "field_value": field_value,
-            "field_meta": ""  # 汇总时为空字符串
-        }
+    result = None
     
-    elif query_type == "distinct":
-        # distinct 汇总类型
-        # result_data 格式: [{"count": distinct_count}]
+    if query_type in ["count", "countDocuments", "distinct"]:
+        # 汇总类型：count、countDocuments、distinct
+        # result_data 格式: [{"count": count_result}]
+        actual_count = 0
         if result_data and len(result_data) > 0 and "count" in result_data[0]:
-            field_value = result_data[0]["count"]
+            actual_count = result_data[0]["count"]
         else:
-            field_value = total_count
+            actual_count = total_count
             
-        return {
+        # 将统计数值作为特殊字段数据值记录
+        count_field_value = FieldValueModel(
+            enterprise_code="",
+            enterprise_name="",
+            full_path_code="",
+            full_path_name="",
+            field_code="count_result",
+            field_name="统计结果",
+            value=str(actual_count),
+            value_text=f"{query_type}查询结果统计数值",
+            value_pic_url="",
+            value_doc_url="",
+            value_video_url=""
+        )
+        
+        result = {
             "type": "汇总",
-            "field_value": field_value,
-            "field_meta": ""  # 汇总时为空字符串
+            "field_value": [count_field_value],  # 包含统计结果的字段数据
+            "field_meta": {}  # 汇总时为空字典
         }
     
     elif query_type in ["find", "findOne", "aggregate"]:
@@ -1212,29 +1218,35 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
         for doc in result_data:
             if "fields" in doc and isinstance(doc["fields"], list):
                 # 如果是企业档案文档，提取fields数组中的数据
+                enterprise_code = doc.get("enterprise_code", "")
+                enterprise_name = doc.get("enterprise_name", "")
+                
                 for field in doc["fields"]:
-                    # === 字段数据值 === （匹配 FieldValueModel）
-                    field_data = {
-                        "value": field.get("value", ""),
-                        "value_text": field.get("value_text", ""),
-                        "value_pic_url": field.get("value_pic_url", ""),
-                        "value_doc_url": field.get("value_doc_url", ""),
-                        "value_video_url": field.get("value_video_url", "")
-                    }
+                    # === 构建字段数据值 === （匹配 FieldValueModel）
+                    field_data = FieldValueModel(
+                        enterprise_code=enterprise_code,
+                        enterprise_name=enterprise_name,
+                        full_path_code=field.get("full_path_code", ""),
+                        full_path_name=field.get("full_path_name", ""),
+                        field_code=field.get("field_code", ""),
+                        field_name=field.get("field_name", ""),
+                        value=field.get("value", ""),
+                        value_text=field.get("value_text", ""),
+                        value_pic_url=field.get("value_pic_url", ""),
+                        value_doc_url=field.get("value_doc_url", ""),
+                        value_video_url=field.get("value_video_url", "")
+                    )
                     
-                    # === 元数据 === （匹配 FieldMetaModel）
-                    field_meta = {
-                        "remark": field.get("remark", ""),
-                        "data_url": field.get("data_url", ""),
-                        "is_required": field.get("is_required", False),
-                        "data_source": field.get("data_source", ""),
-                        "encoding": field.get("encoding", ""),
-                        "format": field.get("format", ""),
-                        "license": field.get("license", ""),
-                        "rights": field.get("rights", ""),
-                        "update_frequency": field.get("update_frequency", ""),
-                        "value_dict": field.get("value_dict", "")
-                    }
+                    # === 构建元数据 === （匹配 FieldMetaModel）
+                    field_meta = FieldMetaModel(
+                        data_source=field.get("data_source", ""),
+                        encoding=field.get("encoding", ""),
+                        format=field.get("format", ""),
+                        license=field.get("license", ""),
+                        rights=field.get("rights", ""),
+                        update_frequency=field.get("update_frequency", ""),
+                        value_dict=field.get("value_dict", "")
+                    )
                     
                     field_value_list.append(field_data)
                     
@@ -1243,39 +1255,87 @@ def _classify_query_result(query_type: str, result_data: List[Dict[str, Any]], t
                     field_meta_dict[field_key] = field_meta
             else:
                 # 如果不是标准企业档案文档，转换为标准格式
-                field_data = {
-                    "value": _serialize_document(doc),
-                    "value_text": "",
-                    "value_pic_url": "",
-                    "value_doc_url": "",
-                    "value_video_url": ""
-                }
+                field_data = FieldValueModel(
+                    enterprise_code="",
+                    enterprise_name="",
+                    full_path_code="",
+                    full_path_name="",
+                    field_code="",
+                    field_name="",
+                    value=_serialize_document(doc),
+                    value_text="",
+                    value_pic_url="",
+                    value_doc_url="",
+                    value_video_url=""
+                )
                 field_value_list.append(field_data)
         
-        return {
+        result = {
             "type": "明细",
             "field_value": field_value_list,
-            "field_meta": field_meta_dict if field_meta_dict else {}
+            "field_meta": field_meta_dict
         }
     
     else:
         # 未知查询类型，按明细处理
         field_value_list = []
         for item in result_data:
-            field_data = {
-                "value": _serialize_document(item),
-                "value_text": "",
-                "value_pic_url": "",
-                "value_doc_url": "",
-                "value_video_url": ""
-            }
+            field_data = FieldValueModel(
+                enterprise_code="",
+                enterprise_name="",
+                full_path_code="",
+                full_path_name="",
+                field_code="",
+                field_name="",
+                value=_serialize_document(item),
+                value_text="",
+                value_pic_url="",
+                value_doc_url="",
+                value_video_url=""
+            )
             field_value_list.append(field_data)
             
-        return {
+        result = {
             "type": "明细",
             "field_value": field_value_list,
             "field_meta": {}
         }
+    
+    # 存储返回数据和查询参数到JSON文件
+    try:
+        serialized_field_value_list = [
+            fv.model_dump() for fv in result["field_value"]
+        ]
+        
+        # 将 field_meta 中的 FieldMetaModel 实例也转换为字典
+        serialized_field_meta_dict = {
+            key: meta.model_dump() for key, meta in result["field_meta"].items()
+        }
+        
+        storage_data = {
+            "query_type": query_type,
+            "query_params": query_params,
+            "result": {
+                "type": result["type"],
+                "field_value": serialized_field_value_list,
+                "field_meta": serialized_field_meta_dict
+            },
+            "total_count": total_count,
+        }
+        
+        # 以query_type命名文件
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"D://mongoquery_history//{query_type}_{timestamp}.json"
+        # 使用json5写入文件，支持更灵活的JSON格式
+        with open(filename, 'w', encoding='utf-8') as f:
+            json5.dump(storage_data, f, ensure_ascii=False, indent=2)
+            
+    except Exception as e:
+        # 文件存储失败不影响主要功能，可以记录日志或静默处理
+        print(f"文件存储失败{e}")
+        pass
+    
+    return result
 
 async def _execute_mongodb_query(
     manager: MongoDBManager, 

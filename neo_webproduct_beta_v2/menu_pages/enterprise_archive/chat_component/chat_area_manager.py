@@ -335,47 +335,52 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 ) as response:
                     if response.status == 200:
                         result = await response.json()
-                        # 新格式已包含所需字段：type, period, field_value, field_meta
+                        # 新格式已包含所需字段：type, period, messages, field_value, field_meta
                         # 添加 success 字段以保持兼容性
                         result["success"] = True
-                        # result["message"] = "查询执行成功"
                         return result
                     else:
                         error_text = await response.text()
                         # 返回与新API格式一致的错误响应
                         return {
                             "success": False,
-                            "message": f"API调用失败: HTTP {response.status}, response={error_text}",
-                            "type": "错误",
+                            "type": "明细",
                             "period": "0ms",
+                            "messages": f"API调用失败: HTTP {response.status}, response={error_text}",
                             "field_value": [],
-                            "field_meta": ""
+                            "field_meta": {}
                         }
         except Exception as e:
             # 返回与新API格式一致的错误响应
             return {
                 "success": False,
-                "message": f"网络请求失败: {str(e)}",
-                "type": "错误",
+                "type": "明细",
                 "period": "0ms",
+                "messages": f"网络请求失败: {str(e)}",
                 "field_value": [],
-                "field_meta": ""
+                "field_meta": {}
             }
     
     def _display_query_result(self, result: Dict[str, Any]):
         """
-        使用ui.label展示查询结果 - 修正版
+        使用ui.label展示查询结果 - 新格式版本
         """
         if not self.chat_content_container:
             return
             
         with self.chat_content_container:
             # 显示查询统计信息
+            query_type = result.get('type', 'N/A')
+            period = result.get('period', '0ms')
+            messages = result.get('messages', '未知状态')
+            field_value = result.get('field_value', [])
+            
             stats_text = (
                 f"📊 查询统计:\n"
-                f"• 查询类型: {result.get('type', 'N/A')}\n"
-                f"• 运行耗时: {result.get('period', '0ms')}\n"
-                f"• 文档数: {len(result.get('field_value'))}\n"
+                f"• 查询类型: {query_type}\n"
+                f"• 运行耗时: {period}\n"
+                f"• 处理信息: {messages}\n"
+                f"• 数据记录数: {len(field_value) if isinstance(field_value, list) else '0'}\n"
             )
             ui.label(stats_text).classes(
                 'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
@@ -383,13 +388,35 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             
             # 显示查询结果数据
             if result.get("success", True):  # 默认为成功，除非明确标记为失败
-                field_value = result.get("field_value", [])
-                field_meta = result.get("field_meta", "")
-                query_type = result.get("type", "")
+                if messages != "正常处理":
+                    # 有异常信息，显示警告
+                    warning_text = f"⚠️ 处理警告: {messages}"
+                    ui.label(warning_text).classes(
+                        'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
+                    )
                 
                 if query_type == "汇总":
-                    # 显示汇总结果
-                    result_text = f"🔢 汇总结果: {field_value}"
+                    # 显示汇总结果 - 从field_value中提取统计数值
+                    if isinstance(field_value, list) and field_value:
+                        # 查找统计结果字段
+                        count_result = None
+                        for item in field_value:
+                            if hasattr(item, '__dict__'):
+                                item_dict = item.__dict__ if hasattr(item, '__dict__') else item
+                            else:
+                                item_dict = item
+                            
+                            if isinstance(item_dict, dict) and item_dict.get('field_code') == 'count_result':
+                                count_result = item_dict.get('value', '0')
+                                break
+                        
+                        if count_result is not None:
+                            result_text = f"🔢 汇总结果: {count_result}"
+                        else:
+                            result_text = f"🔢 汇总查询完成"
+                    else:
+                        result_text = f"🔢 汇总查询完成，请查看具体统计信息"
+                    
                     ui.label(result_text).classes(
                         'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                     )
@@ -404,43 +431,92 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         for i, item in enumerate(field_value[:display_count]):
                             result_text += f"📄 记录 {i+1}:\n"
                             
-                            if isinstance(item, dict):
-                                # 按照新格式显示字段数据值
-                                if item.get('value'):
-                                    result_text += f"  • 字段值: {item.get('value')}\n"
-                                if item.get('value_text'):
-                                    result_text += f"  • 文本描述: {item.get('value_text')}\n"
-                                if item.get('value_pic_url'):
-                                    result_text += f"  • 图片链接: {item.get('value_pic_url')}\n"
-                                if item.get('value_doc_url'):
-                                    result_text += f"  • 文档链接: {item.get('value_doc_url')}\n"
-                                if item.get('value_video_url'):
-                                    result_text += f"  • 视频链接: {item.get('value_video_url')}\n"
+                            if hasattr(item, '__dict__'):
+                                # 如果是Pydantic模型对象，转换为字典
+                                item_dict = item.__dict__ if hasattr(item, '__dict__') else item
                             else:
-                                # 如果不是字典格式，直接显示
-                                result_text += f"  • 内容: {str(item)}\n"
+                                item_dict = item
+                            
+                            if isinstance(item_dict, dict):
+                                # 按照新格式显示字段数据值
+                                enterprise_code = item_dict.get('enterprise_code', '')
+                                enterprise_name = item_dict.get('enterprise_name', '')
+                                field_code = item_dict.get('field_code', '')
+                                field_name = item_dict.get('field_name', '')
+                                full_path_name = item_dict.get('full_path_name', '')
+                                value = item_dict.get('value', '')
+                                value_text = item_dict.get('value_text', '')
+                                
+                                if enterprise_code:
+                                    result_text += f"  企业代码: {enterprise_code}\n"
+                                if enterprise_name:
+                                    result_text += f"  企业名称: {enterprise_name}\n"
+                                if field_code:
+                                    result_text += f"  字段代码: {field_code}\n"
+                                if field_name:
+                                    result_text += f"  字段名称: {field_name}\n"
+                                if full_path_name:
+                                    result_text += f"  完整路径: {full_path_name}\n"
+                                if value:
+                                    result_text += f"  字段值: {value}\n"
+                                if value_text:
+                                    result_text += f"  文本描述: {value_text}\n"
+                                    
+                                # 显示媒体链接
+                                value_pic_url = item_dict.get('value_pic_url', '')
+                                value_doc_url = item_dict.get('value_doc_url', '')
+                                value_video_url = item_dict.get('value_video_url', '')
+                                
+                                if value_pic_url:
+                                    result_text += f"  图片链接: {value_pic_url}\n"
+                                if value_doc_url:
+                                    result_text += f"  文档链接: {value_doc_url}\n"
+                                if value_video_url:
+                                    result_text += f"  视频链接: {value_video_url}\n"
+                            else:
+                                # 非字典格式，直接显示
+                                result_text += f"  数据: {str(item_dict)}\n"
                             
                             result_text += "\n"
-                        
-                        if len(field_value) > display_count:
-                            result_text += f"... 还有 {len(field_value) - display_count} 条记录\n"
                         
                         ui.label(result_text).classes(
                             'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                         )
                         
-                        # 显示元数据信息（如果存在且非空）
+                        # 显示元数据信息（如果有的话）
+                        field_meta = result.get("field_meta", {})
                         if isinstance(field_meta, dict) and field_meta:
                             meta_text = "📋 字段元数据信息:\n\n"
                             displayed_meta = 0
-                            for field_key, meta_info in field_meta.items():
-                                if isinstance(meta_info, dict) and displayed_meta < 3:  # 最多显示3个字段的元数据
-                                    meta_text += f"字段路径: {field_key}\n"
-                                    for key, value in meta_info.items():
-                                        if value and str(value).strip():  # 只显示有值的元数据
-                                            meta_text += f"  • {key}: {value}\n"
-                                    meta_text += "\n"
-                                    displayed_meta += 1
+                            max_meta_display = 2  # 最多显示2个字段的元数据
+                            
+                            for field_path, meta_info in field_meta.items():
+                                if displayed_meta >= max_meta_display:
+                                    break
+                                    
+                                meta_text += f"🔧 字段路径: {field_path}\n"
+                                
+                                if hasattr(meta_info, '__dict__'):
+                                    meta_dict = meta_info.__dict__ if hasattr(meta_info, '__dict__') else meta_info
+                                else:
+                                    meta_dict = meta_info
+                                
+                                if isinstance(meta_dict, dict):
+                                    for key, value in meta_dict.items():
+                                        if value:  # 只显示有值的元数据
+                                            key_display = {
+                                                'data_source': '数据来源',
+                                                'encoding': '编码',
+                                                'format': '格式',
+                                                'license': '许可',
+                                                'rights': '权限',
+                                                'update_frequency': '更新频率',
+                                                'value_dict': '字典值'
+                                            }.get(key, key)
+                                            meta_text += f"  {key_display}: {value}\n"
+                                
+                                meta_text += "\n"
+                                displayed_meta += 1
                             
                             if len(meta_text) > len("📋 字段元数据信息:\n\n"):  # 有实际内容才显示
                                 if len(field_meta) > displayed_meta:
@@ -453,13 +529,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         ui.label("📝 查询结果: 未找到匹配的数据").classes(
                             'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
                         )
-                        
-                elif query_type == "错误":
-                    # 显示错误信息
-                    error_msg = f"❌ 查询执行失败: {result.get('message', '未知错误')}"
-                    ui.label(error_msg).classes(
-                        'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
-                    )
                 else:
                     # 其他类型
                     if field_value:
@@ -473,7 +542,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         )
             else:
                 # 显示错误信息
-                error_msg = f"❌ 查询失败: {result.get('message', '未知错误')}"
+                error_msg = f"❌ 查询失败: {messages}"
                 ui.label(error_msg).classes(
                     'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
                 )
