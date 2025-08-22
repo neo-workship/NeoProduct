@@ -35,13 +35,13 @@ class HierarchySelector:
         """
         self.multiple = multiple
         
-        # 存储选中的值 - 优化版本，添加了新字段
         # 根据multiple参数决定field的数据类型
         self.selected_values = {
             'l1': None,
             'l2': None, 
             'l3': None,
             'field': [] if multiple else None,  # 多选时为列表，单选时为单值
+            'field_name': [] if multiple else None,  # 新增：存储字段名称，与field对应
             # 新添加的优化字段
             'data_url': None,        # 如果field不为None，对应的值为field的data_url
             'full_path_code': None,  # 完整路径编码
@@ -50,7 +50,6 @@ class HierarchySelector:
         
         # UI元素引用
         self.selects = {}
-        
         # 在内存中存储层级数据，避免修改app.storage.general
         self.hierarchy_data_cache = {'data': None, 'loading': False}
     
@@ -91,6 +90,7 @@ class HierarchySelector:
                 self.selected_values['l2'] = None
                 self.selected_values['l3'] = None
                 self.selected_values['field'] = [] if self.multiple else None
+                self.selected_values['field_name'] = [] if self.multiple else None  # 新增：清空field_name
 
                 # 清空下级选择器
                 if 'l2' in self.selects:
@@ -123,6 +123,7 @@ class HierarchySelector:
                 self.selected_values['l2'] = event.value
                 self.selected_values['l3'] = None
                 self.selected_values['field'] = [] if self.multiple else None
+                self.selected_values['field_name'] = [] if self.multiple else None
                 
                 # 清空下级选择器
                 if 'l3' in self.selects:
@@ -152,6 +153,7 @@ class HierarchySelector:
             def on_l3_change(event):
                 self.selected_values['l3'] = event.value
                 self.selected_values['field'] = [] if self.multiple else None
+                self.selected_values['field_name'] = [] if self.multiple else None
                 
                 # 清空下级选择器
                 if 'field' in self.selects:
@@ -190,15 +192,82 @@ class HierarchySelector:
             def on_field_change(event):
                 self.selected_values['field'] = event.value
                 
+                # 新增：同时更新field_name
+                self._update_field_name()
+                
                 # 更新优化字段
                 self._update_optimized_values()
                 
             field_select.on_value_change(on_field_change)
             self.selects['field'] = field_select
     
+    # 新增方法：更新field_name
+    def _update_field_name(self):
+        """更新field_name字段，与field字段保持对应关系"""
+        try:
+            current_field_code = self.selected_values['field']
+            
+            if not current_field_code:
+                # 如果field为空，field_name也设为空
+                self.selected_values['field_name'] = [] if self.multiple else None
+                return
+                
+            hierarchy_data = self.hierarchy_data_cache['data'] or self._get_hierarchy_data_from_storage()
+            if not hierarchy_data:
+                return
+                
+            if self.multiple and isinstance(current_field_code, list):
+                # 多选模式：为每个field_code找到对应的field_name
+                field_names = []
+                for field_code in current_field_code:
+                    field_name = self._find_field_name(hierarchy_data, field_code)
+                    if field_name:
+                        field_names.append(field_name)
+                self.selected_values['field_name'] = field_names
+            else:
+                # 单选模式：直接查找对应的field_name
+                field_name = self._find_field_name(hierarchy_data, current_field_code)
+                self.selected_values['field_name'] = field_name
+                
+        except Exception as e:
+            log_error("更新field_name失败", exception=e)
+            self.selected_values['field_name'] = [] if self.multiple else None
+
+    # 新增辅助方法：查找字段名称
+    def _find_field_name(self, hierarchy_data: Dict, field_code: str) -> Optional[str]:
+        """
+        根据field_code查找对应的field_name
+        
+        Args:
+            hierarchy_data: 层级数据
+            field_code: 字段代码
+            
+        Returns:
+            str: 字段名称，未找到时返回None
+        """
+        try:
+            if not hierarchy_data or not field_code:
+                return None
+                
+            l1_categories = hierarchy_data.get('l1_categories', [])
+            
+            # 遍历所有层级查找字段名称
+            for l1 in l1_categories:
+                for l2 in l1.get('l2_categories', []):
+                    for l3 in l2.get('l3_categories', []):
+                        for field in l3.get('fields', []):
+                            if field.get('field_code') == field_code:
+                                return field.get('field_name', '')
+            
+            return None
+            
+        except Exception as e:
+            log_error(f"查找字段名称失败: {field_code}", exception=e)
+            return None
+
     def _update_optimized_values(self):
         """
-        更新优化字段：data_url、full_path_code、full_path_name
+        更新优化字段：data_url、full_path_code、full_path_name、field_name
         优先级：field > l3 > l2 > l1
         """
         try:
@@ -206,10 +275,12 @@ class HierarchySelector:
             if not hierarchy_data:
                 return
             
-            # 重置优化字段
+            # 重置优化字段（新增field_name重置）
             self.selected_values['data_url'] = None
             self.selected_values['full_path_code'] = None
             self.selected_values['full_path_name'] = None
+            # 注意：不在这里重置field_name，因为field_name应该和field保持同步
+            # field_name的更新由_update_field_name()负责
             
             # 获取当前选中的层级信息
             current_l1_code = self.selected_values['l1']
@@ -519,10 +590,10 @@ class HierarchySelector:
         return self.selected_values.copy()
     
     def reset_all_selections(self):
-        """重置所有选择 - 针对多选做了适配"""
+        """重置所有选择 - 针对多选做了适配，包含field_name"""
         # 重置选中值
         for key in self.selected_values:
-            if key == 'field' and self.multiple:
+            if key in ['field', 'field_name'] and self.multiple:
                 self.selected_values[key] = []
             else:
                 self.selected_values[key] = None
@@ -544,7 +615,7 @@ class HierarchySelector:
         if 'field' in self.selects:
             self.selects['field'].set_options({})
             self.selects['field'].set_label('请先选择三级分类')
-
+            
     def get_is_multiple(self) -> bool:
         """获取当前是否为多选模式"""
         return self.multiple

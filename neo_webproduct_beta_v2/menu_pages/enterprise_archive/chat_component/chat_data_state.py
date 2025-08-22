@@ -8,6 +8,7 @@ class SelectedValues:
     l2: Optional[str] = None
     l3: Optional[str] = None
     field: Union[List[str], str, None] = None  # 多选时为列表，单选时为单值
+    field_name: Union[List[str], str, None] = None
     # 优化字段
     data_url: Optional[str] = None        # 如果field不为None，对应的值为field的data_url
     full_path_code: Optional[str] = None  # 完整路径编码
