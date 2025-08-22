@@ -1257,7 +1257,7 @@ def _classify_query_result_new_format(query_type: str,
                                       total_count: int,
                                       query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    根据查询类型对返回结果进行分类处理 - 新格式（修复 None 值处理）
+    根据查询类型对返回结果进行分类处理 - 新格式（修复 None 值处理和单个字段文档处理）
     
     Args:
         query_type: 查询类型
@@ -1312,8 +1312,9 @@ def _classify_query_result_new_format(query_type: str,
             if doc is None:
                 continue
                 
-            if "fields" in doc and isinstance(doc["fields"], list):
-                # 如果是企业档案文档，提取fields数组中的数据
+            # 判断文档类型并相应处理
+            if _is_enterprise_archive_document(doc):
+                # 标准企业档案文档，包含 fields 数组
                 for field in doc["fields"]:
                     if field is None:
                         continue
@@ -1344,8 +1345,37 @@ def _classify_query_result_new_format(query_type: str,
                         )
                     }
                     result_list.append(data_item)
+                    
+            elif _is_single_field_document(doc):
+                # 单个字段文档（如 $unwind 后的结果）
+                field = doc.get("fields", {})
+                data_item = {
+                    "data_value": {
+                        "enterprise_code": doc.get("enterprise_code", ""),
+                        "enterprise_name": doc.get("enterprise_name", ""),
+                        "full_path_code": field.get("full_path_code", ""),
+                        "full_path_name": field.get("full_path_name", ""),
+                        "field_code": field.get("field_code", ""),
+                        "field_name": field.get("field_name", ""),
+                        "value": field.get("value", ""),
+                        "value_text": field.get("value_text", ""),
+                        "value_pic_url": field.get("value_pic_url", ""),
+                        "value_doc_url": field.get("value_doc_url", ""),
+                        "value_video_url": field.get("value_video_url", "")
+                    },
+                    "data_meta": DataMetaFieldModel(
+                        data_source=field.get("data_source", ""),
+                        encoding=field.get("encoding", ""),
+                        format=field.get("format", ""),
+                        license=field.get("license", ""),
+                        rights=field.get("rights", ""),
+                        update_frequency=field.get("update_frequency", ""),
+                        value_dict=field.get("value_dict", "")
+                    )
+                }
+                result_list.append(data_item)
             else:
-                # 如果不是标准企业档案文档，转换为标准格式
+                # 其他格式的文档，转换为标准格式
                 data_item = {
                     "data_value": {
                         "enterprise_code": doc.get("enterprise_code", ""),
@@ -1378,6 +1408,7 @@ def _classify_query_result_new_format(query_type: str,
             "result_data": result_list
         }
     
+    # 处理序列化和文件存储（保持原有逻辑）
     try:
         serializable_result_data = []
         for item in result["result_data"]:
@@ -1412,6 +1443,48 @@ def _classify_query_result_new_format(query_type: str,
         pass
     
     return result
+
+def _is_enterprise_archive_document(doc: Dict[str, Any]) -> bool:
+    """
+    判断文档是否为标准企业档案文档（包含 fields 数组）
+    
+    Args:
+        doc: 待判断的文档
+        
+    Returns:
+        True 如果是标准企业档案文档，False 否则
+    """
+    return (
+        isinstance(doc, dict) and
+        "fields" in doc and
+        isinstance(doc["fields"], list) and
+        len(doc["fields"]) > 0
+    )
+
+def _is_single_field_document(doc: Dict[str, Any]) -> bool:
+    """
+    判断文档是否为单个字段文档（如 $unwind 后的结果）
+    
+    特征：
+    - 包含 enterprise_code, enterprise_name
+    - 包含 fields 字段，但是字典而不是数组
+    - fields 字典包含字段相关属性
+    
+    Args:
+        doc: 待判断的文档
+        
+    Returns:
+        True 如果是单个字段文档，False 否则
+    """
+    return (
+        isinstance(doc, dict) and
+        "enterprise_code" in doc and
+        "enterprise_name" in doc and
+        "fields" in doc and
+        isinstance(doc["fields"], dict) and
+        # 检查 fields 字典是否包含字段特征属性
+        any(key in doc["fields"] for key in ["field_name", "field_code", "path_name", "full_path_name"])
+    )
 
 def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str, Any]) -> Dict[str, Any]:
     """

@@ -383,7 +383,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 f"• 数据条数: {data_count}\n"
             )
             ui.label(stats_text).classes(
-                'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
+                'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2 w-full'
             )
             
             # 显示查询结果数据
@@ -402,7 +402,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     else:
                         result_text = "🔢 汇总结果: 0"
                     ui.label(result_text).classes(
-                        'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
+                        'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2 w-full'
                     )
                 
                 elif query_type == "分组":
@@ -451,7 +451,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                             result_text += f"... 还有 {len(result_data) - display_count} 个分组\n"
                         
                         ui.label(result_text).classes(
-                            'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2'
+                            'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2 w-full'
                         )
                         
                         # 显示分组汇总统计
