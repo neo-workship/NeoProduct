@@ -111,9 +111,14 @@ class AIClientManager:
         
         return client, model_config
     
-    def prepare_messages(self) -> List[Dict[str, str]]:
+    def prepare_messages(self,user_msg_dict:Dict ) -> List[Dict[str, str]]:
         """准备发送给AI的消息列表"""
-        recent_messages = self.chat_data_state.current_chat_messages[-20:]
+        # 默认情况下，使用最近的5条聊天记录
+        recent_messages = self.chat_data_state.current_chat_messages[-5:]
+        
+        # 如果 selected_prompt 是 '一企一档专家'，则清空历史聊天记录
+        if self.chat_data_state.current_prompt_config.selected_prompt == '一企一档专家':
+            recent_messages = [user_msg_dict]
         
         if (self.chat_data_state.current_state.prompt_select_widget and 
             self.chat_data_state.current_prompt_config.system_prompt):
@@ -621,7 +626,7 @@ class MessageProcessor:
             client, model_config = await self.ai_client_manager.get_client()
             
             # 6. 准备消息列表
-            messages = self.ai_client_manager.prepare_messages()
+            messages = self.ai_client_manager.prepare_messages(user_msg_dict)
             
             # 7. 调用AI API
             actual_model_name = model_config.get('model_name', 
