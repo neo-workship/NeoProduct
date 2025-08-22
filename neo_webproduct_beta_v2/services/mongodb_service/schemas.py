@@ -299,13 +299,79 @@ class ResultDataItem(BaseModel):
     data_value: DataValueModel = Field(..., description="数据值")
     data_meta: DataMetaFieldModel = Field(..., description="元数据")
 
+# --------------------------分组操作结果模型--------------------------
+class GroupResultSingleField(BaseModel):
+    """单字段分组结果模型"""
+    group_id: Union[str, int, float, None] = Field(..., alias="_id", description="分组字段值")
+    
+    class Config:
+        # 允许额外字段（用于存储聚合结果，如 count、sum、avg 等）
+        extra = "allow"
+        # 允许通过别名填充字段
+        populate_by_name = True
+        json_schema_extra = {
+            "example": {
+                "_id": "技术部",
+                "count": 45,
+                "总金额": 1250000,
+                "平均年龄": 28.5
+            }
+        }
+
+class GroupResultMultiField(BaseModel):
+    """多字段分组结果模型"""
+    group_id: Dict[str, Union[str, int, float, None]] = Field(..., alias="_id", description="分组字段组合")
+    
+    class Config:
+        # 允许额外字段（用于存储聚合结果）
+        extra = "allow"
+        # 允许通过别名填充字段
+        populate_by_name = True
+        json_schema_extra = {
+            "example": {
+                "_id": {
+                    "dept": "技术部",
+                    "city": "北京"
+                },
+                "count": 20,
+                "求和薪资": 800000
+            }
+        }
+
+class GroupResultItem(BaseModel):
+    """分组结果项 - 通用模型"""
+    group_id: Union[str, int, float, None, Dict[str, Any]] = Field(..., alias="_id", description="分组标识")
+    
+    class Config:
+        # 允许额外字段
+        extra = "allow"
+        # 允许通过别名填充字段
+        populate_by_name = True
+        json_schema_extra = {
+            "examples": [
+                {
+                    "_id": "技术部",
+                    "count": 45,
+                    "求和": 1250000
+                },
+                {
+                    "_id": {
+                        "dept": "技术部", 
+                        "city": "北京"
+                    },
+                    "count": 20,
+                    "平均值": 28.5
+                }
+            ]
+        }
+
 # 完全重写 ExecuteMongoQueryResponse 以匹配新格式
 class ExecuteMongoQueryResponse(BaseModel):
-    """执行MongoDB原生查询响应模型 - 新格式"""
-    type: str = Field(..., description="查询类型：'汇总' 或 '明细'")
+    """执行MongoDB原生查询响应模型 - 新格式（支持分组）"""
+    type: str = Field(..., description="查询类型：'汇总'、'明细' 或 '分组'")
     period: str = Field(..., description="执行时间ms")
     messages: str = Field(..., description="处理信息：如果发生异常，则为异常内容；否则值就是 正常处理")
-    result_data: Union[List[int], List[str], List[ResultDataItem]] = Field(..., description="结果数据列表")
+    result_data: List[Any] = Field(..., description="结果数据列表")
     
     class Config:
         json_schema_extra = {
@@ -315,6 +381,23 @@ class ExecuteMongoQueryResponse(BaseModel):
                     "period": "25.6ms",
                     "messages": "正常处理",
                     "result_data": [150]
+                },
+                {
+                    "type": "汇总",
+                    "period": "32.1ms", 
+                    "messages": "正常处理",
+                    "result_data": [
+                        {
+                            "_id": "技术部",
+                            "count": 45,
+                            "求和": 1250000
+                        },
+                        {
+                            "_id": "销售部", 
+                            "count": 30,
+                            "平均值": 28.5
+                        }
+                    ]
                 },
                 {
                     "type": "明细",

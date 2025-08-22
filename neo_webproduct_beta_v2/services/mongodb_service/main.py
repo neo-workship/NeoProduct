@@ -803,7 +803,11 @@ def _parse_query_type(query_cmd: str) -> Optional[str]:
     elif ".findone(" in query_cmd_clean:
         return "findOne"
     elif ".aggregate(" in query_cmd_clean:
-        return "aggregate"
+        # 检查是否包含 $group 操作
+        if "$group" in query_cmd_clean:
+            return "group"
+        else:
+            return "aggregate"
     elif ".countdocuments(" in query_cmd_clean:
         return "countDocuments"
     elif ".count(" in query_cmd_clean:
@@ -910,7 +914,7 @@ def _parse_query_parameters_with_json5(query_cmd: str, query_type: str) -> Dict[
                 log_error(f"解析find/findOne参数失败: {filter_str}", exception=e)
                 return {"filter": {}}
         
-        elif query_type == "aggregate":
+        elif query_type in ["aggregate", "group"]:
             params_str = _extract_method_params(query_cmd, "aggregate")
             if not params_str:
                 return {"pipeline": []}
@@ -943,6 +947,10 @@ def _parse_query_parameters_with_json5(query_cmd: str, query_type: str) -> Dict[
                                 log_error(f"Cannot convert stage to dict: {stage}")
                         except:
                             log_error(f"Failed to parse stage: {stage}")
+                
+                # 如果是group类型，添加字段别名处理
+                if query_type == "group":
+                    validated_pipeline = _add_group_field_aliases(validated_pipeline)
                 
                 return {"pipeline": validated_pipeline}
                 
@@ -990,14 +998,67 @@ def _parse_query_parameters_with_json5(query_cmd: str, query_type: str) -> Dict[
                 except Exception as e:
                     log_error(f"解析distinct过滤条件失败: {params[1]}", exception=e)
                     filter_dict = {}
-            
+
             return {"field": field_name, "filter": filter_dict}
-        
         return {}
         
     except Exception as e:
         log_error("解析查询参数失败", exception=e)
         return {}
+
+def _add_group_field_aliases(pipeline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    为group聚合操作添加字段别名处理
+    
+    Args:
+        pipeline: 聚合管道
+        
+    Returns:
+        处理后的聚合管道
+    """
+    # 聚合操作符到中文别名的映射
+    AGGREGATION_ALIASES = {
+        "$sum": "求和",
+        "$avg": "平均值", 
+        "$min": "最小值",
+        "$max": "最大值",
+        "$stdDevPop": "总体标准差",
+        "$stdDevSamp": "样本标准差",
+        "$count": "计数"
+    }
+    
+    processed_pipeline = []
+    field_aliases = {}
+    
+    for stage in pipeline:
+        if isinstance(stage, dict) and "$group" in stage:
+            group_stage = stage.copy()
+            group_spec = group_stage["$group"]
+            
+            # 处理group阶段中的聚合字段
+            if isinstance(group_spec, dict):
+                for field_name, field_expr in group_spec.items():
+                    if field_name != "_id" and isinstance(field_expr, dict):
+                        # 检查是否包含聚合操作符
+                        for agg_op, agg_value in field_expr.items():
+                            if agg_op in AGGREGATION_ALIASES:
+                                # 生成中文别名
+                                chinese_alias = AGGREGATION_ALIASES[agg_op]
+                                field_aliases[field_name] = chinese_alias
+                                
+                                log_info(f"为字段 {field_name} 添加别名: {chinese_alias}")
+            
+            processed_pipeline.append(group_stage)
+        else:
+            processed_pipeline.append(stage)
+    
+    # 如果有别名，添加到pipeline的元数据中
+    if field_aliases:
+        # 可以选择将别名信息添加到某个位置，或者在后续处理中使用
+        # 这里先记录日志，具体使用方式可以在后续步骤中确定
+        log_info(f"Group查询字段别名映射: {field_aliases}")
+    
+    return processed_pipeline
 
 def _extract_first_parameter(params_str: str) -> str:
     """
@@ -1196,19 +1257,21 @@ def _classify_query_result_new_format(query_type: str,
                                       total_count: int,
                                       query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    根据查询类型对返回结果进行分类处理 - 新格式
+    根据查询类型对返回结果进行分类处理 - 新格式（修复 None 值处理）
     
     Args:
         query_type: 查询类型
         result_data: 查询结果数据
         total_count: 总数量
+        query_params: 查询参数
         
     Returns:
         分类后的数据字典 - 新格式
     """
     result = None
-    if query_type in ["count", "countDocuments","distinct"]:
-        # 汇总类型：count、countDocuments
+    
+    if query_type in ["count", "countDocuments", "distinct"]:
+        # 汇总类型：count、countDocuments、distinct
         if result_data and len(result_data) > 0 and "count" in result_data[0]:
             count_value = result_data[0]["count"]
         else:
@@ -1217,16 +1280,44 @@ def _classify_query_result_new_format(query_type: str,
         result = {
             "type": "汇总",
             "messages": "正常处理",
-            "result_data": [count_value]  # 汇总结果直接放入数组
+            "result_data": [count_value] if count_value is not None else [0]
         }
+        
+    elif query_type == "group":
+        # 分组汇总类型：$group 聚合操作
+        processed_group_data = []
+        
+        for doc in result_data:
+            if doc is not None and isinstance(doc, dict):
+                # 处理分组结果，应用字段别名
+                processed_doc = _apply_group_field_aliases(doc, query_params)
+                processed_group_data.append(processed_doc)
+            elif doc is not None:
+                # 如果不是字典但也不是None，直接添加
+                processed_group_data.append(doc)
+            # 跳过 None 值
+        
+        result = {
+            "type": "分组",
+            "messages": "正常处理", 
+            "result_data": processed_group_data
+        }
+        
     elif query_type in ["find", "findOne", "aggregate"]:
         # 明细类型：find、findOne、aggregate
         result_list = []
         
         for doc in result_data:
+            # 跳过 None 值
+            if doc is None:
+                continue
+                
             if "fields" in doc and isinstance(doc["fields"], list):
                 # 如果是企业档案文档，提取fields数组中的数据
                 for field in doc["fields"]:
+                    if field is None:
+                        continue
+                        
                     # 构建符合新格式的数据项
                     data_item = {
                         "data_value": {
@@ -1259,24 +1350,24 @@ def _classify_query_result_new_format(query_type: str,
                     "data_value": {
                         "enterprise_code": doc.get("enterprise_code", ""),
                         "enterprise_name": doc.get("enterprise_name", ""),
-                        "full_path_code": "",
-                        "full_path_name": "",
-                        "field_code": "",
-                        "field_name": "",
+                        "full_path_code": doc.get("full_path_code", ""),
+                        "full_path_name": doc.get("full_path_name", ""),
+                        "field_code": doc.get("field_code", ""),
+                        "field_name": doc.get("field_name", ""),
                         "value": _serialize_document(doc),
-                        "value_text": "",
-                        "value_pic_url": "",
-                        "value_doc_url": "",
-                        "value_video_url": ""
+                        "value_text": doc.get("value_text", ""),
+                        "value_pic_url": doc.get("value_pic_url", ""),
+                        "value_doc_url": doc.get("value_doc_url", ""),
+                        "value_video_url": doc.get("value_video_url", "")
                     },
                     "data_meta": DataMetaFieldModel(
-                        data_source="",
-                        encoding="",
-                        format="",
-                        license="",
-                        rights="",
-                        update_frequency="",
-                        value_dict=""
+                        data_source=doc.get("data_source", ""),
+                        encoding=doc.get("encoding", ""),
+                        format=doc.get("format", ""),
+                        license=doc.get("license", ""),
+                        rights=doc.get("rights", ""),
+                        update_frequency=doc.get("update_frequency", ""),
+                        value_dict=doc.get("value_dict", "")
                     )
                 }
                 result_list.append(data_item)
@@ -1286,42 +1377,7 @@ def _classify_query_result_new_format(query_type: str,
             "messages": "正常处理",
             "result_data": result_list
         }
-    else:
-        # 未知查询类型，按明细处理
-        result_list = []
-        for item in result_data:
-            data_item = {
-                "data_value": {
-                    "enterprise_code": "",
-                    "enterprise_name": "",
-                    "full_path_code": "",
-                    "full_path_name": "",
-                    "field_code": "",
-                    "field_name": "",
-                    "value": _serialize_document(item),
-                    "value_text": "",
-                    "value_pic_url": "",
-                    "value_doc_url": "",
-                    "value_video_url": ""
-                },
-                "data_meta": DataMetaFieldModel(
-                    data_source="",
-                    encoding="",
-                    format="",
-                    license="",
-                    rights="",
-                    update_frequency="",
-                    value_dict=""
-                )
-            }
-            result_list.append(data_item)
-            
-        result = {
-            "type": "明细",
-            "messages": "正常处理",
-            "result_data": result_list
-        }
-
+    
     try:
         serializable_result_data = []
         for item in result["result_data"]:
@@ -1349,21 +1405,84 @@ def _classify_query_result_new_format(query_type: str,
         # 使用json5写入文件，支持更灵活的JSON格式
         with open(filename, 'w', encoding='utf-8') as f:
             json5.dump(storage_data, f, ensure_ascii=False, indent=2)
-            
+                    
     except Exception as e:
         # 文件存储失败不影响主要功能，可以记录日志或静默处理
         print(f"文件存储失败{e}")
         pass
-
+    
     return result
 
+def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    为分组查询结果应用字段别名
+    
+    Args:
+        group_doc: 分组查询返回的单个文档
+        query_params: 查询参数（包含字段别名信息）
+        
+    Returns:
+        应用别名后的文档
+    """
+    # 聚合操作符到中文别名的映射
+    AGGREGATION_ALIASES = {
+        "$sum": "求和",
+        "$avg": "平均值", 
+        "$min": "最小值",
+        "$max": "最大值",
+        "$stdDevPop": "总体标准差",
+        "$stdDevSamp": "样本标准差",
+        "$count": "计数"
+    }
+    
+    if group_doc is None:
+        return {}
+    
+    processed_doc = group_doc.copy()
+    
+    try:
+        # 从pipeline中获取$group阶段的字段定义
+        pipeline = query_params.get("pipeline", [])
+        group_stage = None
+        
+        for stage in pipeline:
+            if isinstance(stage, dict) and "$group" in stage:
+                group_stage = stage["$group"]
+                break
+        
+        if group_stage and isinstance(group_stage, dict):
+            # 遍历分组文档的字段，应用别名
+            for field_name, field_value in list(processed_doc.items()):
+                if field_name != "_id" and field_name in group_stage:
+                    # 获取该字段的聚合定义
+                    field_def = group_stage[field_name]
+                    if isinstance(field_def, dict):
+                        # 查找聚合操作符
+                        for agg_op in field_def.keys():
+                            if agg_op in AGGREGATION_ALIASES:
+                                # 生成中文别名
+                                chinese_alias = AGGREGATION_ALIASES[agg_op]
+                                # 重命名字段
+                                processed_doc[chinese_alias] = field_value
+                                # 删除原字段名（可选，根据需求决定）
+                                # del processed_doc[field_name]
+                                log_info(f"应用分组字段别名: {field_name} -> {chinese_alias}")
+                                break
+        
+    except Exception as e:
+        log_error("应用分组字段别名失败", exception=e)
+        # 如果出错，返回原始文档
+        return group_doc
+    
+    return processed_doc
+    
 async def _execute_mongodb_query(
     manager: MongoDBManager, 
     query_type: str, 
     query_params: Dict[str, Any]
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
-    执行MongoDB查询 - 修正版
+    执行MongoDB查询 - 支持group查询
     
     Args:
         manager: MongoDB管理器（已经连接到配置的数据库和集合）
@@ -1402,13 +1521,13 @@ async def _execute_mongodb_query(
             result_data = [doc] if doc else []
             total_count = 1 if doc else 0
             
-        elif query_type == "aggregate":
+        elif query_type in ["aggregate", "group"]:
             pipeline = query_params.get("pipeline", [])
             
             # 验证pipeline是字典列表
             if not isinstance(pipeline, list):
                 raise Exception(f"Pipeline必须是列表类型，当前类型: {type(pipeline)}")
-            
+         
             for i, stage in enumerate(pipeline):
                 if not isinstance(stage, dict):
                     raise Exception(f"Pipeline阶段{i}必须是字典类型，当前类型: {type(stage)}")
@@ -1419,6 +1538,10 @@ async def _execute_mongodb_query(
             cursor = collection.aggregate(pipeline)
             result_data = await cursor.to_list(length=1000)
             total_count = len(result_data)
+            
+            # 对于group查询，记录额外信息
+            if query_type == "group":
+                log_info(f"Group查询完成，返回 {total_count} 个分组结果")
             
         elif query_type in ["count", "countDocuments"]:
             filter_dict = query_params.get("filter", {})

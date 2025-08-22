@@ -365,7 +365,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     
     def _display_query_result(self, result: Dict[str, Any]):
         """
-        使用ui.label展示查询结果 - 适配新格式
+        使用ui.label展示查询结果 - 适配新格式，支持分组结果
         """
         if not self.chat_content_container:
             return
@@ -392,14 +392,75 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 query_type = result.get("type", "")
                 
                 if query_type == "汇总":
-                    # 显示汇总结果
+                    # 显示汇总结果（传统的计数类查询）
                     if result_data and len(result_data) > 0:
-                        result_text = f"🔢 汇总结果: {result_data[0]}"
+                        # 检查是否是简单数值
+                        if isinstance(result_data[0], (int, float)):
+                            result_text = f"🔢 汇总结果: {result_data[0]}"
+                        else:
+                            result_text = f"🔢 汇总结果: {str(result_data[0])}"
                     else:
                         result_text = "🔢 汇总结果: 0"
                     ui.label(result_text).classes(
                         'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
                     )
+                
+                elif query_type == "分组":
+                    # 显示分组结果
+                    if isinstance(result_data, list) and result_data:
+                        # 格式化显示分组数据
+                        display_count = min(10, len(result_data))  # 最多显示10个分组
+                        result_text = f"📊 分组统计结果 (显示前{display_count}组，共{len(result_data)}组):\n\n"
+                        
+                        for i, group_item in enumerate(result_data[:display_count]):
+                            result_text += f"📋 第 {i+1} 组:\n"
+                            
+                            if isinstance(group_item, dict):
+                                # 处理分组标识 (_id)
+                                group_id = group_item.get('_id', 'N/A')
+                                if isinstance(group_id, dict):
+                                    # 多字段分组
+                                    result_text += f"  🔖 分组条件:\n"
+                                    for key, value in group_id.items():
+                                        result_text += f"    • {key}: {value}\n"
+                                else:
+                                    # 单字段分组
+                                    result_text += f"  🔖 分组值: {group_id}\n"
+                                
+                                # 处理聚合统计字段
+                                result_text += f"  📈 统计结果:\n"
+                                for field_name, field_value in group_item.items():
+                                    if field_name != '_id':
+                                        # 格式化数值显示
+                                        if isinstance(field_value, (int, float)):
+                                            if isinstance(field_value, float):
+                                                formatted_value = f"{field_value:.2f}"
+                                            else:
+                                                formatted_value = f"{field_value:,}"
+                                        else:
+                                            formatted_value = str(field_value)
+                                        
+                                        result_text += f"    • {field_name}: {formatted_value}\n"
+                            else:
+                                # 如果不是字典格式，直接显示
+                                result_text += f"  • 内容: {str(group_item)}\n"
+                            
+                            result_text += "\n"
+                        
+                        if len(result_data) > display_count:
+                            result_text += f"... 还有 {len(result_data) - display_count} 个分组\n"
+                        
+                        ui.label(result_text).classes(
+                            'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2'
+                        )
+                        
+                        # 显示分组汇总统计
+                        self._display_group_summary(result_data)
+                        
+                    else:
+                        ui.label("📊 分组结果: 无数据").classes(
+                            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+                        )
                     
                 elif query_type == "明细":
                     # 显示明细结果
@@ -452,48 +513,109 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         has_meta_content = False
                         
                         for i, item in enumerate(result_data[:display_count]):
-                            if isinstance(item, dict) and "data_meta" in item and displayed_meta < 3:
+                            if isinstance(item, dict) and "data_meta" in item:
                                 data_meta = item["data_meta"]
-                                if isinstance(data_meta, dict):
-                                    # data_meta 现在直接是 DataMetaFieldModel 对象
-                                    meta_text += f"记录 {i+1} 元数据:\n"
-                                    for key, value in data_meta.items():
-                                        if value and str(value).strip():  # 只显示有值的元数据
-                                            meta_text += f"  • {key}: {value}\n"
-                                            has_meta_content = True
-                                    meta_text += "\n"
+                                
+                                # 检查是否有非空的元数据
+                                meta_fields = [
+                                    ('数据来源', data_meta.get('data_source')),
+                                    ('编码格式', data_meta.get('encoding')),
+                                    ('数据格式', data_meta.get('format')),
+                                    ('许可证', data_meta.get('license')),
+                                    ('使用权限', data_meta.get('rights')),
+                                    ('更新频率', data_meta.get('update_frequency')),
+                                    ('数据字典', data_meta.get('value_dict'))
+                                ]
+                                
+                                current_meta_text = ""
+                                for field_label, field_value in meta_fields:
+                                    if field_value and str(field_value).strip():
+                                        current_meta_text += f"  • {field_label}: {field_value}\n"
+                                        has_meta_content = True
+                                
+                                if current_meta_text:
+                                    meta_text += f"📄 记录 {i+1} 元数据:\n{current_meta_text}\n"
                                     displayed_meta += 1
-                        
-                        # 只在有实际元数据内容时才显示
-                        if has_meta_content:
-                            if len(result_data) > displayed_meta:
-                                meta_text += f"... 还有 {len(result_data) - displayed_meta} 个记录的元数据\n"
                             
+                            if displayed_meta >= 2:  # 最多显示2条记录的元数据
+                                break
+                        
+                        # 只有在有实际元数据内容时才显示
+                        if has_meta_content:
                             ui.label(meta_text).classes(
-                                'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2'
+                                'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
                             )
                     else:
-                        ui.label("📝 查询结果: 未找到匹配的数据").classes(
-                            'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
+                        ui.label("🔍 查询结果: 无数据").classes(
+                            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
                         )
-                        
+                
                 else:
-                    # 其他类型
-                    if result_data:
-                        result_text = f"📄 查询结果: {result_data}"
-                        ui.label(result_text).classes(
-                            'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
-                        )
-                    else:
-                        ui.label("📝 查询结果: 未找到匹配的数据").classes(
-                            'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
-                        )
+                    # 未知类型，显示原始数据
+                    ui.label(f"❓ 未知查询类型 '{query_type}': {str(result_data)}").classes(
+                        'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+                    )
             else:
-                # 显示错误信息
-                error_msg = f"❌ 查询执行异常: {result.get('messages', '未知错误')}"
-                ui.label(error_msg).classes(
+                # 查询执行失败
+                error_text = f"❌ 查询执行失败: {result.get('messages', '未知错误')}"
+                ui.label(error_text).classes(
                     'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
                 )
+
+    def _display_group_summary(self, group_data: List[Dict[str, Any]]):
+        """
+        显示分组结果的汇总统计信息
+        
+        Args:
+            group_data: 分组查询结果数据
+        """
+        if not group_data or not isinstance(group_data, list):
+            return
+        
+        try:
+            # 统计分组总数
+            total_groups = len(group_data)
+            
+            # 收集所有统计字段
+            stat_fields = set()
+            for group in group_data:
+                if isinstance(group, dict):
+                    for key in group.keys():
+                        if key != '_id':
+                            stat_fields.add(key)
+            
+            if stat_fields:
+                summary_text = f"📈 分组汇总统计:\n"
+                summary_text += f"• 总分组数: {total_groups}\n"
+                
+                # 对每个统计字段计算汇总
+                for field in sorted(stat_fields):
+                    values = []
+                    for group in group_data:
+                        if isinstance(group, dict) and field in group:
+                            value = group[field]
+                            if isinstance(value, (int, float)):
+                                values.append(value)
+                    
+                    if values:
+                        total = sum(values)
+                        avg = total / len(values)
+                        min_val = min(values)
+                        max_val = max(values)
+                        
+                        summary_text += f"• {field}:\n"
+                        summary_text += f"  - 总计: {total:,.2f}\n"
+                        summary_text += f"  - 平均: {avg:.2f}\n"
+                        summary_text += f"  - 最小: {min_val:,.2f}\n"
+                        summary_text += f"  - 最大: {max_val:,.2f}\n"
+                
+                ui.label(summary_text).classes(
+                    'whitespace-pre-wrap bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-2'
+                )
+        
+        except Exception as e:
+            # 如果统计计算失败，不影响主要功能
+            pass
     
     def update_content(self, parse_result: Dict[str, Any]) -> bool:
         """更新专家模式展示内容"""
