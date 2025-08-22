@@ -784,8 +784,7 @@ class MessageProcessor:
 
 # 更新后的 ChatAreaManager 类
 class ChatAreaManager:
-    """主聊天区域管理器 - 负责聊天内容展示和用户交互"""
-    
+    """主聊天区域管理器 - 负责聊天内容展示和用户交互"""  
     def __init__(self, chat_data_state):
         """初始化聊天区域管理器"""
         self.chat_data_state = chat_data_state
@@ -846,7 +845,6 @@ class ChatAreaManager:
                 await asyncio.sleep(0.3)
 
         self.waiting_animation_task = asyncio.create_task(animate_waiting())
-        
         # 绑定停止函数到task
         self.waiting_animation_task._stop_animation = lambda: animation_active.__setitem__(0, False)
 
