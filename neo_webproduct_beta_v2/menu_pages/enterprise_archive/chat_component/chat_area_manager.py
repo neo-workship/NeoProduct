@@ -496,61 +496,302 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             ui.label("📊 分组结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
-
+    ### ------------------- 明细数据渲染展示 -------------------------
     def _display_detail_result(self, result_data: List[Dict[str, Any]]):
         """
-        显示明细查询结果
+        显示明细查询结果 - 完全借鉴read_archive_tab.py中的展示方法
+        根据数据条数选择不同的显示方式
         
         Args:
             result_data: 明细查询结果数据列表
         """
         if isinstance(result_data, list) and result_data:
-            # 格式化显示前几条数据
-            display_count = min(3, len(result_data))  # 最多显示3条
-            result_text = f"🔍 查询结果 (显示前{display_count}条，共{len(result_data)}条):\n\n"
-            
-            for i, item in enumerate(result_data[:display_count]):
-                result_text += f"📄 记录 {i+1}:\n"
-                
-                if isinstance(item, dict) and "data_value" in item:
-                    # 按照新格式显示数据值
-                    data_value = item["data_value"]
-                    
-                    if data_value.get('enterprise_code'):
-                        result_text += f"  • 企业代码: {data_value.get('enterprise_code')}\n"
-                    if data_value.get('enterprise_name'):
-                        result_text += f"  • 企业名称: {data_value.get('enterprise_name')}\n"
-                    if data_value.get('full_path_name'):
-                        result_text += f"  • 字段路径: {data_value.get('full_path_name')}\n"
-                    if data_value.get('field_name'):
-                        result_text += f"  • 字段名称: {data_value.get('field_name')}\n"
-                    if data_value.get('value'):
-                        result_text += f"  • 字段值: {data_value.get('value')}\n"
-                    if data_value.get('value_text'):
-                        result_text += f"  • 文本描述: {data_value.get('value_text')}\n"
-                    if data_value.get('value_pic_url'):
-                        result_text += f"  • 图片链接: {data_value.get('value_pic_url')}\n"
-                    if data_value.get('value_doc_url'):
-                        result_text += f"  • 文档链接: {data_value.get('value_doc_url')}\n"
-                    if data_value.get('value_video_url'):
-                        result_text += f"  • 视频链接: {data_value.get('value_video_url')}\n"
-                else:
-                    # 如果不是新格式，直接显示
-                    result_text += f"  • 内容: {str(item)}\n"
-                
-                result_text += "\n"
-            
-            if len(result_data) > display_count:
-                result_text += f"... 还有 {len(result_data) - display_count} 条记录\n"
-            
-            ui.label(result_text).classes(
-                'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2 w-full'
-            )
+            # 根据数据条数选择显示方式（完全借鉴read_archive_tab的逻辑）
+            if len(result_data) <= 1:
+                # 无数据或只有一条数据时，使用卡片方式显示
+                self._display_detail_results_as_cards(result_data)
+            else:
+                # 多条数据时，使用表格分页方式显示
+                self._display_detail_results_as_table(result_data)
         else:
-            ui.label("🔍 查询结果: 无数据").classes(
+            ui.label("🔍 明细查询结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
 
+    def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]]):
+        """
+        卡片方式显示明细查询结果（无数据或只有一条数据）
+        完全参考read_archive_tab.py的display_results_as_cards方法
+        
+        Args:
+            result_data: 明细查询结果数据列表
+        """
+        if not result_data:
+            # 无数据情况，显示空状态
+            ui.label("🔍 明细查询结果: 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+            return
+        
+        # 有数据时，参考read_archive_tab的卡片展示方式
+        for i, result in enumerate(result_data):
+            with ui.row().classes('w-full gap-4 items-stretch'):
+                # 左侧card展示：类似read_archive_tab的左侧card
+                # 展示字段信息：full_path_name、value、value_pic_url、value_doc_url、value_video_url
+                with ui.card().classes('flex-1 p-4'):
+                    ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
+                    
+                    if isinstance(result, dict) and "data_value" in result:
+                        data_value = result["data_value"]
+                        
+                        # full_path_name（标题）
+                        full_path_name = data_value.get('full_path_name', '未知字段')
+                        ui.label(full_path_name).classes('text-base font-bold text-primary mb-2')
+                        
+                        # value（字段值）
+                        value = data_value.get('value', '暂无数据') or '暂无数据'
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('data_object').classes('text-lg text-blue-600')
+                            ui.label('字段值:').classes('text-lg font-medium')
+                            # 如果值太长，截取显示
+                            display_value = str(value)
+                            if len(display_value) > 100:
+                                display_value = display_value[:100] + "..."
+                            ui.label(display_value).classes('text-lg')
+                        
+                        # value_pic_url（字段关联图片）
+                        value_pic_url = data_value.get('value_pic_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('image').classes('text-lg text-green-600')
+                            ui.label('关联图片:').classes('text-lg font-medium')
+                            if value_pic_url:
+                                ui.link('查看图片', value_pic_url).classes('text-lg text-blue-500')
+                            else:
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
+                        
+                        # value_doc_url（字段关联文档）
+                        value_doc_url = data_value.get('value_doc_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('description').classes('text-lg text-amber-600')
+                            ui.label('关联文档:').classes('text-lg font-medium')
+                            if value_doc_url:
+                                ui.link('查看文档', value_doc_url).classes('text-lg text-blue-500')
+                            else:
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
+                        
+                        # value_video_url（字段关联视频）
+                        value_video_url = data_value.get('value_video_url', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('videocam').classes('text-lg text-red-500')
+                            ui.label('关联视频:').classes('text-lg font-medium')
+                            if value_video_url:
+                                ui.link('查看视频', value_video_url).classes('text-lg text-blue-500')
+                            else:
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
+                    
+                    else:
+                        # 如果不是预期的数据格式，显示原始内容
+                        ui.label('数据内容').classes('text-base font-bold text-primary mb-2')
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('info').classes('text-lg text-gray-600')
+                            ui.label('内容:').classes('text-lg font-medium')
+                            ui.label(str(result)).classes('text-lg')
+                
+                # 展示技术元信息：data_url、encoding、format、license、rights、update_frequency、value_dict
+                with ui.card().classes('flex-1 p-4'):
+                    ui.label('技术信息').classes('text-subtitle1 font-medium mb-3')
+                    
+                    if isinstance(result, dict) and "data_value" in result:
+                        data_value = result["data_value"]
+                        
+                        # data_url（数据API） - 注意：这里可能没有对应字段，使用企业信息代替
+                        enterprise_code = data_value.get('enterprise_code', '未指定') or '未指定'
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('api').classes('text-lg text-indigo-600')
+                            ui.label('企业代码:').classes('text-lg font-medium')
+                            ui.label(str(enterprise_code)).classes('text-lg')
+                        
+                        # encoding（编码方式） - 数据中可能没有此字段，显示默认值
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('code').classes('text-lg text-purple-600')
+                            ui.label('编码方式:').classes('text-lg font-medium')
+                            ui.label('UTF-8').classes('text-lg')
+                        
+                        # format（格式） - 数据中可能没有此字段，根据数据类型推断
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('article').classes('text-lg text-orange-600')
+                            ui.label('格式:').classes('text-lg font-medium')
+                            ui.label('JSON').classes('text-lg')
+                        
+                        # license（使用许可）
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('gavel').classes('text-lg text-amber-600')
+                            ui.label('使用许可:').classes('text-lg font-medium')
+                            ui.label('企业档案数据').classes('text-lg')
+                        
+                        # rights（使用权限）
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('security').classes('text-lg text-red-500')
+                            ui.label('使用权限:').classes('text-lg font-medium')
+                            ui.label('受限访问').classes('text-lg')
+                        
+                        # update_frequency（更新频率）
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('update').classes('text-lg text-blue-500')
+                            ui.label('更新频率:').classes('text-lg font-medium')
+                            ui.label('实时').classes('text-lg')
+                        
+                        # value_dict（数据字典） - 使用字段名称作为数据字典
+                        field_name = data_value.get('field_name', '') or ''
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('book').classes('text-lg text-green-500')
+                            ui.label('数据字典:').classes('text-lg font-medium')
+                            if field_name:
+                                ui.label(field_name).classes('text-lg')
+                            else:
+                                ui.label('暂无数据').classes('text-lg text-grey-6')
+                        
+                        # 额外显示企业名称
+                        enterprise_name = data_value.get('enterprise_name', '') or ''
+                        if enterprise_name:
+                            with ui.row().classes('gap-2 items-center mb-2'):
+                                ui.icon('business').classes('text-lg text-teal-600')
+                                ui.label('企业名称:').classes('text-lg font-medium')
+                                ui.label(str(enterprise_name)).classes('text-lg')
+                    else:
+                        # 显示默认的技术信息
+                        with ui.row().classes('gap-2 items-center mb-2'):
+                            ui.icon('info').classes('text-lg text-gray-600')
+                            ui.label('暂无技术信息').classes('text-lg font-medium')
+
+    def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]]):
+        """
+        表格方式显示明细查询结果（多条数据，分页模式）
+        完全参考read_archive_tab.py的display_results_as_table方法
+        
+        Args:
+            result_data: 明细查询结果数据列表
+        """
+        ui.html(f"<b>🔍 明细查询结果</b> (共 {len(result_data)} 条记录):").classes(
+            'whitespace-pre-wrap w-full text-base bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
+        )
+        
+        # 定义表格列（参考read_archive_tab的列定义）
+        columns = [
+            {'name': 'enterprise_name', 'label': '企业名称', 'field': 'enterprise_name', 'sortable': True, 'align': 'left'},
+            {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
+            {'name': 'value', 'label': '字段值', 'field': 'value', 'sortable': True, 'align': 'left'},
+            {'name': 'full_path_name', 'label': '字段路径', 'field': 'full_path_name', 'sortable': True, 'align': 'left'},
+        ]
+        
+        # 准备行数据（参考read_archive_tab的数据准备方式）
+        rows = []
+        for i, result in enumerate(result_data):
+            if isinstance(result, dict) and "data_value" in result:
+                data_value = result["data_value"]
+                
+                # 处理字段值，如果太长则截取
+                value = data_value.get('value', '暂无数据') or '暂无数据'
+                display_value = str(value)
+                if len(display_value) > 50:
+                    display_value = display_value[:50] + "..."
+                
+                row = {
+                    'id': i,
+                    'enterprise_name': data_value.get('enterprise_name', '未知企业'),
+                    'field_name': data_value.get('field_name', '未知字段'),
+                    'value': display_value,
+                    'full_path_name': data_value.get('full_path_name', '未知路径'),
+                    # 保存完整的原始数据用于展开行
+                    '_raw_data': result
+                }
+            else:
+                row = {
+                    'id': i,
+                    'enterprise_name': '未知企业',
+                    'field_name': '未知字段',
+                    'value': str(result)[:50] + ("..." if len(str(result)) > 50 else ""),
+                    'full_path_name': '未知路径',
+                    '_raw_data': result
+                }
+            rows.append(row)
+        
+        # 创建表格（参考read_archive_tab的表格创建方式）
+        table = ui.table(
+            columns=columns, 
+            rows=rows, 
+            row_key='id',
+            pagination=10,  # 每页显示10条
+            column_defaults={
+                'align': 'left',
+                'headerClasses': 'uppercase text-primary text-base font-bold',
+            }
+        ).classes('w-full')
+        
+        # 添加表头（包含展开按钮列，完全参考read_archive_tab）
+        table.add_slot('header', r'''
+            <q-tr :props="props">
+                <q-th auto-width />
+                <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                    {{ col.label }}
+                </q-th>
+            </q-tr>
+        ''')
+        
+        # 添加表格主体（包含展开功能，完全参考read_archive_tab）
+        table.add_slot('body', r'''
+            <q-tr :props="props">
+                <q-td auto-width>
+                    <q-btn size="sm" color="accent" round dense
+                        @click="props.expand = !props.expand"
+                        :icon="props.expand ? 'remove' : 'add'"
+                    />
+                </q-td>
+                <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                    {{ col.value }}
+                </q-td>
+            </q-tr>
+            <q-tr v-show="props.expand" :props="props">
+                <q-td colspan="100%">
+                    <div class="q-pa-md">
+                        <div class="text-h6 q-mb-md">详细信息</div>
+                        <div class="row q-col-gutter-md">
+                            <div class="col-6">
+                                <div class="text-subtitle2 text-primary">字段信息</div>
+                                <div><strong>企业代码:</strong> {{ props.row._raw_data.data_value?.enterprise_code || '未知' }}</div>
+                                <div><strong>企业名称:</strong> {{ props.row._raw_data.data_value?.enterprise_name || '未知' }}</div>
+                                <div><strong>字段路径:</strong> {{ props.row._raw_data.data_value?.full_path_name || '未知' }}</div>
+                                <div><strong>字段名称:</strong> {{ props.row._raw_data.data_value?.field_name || '未知' }}</div>
+                                <div><strong>完整字段值:</strong> {{ props.row._raw_data.data_value?.value || '暂无数据' }}</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-subtitle2 text-secondary">关联资源</div>
+                                <div><strong>文本描述:</strong> {{ props.row._raw_data.data_value?.value_text || '暂无数据' }}</div>
+                                <div><strong>图片链接:</strong> 
+                                    <a v-if="props.row._raw_data.data_value?.value_pic_url" 
+                                    :href="props.row._raw_data.data_value.value_pic_url" 
+                                    target="_blank" class="text-primary">查看图片</a>
+                                    <span v-else>暂无数据</span>
+                                </div>
+                                <div><strong>文档链接:</strong> 
+                                    <a v-if="props.row._raw_data.data_value?.value_doc_url" 
+                                    :href="props.row._raw_data.data_value.value_doc_url" 
+                                    target="_blank" class="text-primary">查看文档</a>
+                                    <span v-else>暂无数据</span>
+                                </div>
+                                <div><strong>视频链接:</strong> 
+                                    <a v-if="props.row._raw_data.data_value?.value_video_url" 
+                                    :href="props.row._raw_data.data_value.value_video_url" 
+                                    target="_blank" class="text-primary">查看视频</a>
+                                    <span v-else>暂无数据</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </q-td>
+            </q-tr>
+        ''')
+    ### ------------------- 明细数据渲染展示 -------------------------
     def _display_other_result(self, query_type: str, result_data: List[Any]):
         """
         显示其他类型查询结果

@@ -1587,8 +1587,8 @@ async def _execute_mongodb_query(
             total_count = await collection.count_documents(filter_dict)
             
             # 执行查询（限制返回数量避免内存问题）
-            cursor = collection.find(filter_dict).limit(1000)
-            result_data = await cursor.to_list(length=1000)
+            cursor = collection.find(filter_dict).limit(100)
+            result_data = await cursor.to_list(length=100)
             
         elif query_type == "findOne":
             filter_dict = query_params.get("filter", {})
@@ -1613,7 +1613,7 @@ async def _execute_mongodb_query(
             
             # 执行聚合查询
             cursor = collection.aggregate(pipeline)
-            result_data = await cursor.to_list(length=1000)
+            result_data = await cursor.to_list(length=100)
             total_count = len(result_data)
             
             # 对于group查询，记录额外信息
