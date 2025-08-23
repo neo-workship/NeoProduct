@@ -874,7 +874,11 @@ def _preprocess_js_object(js_str: str) -> str:
     # MongoDB的字段名和操作符通常以$开头，这些是合法的
     
     # 3. 处理正则表达式字面量 /pattern/flags -> {"$regex": "pattern", "$options": "flags"}
-    js_str = re.sub(r'/([^/]+)/([gimx]*)', r'{"$regex": "\1", "$options": "\2"}', js_str)
+    if '"$regex"' not in js_str and "'$regex'" not in js_str:
+        js_str = re.sub(r'/([^/]+)/([gimx]*)', r'"\\1"', js_str)
+    else:
+        # 如果已经在$regex上下文中，只需要将正则字面量转换为字符串
+        js_str = re.sub(r':\s*/([^/]+)/([gimx]*)', r': "\\1"', js_str)
     
     # 4. 处理Date对象 Date() -> {"$date": "..."}
     # 简化处理，实际应用中可能需要更复杂的日期解析

@@ -363,260 +363,218 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 "result_data": []
             }
     
+    # ------------------------ 各类数据的渲染展示 -----------------------------
     def _display_query_result(self, result: Dict[str, Any]):
         """
-        使用ui.label展示查询结果 - 适配新格式，支持分组结果
+        显示MongoDB查询结果
+        将原有的处理逻辑分解为独立的函数，提高代码可维护性
+        
+        Args:
+            result: MongoDB查询结果字典
         """
         if not self.chat_content_container:
             return
-            
+        
         with self.chat_content_container:
             # 显示查询统计信息
-            result_data = result.get('result_data', [])
-            data_count = len(result_data) if isinstance(result_data, list) else 1
+            self._display_query_statistics(result)
             
-            stats_text = (
-                f"📊 查询统计:\n"
-                f"• 查询类型: {result.get('type', 'N/A')}\n"
-                f"• 运行耗时: {result.get('period', '0ms')}\n"
-                f"• 处理信息: {result.get('messages', '未知')}\n"
-                f"• 数据条数: {data_count}\n"
-            )
-            ui.label(stats_text).classes(
-                'whitespace-pre-wrap bg-blue-50 border-l-4 border-blue-500 p-3 mb-2 w-full'
-            )
-            
-            # 显示查询结果数据
-            if result.get("messages") == "正常处理":  # 成功处理
-                result_data = result.get("result_data", [])
+            # 根据查询类型调用相应的显示函数
+            if result.get("messages") == "正常处理":  # 查询成功
                 query_type = result.get("type", "")
+                result_data = result.get("result_data", [])
                 
                 if query_type == "汇总":
-                    # 显示汇总结果（传统的计数类查询）
-                    if result_data and len(result_data) > 0:
-                        # 检查是否是简单数值
-                        if isinstance(result_data[0], (int, float)):
-                            result_text = f"🔢 汇总结果: {result_data[0]}"
-                        else:
-                            result_text = f"🔢 汇总结果: {str(result_data[0])}"
-                    else:
-                        result_text = "🔢 汇总结果: 0"
-                    ui.label(result_text).classes(
-                        'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2 w-full'
-                    )
-                
+                    self._display_summary_result(result_data)
                 elif query_type == "分组":
-                    # 显示分组结果
-                    if isinstance(result_data, list) and result_data:
-                        # 格式化显示分组数据
-                        display_count = min(10, len(result_data))  # 最多显示10个分组
-                        result_text = f"📊 分组统计结果 (显示前{display_count}组，共{len(result_data)}组):\n\n"
-                        
-                        for i, group_item in enumerate(result_data[:display_count]):
-                            result_text += f"📋 第 {i+1} 组:\n"
-                            
-                            if isinstance(group_item, dict):
-                                # 处理分组标识 (_id)
-                                group_id = group_item.get('_id', 'N/A')
-                                if isinstance(group_id, dict):
-                                    # 多字段分组
-                                    result_text += f"  🔖 分组条件:\n"
-                                    for key, value in group_id.items():
-                                        result_text += f"    • {key}: {value}\n"
-                                else:
-                                    # 单字段分组
-                                    result_text += f"  🔖 分组值: {group_id}\n"
-                                
-                                # 处理聚合统计字段
-                                result_text += f"  📈 统计结果:\n"
-                                for field_name, field_value in group_item.items():
-                                    if field_name != '_id':
-                                        # 格式化数值显示
-                                        if isinstance(field_value, (int, float)):
-                                            if isinstance(field_value, float):
-                                                formatted_value = f"{field_value:.2f}"
-                                            else:
-                                                formatted_value = f"{field_value:,}"
-                                        else:
-                                            formatted_value = str(field_value)
-                                        
-                                        result_text += f"    • {field_name}: {formatted_value}\n"
-                            else:
-                                # 如果不是字典格式，直接显示
-                                result_text += f"  • 内容: {str(group_item)}\n"
-                            
-                            result_text += "\n"
-                        
-                        if len(result_data) > display_count:
-                            result_text += f"... 还有 {len(result_data) - display_count} 个分组\n"
-                        
-                        ui.label(result_text).classes(
-                            'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2 w-full'
-                        )
-                        
-                        # 显示分组汇总统计
-                        self._display_group_summary(result_data)
-                        
-                    else:
-                        ui.label("📊 分组结果: 无数据").classes(
-                            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-                        )
-                    
+                    self._display_group_result(result_data)
                 elif query_type == "明细":
-                    # 显示明细结果
-                    if isinstance(result_data, list) and result_data:
-                        # 格式化显示前几条数据
-                        display_count = min(3, len(result_data))  # 最多显示3条
-                        result_text = f"🔍 查询结果 (显示前{display_count}条，共{len(result_data)}条):\n\n"
-                        
-                        for i, item in enumerate(result_data[:display_count]):
-                            result_text += f"📄 记录 {i+1}:\n"
-                            
-                            if isinstance(item, dict) and "data_value" in item:
-                                # 按照新格式显示数据值
-                                data_value = item["data_value"]
-                                
-                                if data_value.get('enterprise_code'):
-                                    result_text += f"  • 企业代码: {data_value.get('enterprise_code')}\n"
-                                if data_value.get('enterprise_name'):
-                                    result_text += f"  • 企业名称: {data_value.get('enterprise_name')}\n"
-                                if data_value.get('full_path_name'):
-                                    result_text += f"  • 字段路径: {data_value.get('full_path_name')}\n"
-                                if data_value.get('field_name'):
-                                    result_text += f"  • 字段名称: {data_value.get('field_name')}\n"
-                                if data_value.get('value'):
-                                    result_text += f"  • 字段值: {data_value.get('value')}\n"
-                                if data_value.get('value_text'):
-                                    result_text += f"  • 文本描述: {data_value.get('value_text')}\n"
-                                if data_value.get('value_pic_url'):
-                                    result_text += f"  • 图片链接: {data_value.get('value_pic_url')}\n"
-                                if data_value.get('value_doc_url'):
-                                    result_text += f"  • 文档链接: {data_value.get('value_doc_url')}\n"
-                                if data_value.get('value_video_url'):
-                                    result_text += f"  • 视频链接: {data_value.get('value_video_url')}\n"
-                            else:
-                                # 如果不是新格式，直接显示
-                                result_text += f"  • 内容: {str(item)}\n"
-                            
-                            result_text += "\n"
-                        
-                        if len(result_data) > display_count:
-                            result_text += f"... 还有 {len(result_data) - display_count} 条记录\n"
-                        
-                        ui.label(result_text).classes(
-                            'whitespace-pre-wrap bg-green-50 border-l-4 border-green-500 p-3 mb-2'
-                        )
-                        
-                        # 显示元数据信息（如果存在且非空）
-                        meta_text = "📋 字段元数据信息:\n\n"
-                        displayed_meta = 0
-                        has_meta_content = False
-                        
-                        for i, item in enumerate(result_data[:display_count]):
-                            if isinstance(item, dict) and "data_meta" in item:
-                                data_meta = item["data_meta"]
-                                
-                                # 检查是否有非空的元数据
-                                meta_fields = [
-                                    ('数据来源', data_meta.get('data_source')),
-                                    ('编码格式', data_meta.get('encoding')),
-                                    ('数据格式', data_meta.get('format')),
-                                    ('许可证', data_meta.get('license')),
-                                    ('使用权限', data_meta.get('rights')),
-                                    ('更新频率', data_meta.get('update_frequency')),
-                                    ('数据字典', data_meta.get('value_dict'))
-                                ]
-                                
-                                current_meta_text = ""
-                                for field_label, field_value in meta_fields:
-                                    if field_value and str(field_value).strip():
-                                        current_meta_text += f"  • {field_label}: {field_value}\n"
-                                        has_meta_content = True
-                                
-                                if current_meta_text:
-                                    meta_text += f"📄 记录 {i+1} 元数据:\n{current_meta_text}\n"
-                                    displayed_meta += 1
-                            
-                            if displayed_meta >= 2:  # 最多显示2条记录的元数据
-                                break
-                        
-                        # 只有在有实际元数据内容时才显示
-                        if has_meta_content:
-                            ui.label(meta_text).classes(
-                                'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2'
-                            )
-                    else:
-                        ui.label("🔍 查询结果: 无数据").classes(
-                            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-                        )
-                
+                    self._display_detail_result(result_data)
                 else:
-                    # 未知类型，显示原始数据
-                    ui.label(f"❓ 未知查询类型 '{query_type}': {str(result_data)}").classes(
-                        'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-                    )
+                    self._display_other_result(query_type, result_data)
             else:
-                # 查询执行失败
-                error_text = f"❌ 查询执行失败: {result.get('messages', '未知错误')}"
-                ui.label(error_text).classes(
-                    'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
-                )
+                # 查询失败
+                self._display_error_result(result)
 
-    def _display_group_summary(self, group_data: List[Dict[str, Any]]):
+    def _display_query_statistics(self, result: Dict[str, Any]):
         """
-        显示分组结果的汇总统计信息
+        显示查询统计信息
         
         Args:
-            group_data: 分组查询结果数据
+            result: MongoDB查询结果字典
         """
-        if not group_data or not isinstance(group_data, list):
-            return
+        result_data = result.get('result_data', [])
+        data_count = len(result_data) if isinstance(result_data, list) else 1
         
-        try:
-            # 统计分组总数
-            total_groups = len(group_data)
+        stats_text = (
+            f"<b>📊 查询统计:</b>\n"
+            f"•<b>查询类型</b>:{result.get('type', 'N/A')} &nbsp;&nbsp;&nbsp;&nbsp; •<b>运行耗时</b>: {result.get('period', '0ms')} &nbsp;&nbsp;&nbsp;&nbsp; •<b>处理信息</b>: {result.get('messages', '未知')} &nbsp;&nbsp;&nbsp;&nbsp; •<b>数据数量</b>: {data_count}"
+        )
+        ui.html(stats_text).classes(
+            'whitespace-pre-wrap w-full text-base bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
+        )
+
+    def _display_summary_result(self, result_data: List[Any]):
+        """
+        显示汇总查询结果
+        
+        Args:
+            result_data: 汇总查询结果数据列表
+        """
+        if result_data and len(result_data) > 0:
+            # 检查是否是简单数值
+            info_text = "<b>🔢 汇总结果</b>:"
+            if isinstance(result_data[0], (int, float)):
+                result_text = f"{info_text}{result_data[0]}"
+            else:
+                result_text = f"{info_text}{str(result_data[0])}"
+        else:
+            result_text = f"{info_text}0"
+        
+        ui.html(result_text).classes(
+            'w-full text-base bg-green-50 border-l-4 border-green-500 p-3 mb-2'
+        )
+
+    def _display_group_result(self, result_data: List[Dict[str, Any]]):
+        """
+        显示分组查询结果
+        
+        Args:
+            result_data: 分组查询结果数据列表
+        """
+        if isinstance(result_data, list) and result_data:
+            # 格式化显示分组数据
+            display_count = min(10, len(result_data))  # 最多显示10个分组
+            result_text = f"📊 分组统计结果 (显示前{display_count}组，共{len(result_data)}组):\n\n"
             
-            # 收集所有统计字段
-            stat_fields = set()
-            for group in group_data:
-                if isinstance(group, dict):
-                    for key in group.keys():
-                        if key != '_id':
-                            stat_fields.add(key)
-            
-            if stat_fields:
-                summary_text = f"📈 分组汇总统计:\n"
-                summary_text += f"• 总分组数: {total_groups}\n"
+            for i, group_item in enumerate(result_data[:display_count]):
+                result_text += f"📋 第 {i+1} 组:\n"
                 
-                # 对每个统计字段计算汇总
-                for field in sorted(stat_fields):
-                    values = []
-                    for group in group_data:
-                        if isinstance(group, dict) and field in group:
-                            value = group[field]
-                            if isinstance(value, (int, float)):
-                                values.append(value)
+                if isinstance(group_item, dict):
+                    # 处理分组标识 (_id)
+                    group_id = group_item.get('_id', 'N/A')
+                    if isinstance(group_id, dict):
+                        # 多字段分组
+                        result_text += f"  🔖 分组条件:\n"
+                        for key, value in group_id.items():
+                            result_text += f"    • {key}: {value}\n"
+                    else:
+                        # 单字段分组
+                        result_text += f"  🔖 分组值: {group_id}\n"
                     
-                    if values:
-                        total = sum(values)
-                        avg = total / len(values)
-                        min_val = min(values)
-                        max_val = max(values)
-                        
-                        summary_text += f"• {field}:\n"
-                        summary_text += f"  - 总计: {total:,.2f}\n"
-                        summary_text += f"  - 平均: {avg:.2f}\n"
-                        summary_text += f"  - 最小: {min_val:,.2f}\n"
-                        summary_text += f"  - 最大: {max_val:,.2f}\n"
+                    # 处理聚合统计字段
+                    result_text += f"  📈 统计结果:\n"
+                    for field_name, field_value in group_item.items():
+                        if field_name != '_id':
+                            # 格式化数值显示
+                            if isinstance(field_value, (int, float)):
+                                if isinstance(field_value, float):
+                                    formatted_value = f"{field_value:.2f}"
+                                else:
+                                    formatted_value = f"{field_value:,}"
+                            else:
+                                formatted_value = str(field_value)
+                            
+                            result_text += f"    • {field_name}: {formatted_value}\n"
+                else:
+                    # 如果不是字典格式，直接显示
+                    result_text += f"  • 内容: {str(group_item)}\n"
                 
-                ui.label(summary_text).classes(
-                    'whitespace-pre-wrap bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-2'
-                )
+                result_text += "\n"
+            
+            if len(result_data) > display_count:
+                result_text += f"... 还有 {len(result_data) - display_count} 个分组\n"
+            
+            ui.label(result_text).classes(
+                'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2 w-full'
+            )
+            
+            # 显示分组汇总统计
+            self._display_group_summary(result_data)
+            
+        else:
+            ui.label("📊 分组结果: 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+
+    def _display_detail_result(self, result_data: List[Dict[str, Any]]):
+        """
+        显示明细查询结果
         
-        except Exception as e:
-            # 如果统计计算失败，不影响主要功能
-            pass
-    
+        Args:
+            result_data: 明细查询结果数据列表
+        """
+        if isinstance(result_data, list) and result_data:
+            # 格式化显示前几条数据
+            display_count = min(3, len(result_data))  # 最多显示3条
+            result_text = f"🔍 查询结果 (显示前{display_count}条，共{len(result_data)}条):\n\n"
+            
+            for i, item in enumerate(result_data[:display_count]):
+                result_text += f"📄 记录 {i+1}:\n"
+                
+                if isinstance(item, dict) and "data_value" in item:
+                    # 按照新格式显示数据值
+                    data_value = item["data_value"]
+                    
+                    if data_value.get('enterprise_code'):
+                        result_text += f"  • 企业代码: {data_value.get('enterprise_code')}\n"
+                    if data_value.get('enterprise_name'):
+                        result_text += f"  • 企业名称: {data_value.get('enterprise_name')}\n"
+                    if data_value.get('full_path_name'):
+                        result_text += f"  • 字段路径: {data_value.get('full_path_name')}\n"
+                    if data_value.get('field_name'):
+                        result_text += f"  • 字段名称: {data_value.get('field_name')}\n"
+                    if data_value.get('value'):
+                        result_text += f"  • 字段值: {data_value.get('value')}\n"
+                    if data_value.get('value_text'):
+                        result_text += f"  • 文本描述: {data_value.get('value_text')}\n"
+                    if data_value.get('value_pic_url'):
+                        result_text += f"  • 图片链接: {data_value.get('value_pic_url')}\n"
+                    if data_value.get('value_doc_url'):
+                        result_text += f"  • 文档链接: {data_value.get('value_doc_url')}\n"
+                    if data_value.get('value_video_url'):
+                        result_text += f"  • 视频链接: {data_value.get('value_video_url')}\n"
+                else:
+                    # 如果不是新格式，直接显示
+                    result_text += f"  • 内容: {str(item)}\n"
+                
+                result_text += "\n"
+            
+            if len(result_data) > display_count:
+                result_text += f"... 还有 {len(result_data) - display_count} 条记录\n"
+            
+            ui.label(result_text).classes(
+                'whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-2 w-full'
+            )
+        else:
+            ui.label("🔍 查询结果: 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+
+    def _display_other_result(self, query_type: str, result_data: List[Any]):
+        """
+        显示其他类型查询结果
+        Args:
+            query_type: 查询类型字符串
+            result_data: 查询结果数据列表
+        """
+        ui.label(f"❓ 未知查询类型 '{query_type}': {str(result_data)}").classes(
+            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+        )
+
+    def _display_error_result(self, result: Dict[str, Any]):
+        """
+        显示查询错误结果
+        Args:
+            result: 包含错误信息的结果字典
+        """
+        error_text = f"❌ 查询执行失败: {result.get('messages', '未知错误')}"
+        ui.label(error_text).classes(
+            'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+        )
+
+    # ------------------------ 各类数据的渲染展示 -----------------------------
+
     def update_content(self, parse_result: Dict[str, Any]) -> bool:
         """更新专家模式展示内容"""
         # 只执行通用内容更新，不进行MongoDB查询检测
