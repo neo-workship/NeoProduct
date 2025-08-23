@@ -1255,13 +1255,186 @@ def _convert_data_meta_to_dict(data_meta):
             'update_frequency': getattr(data_meta, 'update_frequency', ''),
             'value_dict': getattr(data_meta, 'value_dict', '')
         }
+## ----------- 分类查询结果 ----------------
+def _is_single_field_document(doc: Dict[str, Any]) -> bool:
+    """
+    判断文档是否为单个字段文档（如 $unwind 后的结果）
+    
+    优化策略：
+    1. 首先基于数量做粗分类（单条记录特征）
+    2. 然后基于字段存在性做细分类
+    
+    特征：
+    - 包含 enterprise_code, enterprise_name
+    - 包含 fields 字段，但是字典而不是数组
+    - fields 字典包含字段相关属性
+    
+    Args:
+        doc: 待判断的文档
+        
+    Returns:
+        True 如果是单个字段文档，False 否则
+    """
+    if not isinstance(doc, dict):
+        return False
+        
+    # 基础字段检查
+    if not all(key in doc for key in ["enterprise_code", "enterprise_name"]):
+        return False
+        
+    # fields 字段存在性和类型检查
+    if "fields" not in doc:
+        return False
+        
+    # 基于数量的粗分类：单个字段文档的 fields 应该是字典
+    if not isinstance(doc["fields"], dict):
+        return False
+        
+    # 基于字段存在性的细分类：检查字段特征属性
+    field_indicators = ["field_name", "field_code", "path_name", "full_path_name", "full_path_code"]
+    return any(key in doc["fields"] for key in field_indicators)
+
+def _is_enterprise_archive_document(doc: Dict[str, Any]) -> bool:
+    """
+    判断文档是否为标准企业档案文档（包含 fields 数组）
+    
+    优化策略：
+    1. 首先基于数量做粗分类（多条记录特征）
+    2. 然后基于字段存在性做细分类（标准企业档案结构）
+    
+    Args:
+        doc: 待判断的文档
+        
+    Returns:
+        True 如果是标准企业档案文档，False 否则
+    """
+    if not isinstance(doc, dict):
+        return False
+        
+    # 基础字段检查
+    if "fields" not in doc:
+        return False
+        
+    # 基于数量的粗分类：标准企业档案的 fields 应该是数组
+    if not isinstance(doc["fields"], list):
+        return False
+        
+    # 基于数量判断：空数组不是有效的企业档案
+    if len(doc["fields"]) == 0:
+        return False
+        
+    # 基于字段存在性的细分类：检查数组中是否包含有效的字段结构
+    # 至少检查第一个元素是否为字典类型
+    return isinstance(doc["fields"][0], dict) if doc["fields"] else False
+
+def _determine_field_matching_strategy(query_type: str, query_params: Dict[str, Any]) -> str:
+    """
+    确定字段匹配策略
+    
+    Args:
+        query_type: 查询类型
+        query_params: 查询参数
+        
+    Returns:
+        匹配策略: 'full_fields' 或 'existing_fields'
+    """
+    # 对于标准查询（find/findOne）：返回全部字段，缺失的置空
+    if query_type in ["find", "findOne"]:
+        return "full_fields"
+    
+    # 对于聚合查询（aggregate）：只返回实际存在的字段
+    if query_type == "aggregate":
+        # 检查是否有$project阶段限制了字段
+        pipeline = query_params.get("pipeline", [])
+        for stage in pipeline:
+            if isinstance(stage, dict) and "$project" in stage:
+                return "existing_fields"
+        return "full_fields"
+    
+    # 默认返回实际存在的字段
+    return "existing_fields"
+
+def _get_complete_field_template() -> Dict[str, str]:
+    """
+    获取完整字段模板（用于full_fields策略）
+    
+    Returns:
+        完整字段模板字典
+    """
+    return {
+        "enterprise_code": "",
+        "enterprise_name": "",
+        "full_path_code": "",
+        "full_path_name": "",
+        "field_code": "",
+        "field_name": "",
+        "value": "",
+        "value_text": "",
+        "value_pic_url": "",
+        "value_doc_url": "",
+        "value_video_url": ""
+    }
+
+def _build_data_value_with_strategy(doc: Dict[str, Any], field: Dict[str, Any], strategy: str) -> Dict[str, Any]:
+    """
+    根据策略构建data_value
+    
+    Args:
+        doc: 企业文档
+        field: 字段文档
+        strategy: 匹配策略
+        
+    Returns:
+        构建的data_value字典
+    """
+    if strategy == "full_fields":
+        # 返回全部字段，缺失的置空
+        template = _get_complete_field_template()
+        template.update({
+            "enterprise_code": doc.get("enterprise_code", ""),
+            "enterprise_name": doc.get("enterprise_name", ""),
+            "full_path_code": field.get("full_path_code", ""),
+            "full_path_name": field.get("full_path_name", ""),
+            "field_code": field.get("field_code", ""),
+            "field_name": field.get("field_name", ""),
+            "value": field.get("value", ""),
+            "value_text": field.get("value_text", ""),
+            "value_pic_url": field.get("value_pic_url", ""),
+            "value_doc_url": field.get("value_doc_url", ""),
+            "value_video_url": field.get("value_video_url", "")
+        })
+        return template
+    else:
+        # 只返回实际存在的字段
+        data_value = {}
+        # 基础字段（总是包含）
+        data_value["enterprise_code"] = doc.get("enterprise_code", "")
+        data_value["enterprise_name"] = doc.get("enterprise_name", "")
+        
+        # 可选字段（只有存在时才添加）
+        optional_fields = [
+            "full_path_code", "full_path_name", "field_code", "field_name",
+            "value", "value_text", "value_pic_url", "value_doc_url", "value_video_url"
+        ]
+        
+        for field_name in optional_fields:
+            if field_name in field and field[field_name] is not None:
+                data_value[field_name] = field[field_name]
+        
+        return data_value
 
 def _classify_query_result_new_format(query_type: str, 
                                       result_data: List[Dict[str, Any]], 
                                       total_count: int,
                                       query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    根据查询类型对返回结果进行分类处理 - 新格式（修复 None 值处理和单个字段文档处理）
+    根据查询类型对返回结果进行分类处理 - 新格式（优化版本）
+    
+    优化内容：
+    1. 改进文档类型判断逻辑，首先基于数量做粗分类，然后基于字段存在性做细分类
+    2. 增加字段匹配策略，区分标准查询和聚合查询的字段返回方式
+    3. 对于无法识别的结构，采用通用的扁平化处理
+    4. 增加 result_structure 字段，让前端知道如何处理
     
     Args:
         query_type: 查询类型
@@ -1274,6 +1447,9 @@ def _classify_query_result_new_format(query_type: str,
     """
     result = None
     
+    # 确定字段匹配策略
+    field_strategy = _determine_field_matching_strategy(query_type, query_params)
+    
     if query_type in ["count", "countDocuments", "distinct"]:
         # 汇总类型：count、countDocuments、distinct
         if result_data and len(result_data) > 0 and "count" in result_data[0]:
@@ -1284,7 +1460,9 @@ def _classify_query_result_new_format(query_type: str,
         result = {
             "type": "汇总",
             "messages": "正常处理",
-            "result_data": [count_value] if count_value is not None else [0]
+            "result_data": [count_value] if count_value is not None else [0],
+            "result_structure": "summary",
+            "field_strategy": field_strategy
         }
         
     elif query_type == "group":
@@ -1304,40 +1482,35 @@ def _classify_query_result_new_format(query_type: str,
         result = {
             "type": "分组",
             "messages": "正常处理", 
-            "result_data": processed_group_data
+            "result_data": processed_group_data,
+            "result_structure": "grouped",
+            "field_strategy": field_strategy
         }
         
     elif query_type in ["find", "findOne", "aggregate"]:
         # 明细类型：find、findOne、aggregate
         result_list = []
+        structure_type = "unknown"  # 用于标识实际处理的结构类型
         
         for doc in result_data:
             # 跳过 None 值
             if doc is None:
                 continue
-                
-            # 判断文档类型并相应处理
+            
+            # 优化的文档类型判断逻辑
             if _is_enterprise_archive_document(doc):
                 # 标准企业档案文档，包含 fields 数组
+                structure_type = "enterprise_archive"
                 for field in doc["fields"]:
                     if field is None:
                         continue
                         
+                    # 根据策略构建data_value
+                    data_value = _build_data_value_with_strategy(doc, field, field_strategy)
+                    
                     # 构建符合新格式的数据项
                     data_item = {
-                        "data_value": {
-                            "enterprise_code": doc.get("enterprise_code", ""),
-                            "enterprise_name": doc.get("enterprise_name", ""),
-                            "full_path_code": field.get("full_path_code", ""),
-                            "full_path_name": field.get("full_path_name", ""),
-                            "field_code": field.get("field_code", ""),
-                            "field_name": field.get("field_name", ""),
-                            "value": field.get("value", ""),
-                            "value_text": field.get("value_text", ""),
-                            "value_pic_url": field.get("value_pic_url", ""),
-                            "value_doc_url": field.get("value_doc_url", ""),
-                            "value_video_url": field.get("value_video_url", "")
-                        },
+                        "data_value": data_value,
                         "data_meta": DataMetaFieldModel(
                             data_source=field.get("data_source", ""),
                             encoding=field.get("encoding", ""),
@@ -1352,21 +1525,15 @@ def _classify_query_result_new_format(query_type: str,
                     
             elif _is_single_field_document(doc):
                 # 单个字段文档（如 $unwind 后的结果）
-                field = doc.get("fields", {})
+                structure_type = "single_field"
+                field = doc["fields"]
+                
+                # 根据策略构建data_value
+                data_value = _build_data_value_with_strategy(doc, field, field_strategy)
+                
+                # 构建符合新格式的数据项
                 data_item = {
-                    "data_value": {
-                        "enterprise_code": doc.get("enterprise_code", ""),
-                        "enterprise_name": doc.get("enterprise_name", ""),
-                        "full_path_code": field.get("full_path_code", ""),
-                        "full_path_name": field.get("full_path_name", ""),
-                        "field_code": field.get("field_code", ""),
-                        "field_name": field.get("field_name", ""),
-                        "value": field.get("value", ""),
-                        "value_text": field.get("value_text", ""),
-                        "value_pic_url": field.get("value_pic_url", ""),
-                        "value_doc_url": field.get("value_doc_url", ""),
-                        "value_video_url": field.get("value_video_url", "")
-                    },
+                    "data_value": data_value,
                     "data_meta": DataMetaFieldModel(
                         data_source=field.get("data_source", ""),
                         encoding=field.get("encoding", ""),
@@ -1378,22 +1545,38 @@ def _classify_query_result_new_format(query_type: str,
                     )
                 }
                 result_list.append(data_item)
+                
             else:
-                # 其他格式的文档，转换为标准格式
-                data_item = {
-                    "data_value": {
+                # 无法识别的结构，采用通用的扁平化处理
+                structure_type = "generic_flat"
+                
+                # 根据策略决定如何处理
+                if field_strategy == "full_fields":
+                    # 尝试映射到标准字段结构
+                    template = _get_complete_field_template()
+                    # 从doc中提取可能的字段值
+                    for key, value in doc.items():
+                        if key in template:
+                            template[key] = value
+                    data_value = template
+                else:
+                    # 只保留实际存在的字段
+                    data_value = {
                         "enterprise_code": doc.get("enterprise_code", ""),
-                        "enterprise_name": doc.get("enterprise_name", ""),
-                        "full_path_code": doc.get("full_path_code", ""),
-                        "full_path_name": doc.get("full_path_name", ""),
-                        "field_code": doc.get("field_code", ""),
-                        "field_name": doc.get("field_name", ""),
-                        "value": _serialize_document(doc),
-                        "value_text": doc.get("value_text", ""),
-                        "value_pic_url": doc.get("value_pic_url", ""),
-                        "value_doc_url": doc.get("value_doc_url", ""),
-                        "value_video_url": doc.get("value_video_url", "")
-                    },
+                        "enterprise_name": doc.get("enterprise_name", "")
+                    }
+                    # 添加其他存在的相关字段
+                    relevant_fields = [
+                        "full_path_code", "full_path_name", "field_code", "field_name",
+                        "value", "value_text", "value_pic_url", "value_doc_url", "value_video_url"
+                    ]
+                    for field_name in relevant_fields:
+                        if field_name in doc and doc[field_name] is not None:
+                            data_value[field_name] = doc[field_name]
+                
+                # 构建符合新格式的数据项
+                data_item = {
+                    "data_value": data_value,
                     "data_meta": DataMetaFieldModel(
                         data_source=doc.get("data_source", ""),
                         encoding=doc.get("encoding", ""),
@@ -1409,10 +1592,12 @@ def _classify_query_result_new_format(query_type: str,
         result = {
             "type": "明细",
             "messages": "正常处理",
-            "result_data": result_list
+            "result_data": result_list,
+            "result_structure": structure_type,  # 标识实际处理的结构类型
+            "field_strategy": field_strategy     # 标识使用的字段策略
         }
     
-    # 处理序列化和文件存储（保持原有逻辑）
+    # 处理序列化和文件存储（保持原有逻辑，但增加新的元信息）
     try:
         serializable_result_data = []
         for item in result["result_data"]:
@@ -1429,7 +1614,9 @@ def _classify_query_result_new_format(query_type: str,
             "query_params": query_params,
             "result": {
                 "type": result["type"],
-                "result": serializable_result_data,  # 使用转换后的数据
+                "result": serializable_result_data,
+                "result_structure": result.get("result_structure", "unknown"),
+                "field_strategy": result.get("field_strategy", "existing_fields")
             },
             "total_count": total_count,
         }
@@ -1440,55 +1627,14 @@ def _classify_query_result_new_format(query_type: str,
         # 使用json5写入文件，支持更灵活的JSON格式
         with open(filename, 'w', encoding='utf-8') as f:
             json5.dump(storage_data, f, ensure_ascii=False, indent=2)
-                    
+            
     except Exception as e:
         # 文件存储失败不影响主要功能，可以记录日志或静默处理
         print(f"文件存储失败{e}")
         pass
     
     return result
-
-def _is_enterprise_archive_document(doc: Dict[str, Any]) -> bool:
-    """
-    判断文档是否为标准企业档案文档（包含 fields 数组）
-    
-    Args:
-        doc: 待判断的文档
-        
-    Returns:
-        True 如果是标准企业档案文档，False 否则
-    """
-    return (
-        isinstance(doc, dict) and
-        "fields" in doc and
-        isinstance(doc["fields"], list) and
-        len(doc["fields"]) > 0
-    )
-
-def _is_single_field_document(doc: Dict[str, Any]) -> bool:
-    """
-    判断文档是否为单个字段文档（如 $unwind 后的结果）
-    
-    特征：
-    - 包含 enterprise_code, enterprise_name
-    - 包含 fields 字段，但是字典而不是数组
-    - fields 字典包含字段相关属性
-    
-    Args:
-        doc: 待判断的文档
-        
-    Returns:
-        True 如果是单个字段文档，False 否则
-    """
-    return (
-        isinstance(doc, dict) and
-        "enterprise_code" in doc and
-        "enterprise_name" in doc and
-        "fields" in doc and
-        isinstance(doc["fields"], dict) and
-        # 检查 fields 字典是否包含字段特征属性
-        any(key in doc["fields"] for key in ["field_name", "field_code", "path_name", "full_path_name"])
-    )
+## ----------- 分类查询结果 ----------------
 
 def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -1567,7 +1713,7 @@ async def _execute_mongodb_query(
         query_params: 查询参数
         
     Returns:
-        (查询结果数据, 总文档数)
+        [{}] 格式（列表格式）
     """
     if manager.collection is None:
         raise Exception("MongoDB集合未初始化")

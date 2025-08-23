@@ -813,7 +813,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         ui.label(error_text).classes(
             'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
         )
-
     # ------------------------ 各类数据的渲染展示 -----------------------------
 
     def update_content(self, parse_result: Dict[str, Any]) -> bool:
