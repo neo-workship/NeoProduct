@@ -1429,7 +1429,7 @@ def _classify_query_result_new_format(query_type: str,
             "type": "汇总",
             "messages": "正常处理",
             "result_data": [count_value] if count_value is not None else [0],
-            "result_structure": structure_type,
+            "structure_type": structure_type,
             "field_strategy": field_strategy
         }
     
@@ -1452,7 +1452,7 @@ def _classify_query_result_new_format(query_type: str,
             "type": "分组",
             "messages": "正常处理", 
             "result_data": processed_group_data,
-            "result_structure": structure_type,
+            "structure_type": structure_type,
             "field_strategy": "group"
         }
     

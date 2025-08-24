@@ -517,7 +517,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 self._display_detail_results_as_table(result_data, structure_type,field_strategy)
         else:
             ui.label("🔍 明细查询结果: 无数据").classes(
-                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+                'whitespace-pre-wrap w-full bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
         )
 
     def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]], structure_type: str, field_strategy: str):
@@ -585,401 +585,85 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     #### ================== _display_card 模式字段渲染 ==========================
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
         """
-        full_card模式：按标准字段模板展示（左右卡片布局）
-        """
-        for index, data_item in enumerate(result_data):
-            with ui.row().classes('w-full gap-4 items-stretch mb-4'):
-                # 左侧card展示：full_path_name、value、value_pic_url、value_doc_url、value_video_url
-                with ui.card().classes('flex-1 p-4'):
-                    ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
-                    
-                    # 字段完整名称（标题）
-                    full_path_name = data_item.get('字段完整名称', data_item.get('字段名称', '未知字段'))
-                    ui.label(full_path_name).classes('text-base font-bold text-primary mb-2')
-                    
-                    # 企业名称
-                    if '企业名称' in data_item:
-                        with ui.row().classes('w-full gap-2 items-center mb-2'):
-                            ui.icon('business').classes('text-lg text-purple-600')
-                            ui.label('企业名称:').classes('text-lg font-medium')
-                            enterprise_name = data_item.get('企业名称', '暂无数据')
-                            ui.label(enterprise_name).classes('text-lg text-grey-8')
-                    
-                    # 字段值
-                    with ui.row().classes('w-full gap-2 items-center mb-2'):
-                        ui.icon('data_object').classes('text-lg text-blue-600')
-                        ui.label('字段值:').classes('text-lg font-medium')
-                        value = data_item.get('字段值', '暂无数据') or '暂无数据'
-                        ui.label(str(value)).classes('text-lg text-grey-8')
-                    
-                    # 字段关联图片
-                    self._display_link_field('字段关联图片', data_item, 'image', 'text-green-600', '查看图片')
-                    
-                    # 字段关联文档
-                    self._display_link_field('字段关联文档', data_item, 'description', 'text-orange-600', '查看文档')
-                    
-                    # 字段关联视频
-                    self._display_link_field('字段关联视频', data_item, 'videocam', 'text-red-600', '查看视频')
-                
-                # 右侧card展示：data_url、encoding、format、license、rights、update_frequency、value_dict
-                with ui.card().classes('flex-1 p-4'):
-                    ui.label('数据属性').classes('text-subtitle1 font-medium mb-3')
-                    
-                    # 数据源url
-                    self._display_link_field('数据源url', data_item, 'api', 'text-blue-500', '访问API')
-                    
-                    # 编码格式
-                    self._display_text_field('编码格式', data_item, 'code', 'text-purple-500')
-                    
-                    # 数据格式
-                    self._display_text_field('数据格式', data_item, 'article', 'text-teal-500')
-                    
-                    # 许可证
-                    self._display_text_field('许可证', data_item, 'gavel', 'text-amber-500')
-                    
-                    # 使用权限
-                    self._display_text_field('使用权限', data_item, 'security', 'text-red-500')
-                    
-                    # 更新频率
-                    self._display_text_field('更新频率', data_item, 'update', 'text-blue-500')
-                    
-                    # 字典值选项
-                    self._display_special_field('字典值选项', data_item, 'book', 'text-green-500')
-            
-            # 如果不是最后一条数据，添加分隔线
-            if index < len(result_data) - 1:
-                ui.separator().classes('my-4')
-
-    def _display_flat_card_mode(self, result_data: List[Dict[str, Any]]):
-        """
-        flat_card模式：简单循环展示所有字段（单卡片布局）
+        full_card模式：朴素清晰地展示数据，单卡片两列均衡布局
         """
         for index, data_item in enumerate(result_data):
             with ui.card().classes('w-full p-4 mb-4'):
+                # 卡片标题
                 ui.label(f'数据记录 {index + 1}').classes('text-subtitle1 font-medium mb-3')
                 
-                # 循环展示所有字段
-                for key, value in data_item.items():
-                    if key and value is not None:  # 跳过空键和None值
-                        with ui.row().classes('w-full gap-2 items-center mb-2'):
-                            # 根据字段类型选择合适的图标
-                            icon_name = self._get_field_icon(key)
-                            ui.icon(icon_name).classes('text-lg text-blue-600')
-                            
-                            # 显示字段名和值
-                            ui.label(f'{key}:').classes('text-lg font-medium')
-                            
-                            # 处理不同类型的值
-                            display_value = self._format_field_value(value)
-                            
-                            # 如果是URL，显示为链接
-                            if self._is_url(display_value):
-                                ui.link(text='查看链接', target=display_value).classes('text-lg text-blue-600')
-                            else:
-                                ui.label(display_value).classes('text-lg text-grey-8')
+                # 将所有字段分为两列展示
+                with ui.row().classes('w-full gap-4'):
+                    # 左列
+                    with ui.column().classes('flex-1 gap-2'):
+                        self._display_column_fields(data_item, 0)  # 左列显示偶数索引字段
+                    
+                    # 右列
+                    with ui.column().classes('flex-1 gap-2'):
+                        self._display_column_fields(data_item, 1)  # 右列显示奇数索引字段
             
             # 如果不是最后一条数据，添加分隔线
             if index < len(result_data) - 1:
                 ui.separator().classes('my-2')
+
+    def _display_flat_card_mode(self, result_data: List[Dict[str, Any]]):
+        """
+        flat_card模式：朴素清晰地展示数据，单卡片两列均衡布局
+        """
+        for index, data_item in enumerate(result_data):
+            with ui.card().classes('w-full p-4 mb-4'):
+                # 卡片标题
+                ui.label(f'数据记录 {index + 1}').classes('text-subtitle1 font-medium mb-3')
+                
+                # 将所有字段分为两列展示
+                with ui.row().classes('w-full gap-4'):
+                    # 左列
+                    with ui.column().classes('flex-1 gap-2'):
+                        self._display_column_fields(data_item, 0)  # 左列显示偶数索引字段
+                    
+                    # 右列
+                    with ui.column().classes('flex-1 gap-2'):
+                        self._display_column_fields(data_item, 1)  # 右列显示奇数索引字段
+            
+            # 如果不是最后一条数据，添加分隔线
+            if index < len(result_data) - 1:
+                ui.separator().classes('my-2')
+
+    def _display_column_fields(self, data_item: Dict[str, Any], column_index: int):
+        """
+        在指定列中展示字段
+        Args:
+            data_item: 数据项字典
+            column_index: 列索引 (0=左列显示偶数索引字段, 1=右列显示奇数索引字段)
+        """
+        # 获取所有非空字段
+        valid_fields = [(key, value) for key, value in data_item.items() 
+                    if key and value is not None and str(value).strip()]
         
-        # 数据总结
-        if len(result_data) > 1:
-            ui.label(f'📊 数据总结: 共展示了 {len(result_data)} 条明细数据').classes(
-                'text-sm text-grey-600 bg-blue-50 border-l-4 border-blue-400 p-2 mt-4'
-            )
-
-    def _display_link_field(self, field_name: str, data_item: Dict, icon: str, icon_color: str, link_text: str):
-        """显示链接类型字段"""
-        value = data_item.get(field_name, '')
-        with ui.row().classes('w-full gap-2 items-center mb-2'):
-            if value and value != '暂无数据' and self._is_url(str(value)):
-                ui.icon(icon).classes(f'text-lg {icon_color}')
-                ui.label(f'{field_name}:').classes('text-lg font-medium')
-                ui.link(text=link_text, target=str(value)).classes('text-lg text-blue-600')
-            else:
-                ui.icon(icon).classes('text-lg text-grey-400')
-                ui.label(f'{field_name}:').classes('text-lg font-medium')
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-
-    def _display_text_field(self, field_name: str, data_item: Dict, icon: str, icon_color: str):
-        """显示文本类型字段"""
-        value = data_item.get(field_name, '暂无数据') or '暂无数据'
-        with ui.row().classes('w-full gap-2 items-center mb-2'):
-            ui.icon(icon).classes(f'text-lg {icon_color}')
-            ui.label(f'{field_name}:').classes('text-lg font-medium')
-            ui.label(str(value)).classes('text-lg text-grey-8')
-
-    def _display_special_field(self, field_name: str, data_item: Dict, icon: str, icon_color: str):
-        """显示特殊字段（如字典值选项，可能是字符串或链接）"""
-        value = data_item.get(field_name, '')
-        with ui.row().classes('w-full gap-2 items-center mb-2'):
-            if value and value != '暂无数据':
-                ui.icon(icon).classes(f'text-lg {icon_color}')
-                ui.label(f'{field_name}:').classes('text-lg font-medium')
-                # 如果是链接，显示为可点击链接
-                if self._is_url(str(value)):
-                    ui.link(text='查看字典', target=str(value)).classes('text-lg text-blue-600')
+        # 根据列索引分配字段
+        column_fields = []
+        for i, (key, value) in enumerate(valid_fields):
+            if i % 2 == column_index:  # 偶数索引分配给左列(0)，奇数索引分配给右列(1)
+                column_fields.append((key, value))
+        
+        # 展示该列的字段
+        for key, value in column_fields:
+            with ui.row().classes('w-full gap-2 items-start mb-2'):
+                # 字段名
+                ui.label(f'{key}:').classes('text-sm font-medium min-w-fit')
+                
+                # 字段值 - 判断是否为URL
+                str_value = str(value).strip()
+                if self._is_url(str_value):
+                    ui.link(text='查看链接', target=str_value).classes('text-sm text-blue-600 break-all')
                 else:
-                    ui.label(str(value)).classes('text-lg text-grey-8')
-            else:
-                ui.icon(icon).classes('text-lg text-grey-400')
-                ui.label(f'{field_name}:').classes('text-lg font-medium')
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-
-    def _get_field_icon(self, field_name: str) -> str:
-        """根据字段名返回合适的图标"""
-        field_name_lower = field_name.lower()
-        
-        # 企业相关
-        if any(keyword in field_name_lower for keyword in ['企业', '公司', 'enterprise', 'company']):
-            return 'business'
-        # 名称相关
-        elif any(keyword in field_name_lower for keyword in ['名称', 'name']):
-            return 'label'
-        # 代码相关
-        elif any(keyword in field_name_lower for keyword in ['代码', 'code']):
-            return 'tag'
-        # 值相关
-        elif any(keyword in field_name_lower for keyword in ['值', 'value']):
-            return 'data_object'
-        # 时间相关
-        elif any(keyword in field_name_lower for keyword in ['时间', 'time', '日期', 'date']):
-            return 'schedule'
-        # URL相关
-        elif any(keyword in field_name_lower for keyword in ['url', '链接', '地址']):
-            return 'link'
-        # 图片相关
-        elif any(keyword in field_name_lower for keyword in ['图片', '图像', 'pic', 'image']):
-            return 'image'
-        # 文档相关
-        elif any(keyword in field_name_lower for keyword in ['文档', '文件', 'doc']):
-            return 'description'
-        # 视频相关
-        elif any(keyword in field_name_lower for keyword in ['视频', 'video']):
-            return 'videocam'
-        # 默认
-        else:
-            return 'info'
-
-    def _format_field_value(self, value: Any) -> str:
-        """格式化字段值用于显示"""
-        if value is None:
-            return '暂无数据'
-        elif value == '':
-            return '暂无数据'
-        elif isinstance(value, (dict, list)):
-            return str(value)
-        else:
-            return str(value)
+                    ui.label(str_value).classes('text-sm text-grey-8 break-all')
 
     def _is_url(self, value: str) -> bool:
         """判断字符串是否为URL"""
         if not isinstance(value, str):
             return False
         return value.startswith('http://') or value.startswith('https://')
-
-    def _display_data_value_fields(self, data_value: Dict[str, Any], field_strategy: str, display_context: str = "left_card"):
-        """
-        根据field_strategy显示data_value字段（左侧card内容）
-        
-        Args:
-            data_value: 数据值字典
-            field_strategy: 字段策略 ("full_fields" 或 "existing_fields")
-            display_context: 显示上下文标识
-        """
-        # full_path_name（标题）- 总是显示
-        full_path_name = data_value.get('full_path_name', '未知字段')
-        ui.label(full_path_name).classes('text-base font-bold text-primary mb-2')
-        
-        if field_strategy == "full_fields":
-            # 显示完整字段集合，缺失的字段显示"暂无数据"
-            self._display_full_data_value_fields(data_value)
-        else:
-            # 只显示实际存在的字段
-            self._display_existing_data_value_fields(data_value)
-
-    def _display_data_meta_fields(self, data_meta: Dict[str, Any], field_strategy: str, display_context: str = "right_card"):
-        """
-        根据field_strategy显示data_meta字段（右侧card内容）
-        
-        Args:
-            data_meta: 元数据字典
-            field_strategy: 字段策略 ("full_fields" 或 "existing_fields") 
-            display_context: 显示上下文标识
-        """
-        if field_strategy == "full_fields":
-            # 显示完整字段集合，缺失的字段显示"暂无数据"
-            self._display_full_data_meta_fields(data_meta)
-        else:
-            # 只显示实际存在的字段
-            self._display_existing_data_meta_fields(data_meta)
-
-    def _display_full_data_value_fields(self, data_value: Dict[str, Any]):
-        """显示完整的data_value字段集合（full_fields策略）"""
-        # value（字段值）
-        value = data_value.get('value', '暂无数据') or '暂无数据'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('data_object').classes('text-lg text-blue-600')
-            ui.label('字段值:').classes('text-lg font-medium')
-            display_value = str(value)
-            if len(display_value) > 50:
-                display_value = display_value[:50] + "..."
-            ui.label(display_value).classes('text-lg')
-        
-        # value_pic_url（字段关联图片）
-        value_pic_url = data_value.get('value_pic_url', '') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('image').classes('text-lg text-green-600')
-            ui.label('关联图片:').classes('text-lg font-medium')
-            if value_pic_url:
-                ui.link('查看图片', target=value_pic_url).classes('text-lg text-primary')
-            else:
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-        
-        # value_doc_url（字段关联文档）
-        value_doc_url = data_value.get('value_doc_url', '') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('description').classes('text-lg text-orange-600')
-            ui.label('关联文档:').classes('text-lg font-medium')
-            if value_doc_url:
-                ui.link('查看文档', target=value_doc_url).classes('text-lg text-primary')
-            else:
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-        
-        # value_video_url（字段关联视频）
-        value_video_url = data_value.get('value_video_url', '') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('video_library').classes('text-lg text-red-600')
-            ui.label('关联视频:').classes('text-lg font-medium')
-            if value_video_url:
-                ui.link('查看视频', target=value_video_url).classes('text-lg text-primary')
-            else:
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-        
-        # 额外显示企业名称
-        enterprise_name = data_value.get('enterprise_name', '') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('business').classes('text-lg text-teal-600')
-            ui.label('企业名称:').classes('text-lg font-medium')
-            if enterprise_name:
-                ui.label(str(enterprise_name)).classes('text-lg')
-            else:
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-
-    def _display_existing_data_value_fields(self, data_value: Dict[str, Any]):
-        """只显示实际存在的data_value字段（existing_fields策略）"""
-        # value（字段值）- 如果存在且非空
-        if 'value' in data_value and data_value['value'] and data_value['value'] != '暂无数据':
-            value = data_value['value']
-            with ui.row().classes('gap-2 items-center mb-2'):
-                ui.icon('data_object').classes('text-lg text-blue-600')
-                ui.label('字段值:').classes('text-lg font-medium')
-                display_value = str(value)
-                if len(display_value) > 50:
-                    display_value = display_value[:50] + "..."
-                ui.label(display_value).classes('text-lg')
-        
-        # value_pic_url（字段关联图片）- 如果存在且非空
-        if 'value_pic_url' in data_value and data_value['value_pic_url']:
-            with ui.row().classes('gap-2 items-center mb-2'):
-                ui.icon('image').classes('text-lg text-green-600')
-                ui.label('关联图片:').classes('text-lg font-medium')
-                ui.link('查看图片', target=data_value['value_pic_url']).classes('text-lg text-primary')
-        
-        # value_doc_url（字段关联文档）- 如果存在且非空
-        if 'value_doc_url' in data_value and data_value['value_doc_url']:
-            with ui.row().classes('gap-2 items-center mb-2'):
-                ui.icon('description').classes('text-lg text-orange-600')
-                ui.label('关联文档:').classes('text-lg font-medium')
-                ui.link('查看文档', target=data_value['value_doc_url']).classes('text-lg text-primary')
-        
-        # value_video_url（字段关联视频）- 如果存在且非空
-        if 'value_video_url' in data_value and data_value['value_video_url']:
-            with ui.row().classes('gap-2 items-center mb-2'):
-                ui.icon('video_library').classes('text-lg text-red-600')
-                ui.label('关联视频:').classes('text-lg font-medium')
-                ui.link('查看视频', target=data_value['value_video_url']).classes('text-lg text-primary')
-        
-        # 企业名称 - 如果存在且非空
-        if 'enterprise_name' in data_value and data_value['enterprise_name']:
-            with ui.row().classes('gap-2 items-center mb-2'):
-                ui.icon('business').classes('text-lg text-teal-600')
-                ui.label('企业名称:').classes('text-lg font-medium')
-                ui.label(str(data_value['enterprise_name'])).classes('text-lg')
-
-    def _display_full_data_meta_fields(self, data_meta: Dict[str, Any]):
-        """显示完整的data_meta字段集合（full_fields策略）"""
-        # data_url（数据API）
-        data_url = data_meta.get('data_url', '暂无数据') or '暂无数据'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('api').classes('text-lg text-purple-600')
-            ui.label('数据API:').classes('text-lg font-medium')
-            ui.label('暂无数据').classes('text-lg text-grey-6')
-        
-        # encoding（编码方式）
-        encoding = data_meta.get('encoding', 'UTF-8') or 'UTF-8'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('code').classes('text-lg text-indigo-600')
-            ui.label('编码方式:').classes('text-lg font-medium')
-            ui.label(str(encoding)).classes('text-lg')
-        
-        # format（格式）
-        format_val = data_meta.get('format', 'JSON') or 'JSON'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('description').classes('text-lg text-cyan-600')
-            ui.label('格式:').classes('text-lg font-medium')
-            ui.label(str(format_val)).classes('text-lg')
-        
-        # license（使用许可）
-        license_val = data_meta.get('license', '开放') or '开放'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('license').classes('text-lg text-amber-600')
-            ui.label('使用许可:').classes('text-lg font-medium')
-            ui.label(str(license_val)).classes('text-lg')
-        
-        # rights（使用权限）
-        rights = data_meta.get('rights', '公开') or '公开'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('security').classes('text-lg text-pink-600')
-            ui.label('使用权限:').classes('text-lg font-medium')
-            ui.label(str(rights)).classes('text-lg')
-        
-        # update_frequency（更新频率）
-        update_frequency = data_meta.get('update_frequency', '实时') or '实时'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('update').classes('text-lg text-blue-500')
-            ui.label('更新频率:').classes('text-lg font-medium')
-            ui.label(str(update_frequency)).classes('text-lg')
-        
-        # value_dict（数据字典）
-        value_dict = data_meta.get('value_dict', '') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('book').classes('text-lg text-green-500')
-            ui.label('数据字典:').classes('text-lg font-medium')
-            if value_dict:
-                ui.label(str(value_dict)).classes('text-lg')
-            else:
-                ui.label('暂无数据').classes('text-lg text-grey-6')
-
-    def _display_existing_data_meta_fields(self, data_meta: Dict[str, Any]):
-        """只显示实际存在的data_meta字段（existing_fields策略）"""
-        # 只显示非空且有意义的字段
-        meta_fields = [
-            ('data_url', 'api', 'purple-600', '数据API'),
-            ('encoding', 'code', 'indigo-600', '编码方式'),
-            ('format', 'description', 'cyan-600', '格式'),
-            ('license', 'license', 'amber-600', '使用许可'),
-            ('rights', 'security', 'pink-600', '使用权限'),
-            ('update_frequency', 'update', 'blue-500', '更新频率'),
-            ('value_dict', 'book', 'green-500', '数据字典'),
-        ]
-        
-        for field_key, icon, color, label in meta_fields:
-            if field_key in data_meta and data_meta[field_key] and data_meta[field_key] != '暂无数据':
-                with ui.row().classes('gap-2 items-center mb-2'):
-                    ui.icon(icon).classes(f'text-lg text-{color}')
-                    ui.label(f'{label}:').classes('text-lg font-medium')
-                    ui.label(str(data_meta[field_key])).classes('text-lg')
     ### ------------------- 其他或错误情况下，明细数据渲染展示 -------------------------
     def _display_other_result(self, query_type: str, result_data: List[Any]):
         """
@@ -1000,7 +684,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         """
         error_text = f"❌ 查询执行失败: {result.get('messages', '未知错误')}"
         ui.label(error_text).classes(
-            'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+            'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
         )
     # ------------------------ 各类数据的渲染展示 -----------------------------
 
