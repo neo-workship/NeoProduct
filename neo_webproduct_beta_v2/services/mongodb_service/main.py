@@ -1193,21 +1193,114 @@ def _split_parameters(params_str: str) -> List[str]:
     return params
 
 ## ----------- 分类查询结果 ----------------
+
 def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # 待实现，操作步骤：
-    # 匹配对 result_data 与 filed_dict：
-    #   如 result_data 与 filed_dict匹配的key，将result_data的key替换为filed_dict的value值；result_data中未匹配字段保留。处理后的result_data作为返回数据的第一个参数。
-    #   如果filed_dict能全部匹配，那返回数据中的第二个参数：field_strategy:'full_card', 否则为field_strategy:'flat_card'。
-    filed_dict = _get_complete_field_template 
-    pass
+    """
+    处理单个文档的数据处理和字段映射
+    
+    Args:
+        result_data: 查询结果数据列表
+        
+    Returns:
+        元组：(处理后的数据列表, 包含字段策略的字典)
+    """
+    # 获取完整字段模板
+    field_dict = _get_complete_field_template()
+    
+    # 如果没有数据，返回空结果
+    if not result_data:
+        return [], {"field_strategy": "flat_card"}
+    
+    processed_data = []
+    
+    # 处理单个或空数据的情况
+    for doc in result_data:
+        if doc is None:
+            continue
+            
+        processed_doc = {}
+        matched_fields = set()  # 记录匹配的字段
+        
+        # 遍历文档的每个字段
+        for key, value in doc.items():
+            if key in field_dict:
+                # 如果字段在模板中，替换为中文名称
+                chinese_name = field_dict[key]
+                processed_doc[chinese_name] = value
+                matched_fields.add(key)
+            else:
+                # 未匹配的字段保留原有key
+                processed_doc[key] = value
+        
+        processed_data.append(processed_doc)
+    
+    # 判断字段策略：如果所有模板字段都能匹配到，则为full_card，否则为flat_card
+    if result_data:
+        # 获取第一个非None文档来判断字段匹配情况
+        first_doc = next((doc for doc in result_data if doc is not None), {})
+        matched_template_keys = set(first_doc.keys()) & set(field_dict.keys())
+        
+        # 判断是否模板字段全部匹配
+        if len(matched_template_keys) == len(field_dict):
+            field_strategy = "full_card"
+        else:
+            field_strategy = "flat_card"
+    else:
+        field_strategy = "flat_card"
+    
+    return processed_data, {"field_strategy": field_strategy}
 
 def _create_multi_docs_document(result_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # 待实现，操作步骤：
-    # 取出result_data[0] 与 filed_dict 进行匹配：
-    #   如果filed_dict能全部匹配，那返回数据中的第二个参数：field_strategy:'full_table', 否则为field_strategy:'flat_table'。
-    # 遍历result_data与filed_dict匹配，对于匹配上的将result_data的key替换为filed_dict的value值；result_data中未匹配字段保留。处理后的result_data作为返回数据的第一个参数。
-    filed_dict = _get_complete_field_template 
-    pass
+    """
+    处理多个文档的数据处理和字段映射
+    
+    Args:
+        result_data: 查询结果数据列表
+        
+    Returns:
+        元组：(处理后的数据列表, 包含字段策略的字典)
+    """
+    # 获取完整字段模板
+    field_dict = _get_complete_field_template()
+    
+    # 如果没有数据，返回空结果
+    if not result_data:
+        return [], {"field_strategy": "flat_table"}
+    
+    # 先用第一个文档判断字段策略
+    first_doc = result_data[0] if result_data else {}
+    field_strategy = "flat_table"  # 默认为平表策略
+    
+    if first_doc:
+        # 检查第一个文档与模板的匹配情况
+        matched_template_keys = set(first_doc.keys()) & set(field_dict.keys())
+        
+        # 如果模板字段全部匹配，则为full_table
+        if len(matched_template_keys) == len(field_dict):
+            field_strategy = "full_table"
+    
+    processed_data = []
+    
+    # 遍历所有文档进行字段映射处理
+    for doc in result_data:
+        if doc is None:
+            continue
+            
+        processed_doc = {}
+        
+        # 遍历文档的每个字段
+        for key, value in doc.items():
+            if key in field_dict:
+                # 如果字段在模板中，替换为中文名称
+                chinese_name = field_dict[key]
+                processed_doc[chinese_name] = value
+            else:
+                # 未匹配的字段保留原有key
+                processed_doc[key] = value
+        
+        processed_data.append(processed_doc)
+    
+    return processed_data, {"field_strategy": field_strategy}
 
 def _get_complete_field_template() -> Dict[str, str]:
     """
@@ -1304,15 +1397,13 @@ def _classify_query_result_new_format(query_type: str,
 
         # 优化的文档类型判断逻辑
         if result_num > 1:    # 有多条数
-            multi_docs = _create_multi_docs_document(result_data)
-            result_list = multi_docs[0]
+            result_list, strategy_dict = _create_multi_docs_document(result_data)
             structure_type = "multi_data"
-            field_strategy = multi_docs[1]("field_strategy")
+            field_strategy = strategy_dict["field_strategy"]
         elif result_num <= 1:  # 只有1条数据
-            single_doc = _create_single_doc_document(result_data)
-            result_list = single_doc[0]
+            result_list, strategy_dict = _create_single_doc_document(result_data)
             structure_type = "single_data"
-            field_strategy = single_doc[1]("field_strategy")
+            field_strategy = strategy_dict["field_strategy"]
 
         result = {
             "type": "明细",
@@ -1324,6 +1415,15 @@ def _classify_query_result_new_format(query_type: str,
     
     # 记录执行命令和结果(临时测试使用)
     try:
+        def convert_datetime_to_string(obj: Any) -> Any:
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, dict):
+                return {key: convert_datetime_to_string(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_datetime_to_string(item) for item in obj]
+            else:
+                return obj
         storage_data = {
             "query_type": query_type,
             "query_params": query_params,
@@ -1335,13 +1435,13 @@ def _classify_query_result_new_format(query_type: str,
             },
             "total_count": total_count,
         }
-        
+        serializable_data = convert_datetime_to_string(storage_data)
         # 以query_type命名文件
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"D://mongoquery_history//{query_type}_{timestamp}.json"
         # 使用json5写入文件，支持更灵活的JSON格式
         with open(filename, 'w', encoding='utf-8') as f:
-            json5.dump(storage_data, f, ensure_ascii=False, indent=2)
+            json5.dump(serializable_data , f, ensure_ascii=False, indent=2)
             
     except Exception as e:
         # 文件存储失败不影响主要功能，可以记录日志或静默处理
