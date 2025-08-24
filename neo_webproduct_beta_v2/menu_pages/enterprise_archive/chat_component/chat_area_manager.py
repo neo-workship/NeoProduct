@@ -339,7 +339,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 ) as response:
                     if response.status == 200:
                         result = await response.json()
-                        # 新格式已包含所需字段：type, period, messages, result_data
                         # 添加 success 字段以保持兼容性
                         result["success"] = (result.get("messages") == "正常处理")
                         return result
@@ -372,6 +371,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         Args:
             result: MongoDB查询结果字典
         """
+        print(f"_display_query_result:{result},type result:{type(result)}")
         if not self.chat_content_container:
             return
         
@@ -383,15 +383,16 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             if result.get("messages") == "正常处理":  # 查询成功
                 query_type = result.get("type", "")
                 result_data = result.get("result_data", [])
-                result_structure = result.get("result_structure","")
+                structure_type = result.get("structure_type","")
                 field_strategy = result.get("field_strategy","")
-                
+                print(f"---> result:{result}")
+                print(f"---> query_type:{query_type} | result_structure:{structure_type} | field_strategy:{field_strategy}")
                 if query_type == "汇总":
                     self._display_summary_result(result_data)
                 elif query_type == "分组":
                     self._display_group_result(result_data)
                 elif query_type == "明细":
-                    self._display_detail_result(result_data,result_structure,field_strategy)
+                    self._display_detail_result(result_data,structure_type,field_strategy)
                 else:
                     self._display_other_result(query_type, result_data)
             else:
@@ -500,7 +501,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             )
     
     ### ------------------- 明细数据渲染展示 -------------------------
-    def _display_detail_result(self, result_data: List[Dict[str, Any]], result_structure:str,field_strategy:str):
+    def _display_detail_result(self, result_data: List[Dict[str, Any]], structure_type:str,field_strategy:str):
         """
         显示明细查询结果 - 基于field_strategy进行字段匹配展示
         根据数据条数选择不同的显示方式，同时考虑字段策略
@@ -510,29 +511,234 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         """
         if isinstance(result_data, list) and result_data:
             # 根据数据条数选择显示方式（完全借鉴read_archive_tab的逻辑）
-            if result_structure == "single_data":
-                self._display_detail_results_as_cards(result_data, result_structure,field_strategy)
-            elif result_structure == "multi_data" :
-                self._display_detail_results_as_table(result_data, result_structure,field_strategy)
+            if structure_type == "single_data":
+                self._display_detail_results_as_cards(result_data, structure_type,field_strategy)
+            elif structure_type == "multi_data" :
+                self._display_detail_results_as_table(result_data, structure_type,field_strategy)
         else:
             ui.label("🔍 明细查询结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
         )
 
-    def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]], result_structure: str, field_strategy: str):
+    def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]], structure_type: str, field_strategy: str):
         """
         用卡片方式展示明细查询结果
+        根据field_strategy支持两种展示模式：
+        - full_card: 按标准字段模板展示
+        - flat_card: 简单循环展示所有字段
+        
         Args:
             result_data: 明细查询结果数据列表
             result_structure: 结果结构类型
-            field_strategy: 字段策略
+            field_strategy: 字段策略 ("full_card" 或 "flat_card")
         """
         if not result_data:
             ui.label("🔍 明细查询结果: 无数据").classes('whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2')
             return
-        with self.chat_content_container:
-            # 使用ui.card展示数据
-            pass
+        
+        
+        ui.label(f'🔍 明细查询结果 (共{len(result_data)}条数据)').classes('text-base font-bold text-primary mb-3')
+        
+        # 根据字段策略选择不同的展示方式
+        if field_strategy == "full_card":
+            self._display_full_card_mode(result_data)
+        else:  # flat_card 或其他情况
+            self._display_flat_card_mode(result_data)
+
+    def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
+        """
+        full_card模式：按标准字段模板展示（左右卡片布局）
+        """
+        for index, data_item in enumerate(result_data):
+            with ui.row().classes('w-full gap-4 items-stretch mb-4'):
+                # 左侧card展示：full_path_name、value、value_pic_url、value_doc_url、value_video_url
+                with ui.card().classes('flex-1 p-4'):
+                    ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
+                    
+                    # 字段完整名称（标题）
+                    full_path_name = data_item.get('字段完整名称', data_item.get('字段名称', '未知字段'))
+                    ui.label(full_path_name).classes('text-base font-bold text-primary mb-2')
+                    
+                    # 企业名称
+                    if '企业名称' in data_item:
+                        with ui.row().classes('w-full gap-2 items-center mb-2'):
+                            ui.icon('business').classes('text-lg text-purple-600')
+                            ui.label('企业名称:').classes('text-lg font-medium')
+                            enterprise_name = data_item.get('企业名称', '暂无数据')
+                            ui.label(enterprise_name).classes('text-lg text-grey-8')
+                    
+                    # 字段值
+                    with ui.row().classes('w-full gap-2 items-center mb-2'):
+                        ui.icon('data_object').classes('text-lg text-blue-600')
+                        ui.label('字段值:').classes('text-lg font-medium')
+                        value = data_item.get('字段值', '暂无数据') or '暂无数据'
+                        ui.label(str(value)).classes('text-lg text-grey-8')
+                    
+                    # 字段关联图片
+                    self._display_link_field('字段关联图片', data_item, 'image', 'text-green-600', '查看图片')
+                    
+                    # 字段关联文档
+                    self._display_link_field('字段关联文档', data_item, 'description', 'text-orange-600', '查看文档')
+                    
+                    # 字段关联视频
+                    self._display_link_field('字段关联视频', data_item, 'videocam', 'text-red-600', '查看视频')
+                
+                # 右侧card展示：data_url、encoding、format、license、rights、update_frequency、value_dict
+                with ui.card().classes('flex-1 p-4'):
+                    ui.label('数据属性').classes('text-subtitle1 font-medium mb-3')
+                    
+                    # 数据源url
+                    self._display_link_field('数据源url', data_item, 'api', 'text-blue-500', '访问API')
+                    
+                    # 编码格式
+                    self._display_text_field('编码格式', data_item, 'code', 'text-purple-500')
+                    
+                    # 数据格式
+                    self._display_text_field('数据格式', data_item, 'article', 'text-teal-500')
+                    
+                    # 许可证
+                    self._display_text_field('许可证', data_item, 'gavel', 'text-amber-500')
+                    
+                    # 使用权限
+                    self._display_text_field('使用权限', data_item, 'security', 'text-red-500')
+                    
+                    # 更新频率
+                    self._display_text_field('更新频率', data_item, 'update', 'text-blue-500')
+                    
+                    # 字典值选项
+                    self._display_special_field('字典值选项', data_item, 'book', 'text-green-500')
+            
+            # 如果不是最后一条数据，添加分隔线
+            if index < len(result_data) - 1:
+                ui.separator().classes('my-4')
+
+    def _display_flat_card_mode(self, result_data: List[Dict[str, Any]]):
+        """
+        flat_card模式：简单循环展示所有字段（单卡片布局）
+        """
+        for index, data_item in enumerate(result_data):
+            with ui.card().classes('w-full p-4 mb-4'):
+                ui.label(f'数据记录 {index + 1}').classes('text-subtitle1 font-medium mb-3')
+                
+                # 循环展示所有字段
+                for key, value in data_item.items():
+                    if key and value is not None:  # 跳过空键和None值
+                        with ui.row().classes('w-full gap-2 items-center mb-2'):
+                            # 根据字段类型选择合适的图标
+                            icon_name = self._get_field_icon(key)
+                            ui.icon(icon_name).classes('text-lg text-blue-600')
+                            
+                            # 显示字段名和值
+                            ui.label(f'{key}:').classes('text-lg font-medium')
+                            
+                            # 处理不同类型的值
+                            display_value = self._format_field_value(value)
+                            
+                            # 如果是URL，显示为链接
+                            if self._is_url(display_value):
+                                ui.link(text='查看链接', target=display_value).classes('text-lg text-blue-600')
+                            else:
+                                ui.label(display_value).classes('text-lg text-grey-8')
+            
+            # 如果不是最后一条数据，添加分隔线
+            if index < len(result_data) - 1:
+                ui.separator().classes('my-2')
+        
+        # 数据总结
+        if len(result_data) > 1:
+            ui.label(f'📊 数据总结: 共展示了 {len(result_data)} 条明细数据').classes(
+                'text-sm text-grey-600 bg-blue-50 border-l-4 border-blue-400 p-2 mt-4'
+            )
+
+    def _display_link_field(self, field_name: str, data_item: Dict, icon: str, icon_color: str, link_text: str):
+        """显示链接类型字段"""
+        value = data_item.get(field_name, '')
+        with ui.row().classes('w-full gap-2 items-center mb-2'):
+            if value and value != '暂无数据' and self._is_url(str(value)):
+                ui.icon(icon).classes(f'text-lg {icon_color}')
+                ui.label(f'{field_name}:').classes('text-lg font-medium')
+                ui.link(text=link_text, target=str(value)).classes('text-lg text-blue-600')
+            else:
+                ui.icon(icon).classes('text-lg text-grey-400')
+                ui.label(f'{field_name}:').classes('text-lg font-medium')
+                ui.label('暂无数据').classes('text-lg text-grey-6')
+
+    def _display_text_field(self, field_name: str, data_item: Dict, icon: str, icon_color: str):
+        """显示文本类型字段"""
+        value = data_item.get(field_name, '暂无数据') or '暂无数据'
+        with ui.row().classes('w-full gap-2 items-center mb-2'):
+            ui.icon(icon).classes(f'text-lg {icon_color}')
+            ui.label(f'{field_name}:').classes('text-lg font-medium')
+            ui.label(str(value)).classes('text-lg text-grey-8')
+
+    def _display_special_field(self, field_name: str, data_item: Dict, icon: str, icon_color: str):
+        """显示特殊字段（如字典值选项，可能是字符串或链接）"""
+        value = data_item.get(field_name, '')
+        with ui.row().classes('w-full gap-2 items-center mb-2'):
+            if value and value != '暂无数据':
+                ui.icon(icon).classes(f'text-lg {icon_color}')
+                ui.label(f'{field_name}:').classes('text-lg font-medium')
+                # 如果是链接，显示为可点击链接
+                if self._is_url(str(value)):
+                    ui.link(text='查看字典', target=str(value)).classes('text-lg text-blue-600')
+                else:
+                    ui.label(str(value)).classes('text-lg text-grey-8')
+            else:
+                ui.icon(icon).classes('text-lg text-grey-400')
+                ui.label(f'{field_name}:').classes('text-lg font-medium')
+                ui.label('暂无数据').classes('text-lg text-grey-6')
+
+    def _get_field_icon(self, field_name: str) -> str:
+        """根据字段名返回合适的图标"""
+        field_name_lower = field_name.lower()
+        
+        # 企业相关
+        if any(keyword in field_name_lower for keyword in ['企业', '公司', 'enterprise', 'company']):
+            return 'business'
+        # 名称相关
+        elif any(keyword in field_name_lower for keyword in ['名称', 'name']):
+            return 'label'
+        # 代码相关
+        elif any(keyword in field_name_lower for keyword in ['代码', 'code']):
+            return 'tag'
+        # 值相关
+        elif any(keyword in field_name_lower for keyword in ['值', 'value']):
+            return 'data_object'
+        # 时间相关
+        elif any(keyword in field_name_lower for keyword in ['时间', 'time', '日期', 'date']):
+            return 'schedule'
+        # URL相关
+        elif any(keyword in field_name_lower for keyword in ['url', '链接', '地址']):
+            return 'link'
+        # 图片相关
+        elif any(keyword in field_name_lower for keyword in ['图片', '图像', 'pic', 'image']):
+            return 'image'
+        # 文档相关
+        elif any(keyword in field_name_lower for keyword in ['文档', '文件', 'doc']):
+            return 'description'
+        # 视频相关
+        elif any(keyword in field_name_lower for keyword in ['视频', 'video']):
+            return 'videocam'
+        # 默认
+        else:
+            return 'info'
+
+    def _format_field_value(self, value: Any) -> str:
+        """格式化字段值用于显示"""
+        if value is None:
+            return '暂无数据'
+        elif value == '':
+            return '暂无数据'
+        elif isinstance(value, (dict, list)):
+            return str(value)
+        else:
+            return str(value)
+
+    def _is_url(self, value: str) -> bool:
+        """判断字符串是否为URL"""
+        if not isinstance(value, str):
+            return False
+        return value.startswith('http://') or value.startswith('https://')
 
     def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]], result_structure: str, field_strategy: str):
         """
@@ -561,7 +767,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             result_data: 查询结果数据列表
         """
         pass
-
 
     def _display_simple_table(self, result_data: List[Dict[str, Any]]):
         """

@@ -1304,7 +1304,7 @@ def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List
             field_strategy = "flat_card"
     else:
         field_strategy = "flat_card"
-    
+    print(f"_create_single_doc_document ---> {field_strategy}")
     return processed_data, {"field_strategy": field_strategy}
 
 def _create_multi_docs_document(result_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -1414,7 +1414,6 @@ def _classify_query_result_new_format(query_type: str,
     result = None
     field_strategy = ""
     structure_type = "unknown"  # 用于标识实际处理的结构类型
-    result_num = len(result_data)
     
     # 1、汇总数据   
     if query_type in ["count", "countDocuments", "distinct"]:
@@ -1472,16 +1471,18 @@ def _classify_query_result_new_format(query_type: str,
             result_list, strategy_dict = _create_multi_docs_document(flattened_data)
             structure_type = "multi_data"
             field_strategy = strategy_dict["field_strategy"]
+            print(f"====> field_strategy:{structure_type}")
         elif actual_data_count <= 1:  # 只有1条数据或无数据
             result_list, strategy_dict = _create_single_doc_document(flattened_data)
             structure_type = "single_data"
             field_strategy = strategy_dict["field_strategy"]
+            print(f"====> structure_type:{structure_type}")
 
         result = {
             "type": "明细",
             "messages": "正常处理",
             "result_data": result_list,
-            "result_structure": structure_type,  # 标识实际处理的结构类型
+            "structure_type": structure_type,  # 标识实际处理的结构类型
             "field_strategy": field_strategy     # 标识使用的字段策略
         }
     
@@ -1503,7 +1504,7 @@ def _classify_query_result_new_format(query_type: str,
             "result": {
                 "type": result["type"],
                 "result": result["result_data"],
-                "result_structure": result.get("result_structure", "unknown"),
+                "structure_type": result.get("structure_type", "unknown"),
                 "field_strategy": result.get("field_strategy", "existing_fields")
             },
             "total_count": total_count,
@@ -1519,7 +1520,7 @@ def _classify_query_result_new_format(query_type: str,
     except Exception as e:
         # 文件存储失败不影响主要功能，可以记录日志或静默处理
         print(f"文件存储失败{e}")
-    
+    print(f"---> result:{result}")
     return result
 
 def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

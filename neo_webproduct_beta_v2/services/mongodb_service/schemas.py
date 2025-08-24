@@ -341,7 +341,8 @@ class ExecuteMongoQueryResponse(BaseModel):
     period: str = Field(..., description="执行时间ms")
     messages: str = Field(..., description="处理信息：如果发生异常，则为异常内容；否则值就是 正常处理")
     result_data: List[Any] = Field(..., description="结果数据列表")
-    field_strategy: str = Field(default="", description="字段匹配策略：'full_fields' 或 'existing_fields'，其他查询类型为空字符串")
+    structure_type: str = Field(default="")
+    field_strategy: str = Field(default="")
     
     class Config:
         json_schema_extra = {
