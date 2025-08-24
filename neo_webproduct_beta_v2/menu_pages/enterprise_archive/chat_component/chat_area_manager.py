@@ -371,7 +371,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         Args:
             result: MongoDB查询结果字典
         """
-        print(f"_display_query_result:{result},type result:{type(result)}")
         if not self.chat_content_container:
             return
         
@@ -385,8 +384,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 result_data = result.get("result_data", [])
                 structure_type = result.get("structure_type","")
                 field_strategy = result.get("field_strategy","")
-                print(f"---> result:{result}")
-                print(f"---> query_type:{query_type} | result_structure:{structure_type} | field_strategy:{field_strategy}")
                 if query_type == "汇总":
                     self._display_summary_result(result_data)
                 elif query_type == "分组":
@@ -568,11 +565,87 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     #### ================== _display_table 模式字段渲染 ==========================
     def _display_full_table(self, result_data: List[Dict[str, Any]]):
         """
-        显示完整的表格
+        显示完整的表格 - 带展开/收缩功能的可交互表格
         Args:
             result_data: 查询结果数据列表
         """
-        pass
+        if not result_data:
+            ui.label("🔍 查询结果: 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+            return
+        
+        # 显示结果标题
+        ui.label(f'🔍 查询结果 (共{len(result_data)}条数据)').classes('text-base font-bold text-primary mb-3')
+        
+        # 动态构建表格列定义
+        if result_data:
+            # 获取所有字段作为列
+            all_fields = set()
+            for item in result_data:
+                all_fields.update(item.keys())
+            
+            # 构建列定义
+            columns = []
+            for field in sorted(all_fields):
+                columns.append({
+                    'name': field,
+                    'label': field.replace('_', ' ').title(),
+                    'field': field
+                })
+            
+            # 构建行数据
+            rows = []
+            for i, item in enumerate(result_data):
+                row_data = {'row_id': i}  # 添加唯一标识
+                for field in all_fields:
+                    value = item.get(field, '')
+                    # 处理复杂数据类型
+                    if isinstance(value, (dict, list)):
+                        row_data[field] = str(value)
+                    else:
+                        row_data[field] = value
+                rows.append(row_data)
+            
+            # 创建可展开表格
+            table = ui.table(columns=columns, rows=rows, row_key='row_id' , pagination=5).classes('max-w-9/10')
+            
+            # 添加自定义表头
+            table.add_slot('header', r'''
+                <q-tr :props="props">
+                    <q-th auto-width />
+                    <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                        {{ col.label }}
+                    </q-th>
+                </q-tr>
+            ''')
+            
+            # 添加可展开的表体
+            table.add_slot('body', r'''
+                <q-tr :props="props">
+                    <q-td auto-width>
+                        <q-btn size="sm" color="accent" round dense
+                            @click="props.expand = !props.expand"
+                            :icon="props.expand ? 'remove' : 'add'" />
+                    </q-td>
+                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                        <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                            {{ col.value }}
+                        </div>
+                    </q-td>
+                </q-tr>
+                <q-tr v-show="props.expand" :props="props">
+                    <q-td colspan="100%">
+                        <div class="text-left bg-blue-50 p-4 rounded">
+                            <div class="text-subtitle2 text-primary mb-2">📋 详细信息</div>
+                            <div v-for="col in props.cols" :key="col.name" class="mb-2">
+                                <strong>{{ col.label }}:</strong> 
+                                <span class="ml-2">{{ col.value || 'N/A' }}</span>
+                            </div>
+                        </div>
+                    </q-td>
+                </q-tr>
+            ''')
 
     def _display_simple_table(self, result_data: List[Dict[str, Any]]):
         """
@@ -580,7 +653,64 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         Args:
             result_data: 查询结果数据列表
         """
-        pass
+        if not result_data:
+            ui.label("🔍 查询结果: 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+            return
+        
+        # 显示结果标题
+        ui.label(f'🔍 查询结果 (共{len(result_data)}条数据)').classes('text-base font-bold text-primary mb-3')
+        
+        # 动态构建表格列定义
+        if result_data:
+            # 获取所有字段作为列
+            all_fields = set()
+            for item in result_data:
+                all_fields.update(item.keys())
+            
+            # 构建列定义
+            columns = []
+            for field in sorted(all_fields):
+                columns.append({
+                    'name': field,
+                    'label': field.replace('_', ' ').title(),
+                    'field': field,
+                    'sortable': True,
+                    'align': 'left'
+                })
+            
+            # 构建行数据
+            rows = []
+            for i, item in enumerate(result_data):
+                row_data = {}
+                for field in all_fields:
+                    value = item.get(field, '')
+                    # 处理复杂数据类型
+                    if isinstance(value, (dict, list)):
+                        # 复杂数据类型简化显示
+                        if isinstance(value, dict):
+                            row_data[field] = f"{{对象: {len(value)}个字段}}"
+                        else:  # list
+                            row_data[field] = f"[数组: {len(value)}项]"
+                    elif isinstance(value, str) and len(str(value)) > 50:
+                        # 长文本截断显示
+                        row_data[field] = f"{str(value)[:50]}..."
+                    else:
+                        row_data[field] = value
+                rows.append(row_data)
+            
+            # 创建普通表格
+            ui.table(
+                columns=columns, 
+                rows=rows
+            ).classes('w-full').props('flat bordered dense wrap-cells')
+            
+            # 添加数据说明
+            if len(result_data) > 10:
+                ui.label(f"💡 提示: 当前显示所有 {len(result_data)} 条记录，如需详细信息可切换到完整表格模式").classes(
+                    'text-sm text-gray-600 mt-2'
+                )
 
     #### ================== _display_card 模式字段渲染 ==========================
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
@@ -741,7 +871,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     if self.chat_content_container:
                         with self.chat_content_container:
                             ui.label(error_msg).classes(
-                                'whitespace-pre-wrap bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+                                'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
                             )
 
 class StreamResponseProcessor:
