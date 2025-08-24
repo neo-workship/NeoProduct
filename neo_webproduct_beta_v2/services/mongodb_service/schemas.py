@@ -268,37 +268,6 @@ class ExecuteMongoQueryRequest(BaseModel):
             }
         }
 
-class DataValueModel(BaseModel):
-    """数据值模型"""
-    enterprise_code: str = Field("", description="企业代码")
-    enterprise_name: str = Field("", description="企业名称") 
-    full_path_code: str = Field("", description="完整路径代码")
-    full_path_name: str = Field("", description="完整路径名称")
-    field_code: str = Field("", description="字段代码")
-    field_name: str = Field("", description="字段名称")
-    value: str = Field("", description="实际值")
-    value_text: str = Field("", description="文本描述")
-    value_pic_url: str = Field("", description="图片URL")
-    value_doc_url: str = Field("", description="文档URL")
-    value_video_url: str = Field("", description="视频URL")
-
-# 新增元数据模型 - 对应新格式的 data_meta 中的子对象
-class DataMetaFieldModel(BaseModel):
-    """字段路径元数据模型"""
-    data_source: str = Field("", description="数据来源")
-    encoding: str = Field("", description="编码")
-    format: str = Field("", description="格式")
-    license: str = Field("", description="许可")
-    rights: str = Field("", description="权限")
-    update_frequency: str = Field("", description="更新频率")
-    value_dict: str = Field("", description="字典值")
-
-# 新增结果数据项模型
-class ResultDataItem(BaseModel):
-    """结果数据项模型"""
-    data_value: DataValueModel = Field(..., description="数据值")
-    data_meta: DataMetaFieldModel = Field(..., description="元数据")
-
 # --------------------------分组操作结果模型--------------------------
 class GroupResultSingleField(BaseModel):
     """单字段分组结果模型"""
@@ -367,68 +336,55 @@ class GroupResultItem(BaseModel):
 
 # 完全重写 ExecuteMongoQueryResponse 以匹配新格式
 class ExecuteMongoQueryResponse(BaseModel):
-    """执行MongoDB原生查询响应模型 - 新格式（支持分组）"""
+    """执行MongoDB原生查询响应模型 - 新格式（支持分组和字段策略）"""
     type: str = Field(..., description="查询类型：'汇总'、'明细' 或 '分组'")
     period: str = Field(..., description="执行时间ms")
     messages: str = Field(..., description="处理信息：如果发生异常，则为异常内容；否则值就是 正常处理")
     result_data: List[Any] = Field(..., description="结果数据列表")
+    field_strategy: str = Field(default="", description="字段匹配策略：'full_fields' 或 'existing_fields'，其他查询类型为空字符串")
     
     class Config:
         json_schema_extra = {
             "examples": [
                 {
-                    "type": "汇总",
-                    "period": "25.6ms",
+                    "type": "明细",
+                    "period": "125.67ms",
                     "messages": "正常处理",
-                    "result_data": [150]
+                    "result_data": [
+                        {
+                            "enterprise_code": "TEST001",
+                            "enterprise_name": "测试企业",
+                            "field_code": "FIELD_001",
+                            "field_name": "企业名称",
+                            "value": "测试数据"
+                        }
+                    ],
+                    "field_strategy": "full_fields"
                 },
                 {
-                    "type": "汇总",
-                    "period": "32.1ms", 
+                    "type": "分组",
+                    "period": "89.23ms", 
                     "messages": "正常处理",
                     "result_data": [
                         {
                             "_id": "技术部",
                             "count": 45,
-                            "求和": 1250000
+                            "求和薪资": 1250000
                         },
                         {
                             "_id": "销售部", 
                             "count": 30,
-                            "平均值": 28.5
+                            "平均值年龄": 32.5
                         }
-                    ]
+                    ],
+                    "field_strategy": "existing_fields"
                 },
                 {
-                    "type": "明细",
-                    "period": "32.1ms",
-                    "messages": "正常处理",
-                    "result_data": [
-                        {
-                            "data_value": {
-                                "enterprise_code": "91110000MA001234XA",
-                                "enterprise_name": "测试企业有限公司",
-                                "full_path_code": "L19E5FFA.L279A000.L336E6A6.F1BDA09",
-                                "full_path_name": "基本信息.登记信息.企业基本信息.统一社会信用代码",
-                                "field_code": "F1BDA09",
-                                "field_name": "统一社会信用代码",
-                                "value": "91110000MA001234XA",
-                                "value_text": "统一社会信用代码",
-                                "value_pic_url": "http://example.com/pic.jpg",
-                                "value_doc_url": "http://example.com/doc.pdf",
-                                "value_video_url": "http://example.com/video.mp4"
-                            },
-                            "data_meta": {
-                                "data_source": "工商局",
-                                "encoding": "UTF-8",
-                                "format": "文本",
-                                "license": "公开",
-                                "rights": "查看",
-                                "update_frequency": "实时",
-                                "value_dict": ""
-                            }
-                        }
-                    ]
+                    "type": "汇总",
+                    "period": "45.12ms",
+                    "messages": "正常处理", 
+                    "result_data": [156],
+                    "field_strategy": ""
                 }
             ]
         }
