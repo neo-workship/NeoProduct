@@ -1341,6 +1341,8 @@ def _classify_query_result_new_format(query_type: str,
                                       total_count: int,
                                       query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
+    优化后的查询结果分类处理函数 - 支持嵌套列表数据处理
+    
     Args:
         query_type: 查询类型
         result_data: 查询结果数据
@@ -1353,6 +1355,7 @@ def _classify_query_result_new_format(query_type: str,
     field_strategy = ""
     structure_type = "unknown"  # 用于标识实际处理的结构类型
     result_num = len(result_data)
+    
     # 1、汇总数据   
     if query_type in ["count", "countDocuments", "distinct"]:
         # 汇总类型：count、countDocuments、distinct
@@ -1368,6 +1371,7 @@ def _classify_query_result_new_format(query_type: str,
             "result_structure": structure_type,
             "field_strategy": field_strategy
         }
+    
     # 2、分组操作    
     elif query_type == "group":
         # 分组汇总类型：$group 聚合操作
@@ -1390,18 +1394,26 @@ def _classify_query_result_new_format(query_type: str,
             "result_structure": structure_type,
             "field_strategy": "group"
         }
-    # 3、明细数据  
+    
+    # 3、明细数据处理 - 优化后的逻辑  
     elif query_type in ["find", "findOne", "aggregate"]:
         # 明细类型：find、findOne、aggregate
         result_list = []
-
-        # 优化的文档类型判断逻辑
-        if result_num > 1:    # 有多条数
-            result_list, strategy_dict = _create_multi_docs_document(result_data)
+        
+        # ========== 核心优化：处理嵌套列表的逻辑 ==========
+        # 检测并提取嵌套列表中的数据
+        flattened_data = _extract_nested_list_data(result_data)
+        
+        # 重新计算实际需要处理的数据量
+        actual_data_count = len(flattened_data)
+        
+        # 根据实际数据量决定处理方式
+        if actual_data_count > 1:    # 有多条数据
+            result_list, strategy_dict = _create_multi_docs_document(flattened_data)
             structure_type = "multi_data"
             field_strategy = strategy_dict["field_strategy"]
-        elif result_num <= 1:  # 只有1条数据
-            result_list, strategy_dict = _create_single_doc_document(result_data)
+        elif actual_data_count <= 1:  # 只有1条数据或无数据
+            result_list, strategy_dict = _create_single_doc_document(flattened_data)
             structure_type = "single_data"
             field_strategy = strategy_dict["field_strategy"]
 
@@ -1424,6 +1436,7 @@ def _classify_query_result_new_format(query_type: str,
                 return [convert_datetime_to_string(item) for item in obj]
             else:
                 return obj
+        
         storage_data = {
             "query_type": query_type,
             "query_params": query_params,
@@ -1448,6 +1461,57 @@ def _classify_query_result_new_format(query_type: str,
         print(f"文件存储失败{e}")
     
     return result
+
+def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    提取嵌套列表中的数据，将复杂的嵌套结构扁平化处理
+    
+    处理两种情况：
+    1. 字段值是列表且包含字典：如 {"匹配的字段": [{"enterprise_code": "xxx"}, ...]}
+    2. fields字段包含列表：如 {"fields": [{"enterprise_code": "xxx"}, ...]}
+    
+    Args:
+        result_data: 原始查询结果数据
+        
+    Returns:
+        扁平化后的数据列表，用于后续处理
+    """
+    flattened_data = []
+    
+    for doc in result_data:
+        if doc is None:
+            continue
+            
+        # 检查是否包含嵌套的列表数据
+        nested_list_found = False
+        
+        # 遍历文档的每个字段，查找包含字典列表的字段
+        for field_name, field_value in doc.items():
+            if isinstance(field_value, list) and field_value:
+                # 检查列表第一个元素是否为字典
+                if isinstance(field_value[0], dict):
+                    nested_list_found = True
+                    
+                    # 提取列表中的每个字典数据
+                    for list_item in field_value:
+                        if isinstance(list_item, dict):
+                            # 创建新的文档，包含原文档的基础信息和列表项的详细信息
+                            new_doc = {
+                                # 保留原文档的非列表字段（如_id, 企业统一信用编码等）
+                                **{k: v for k, v in doc.items() if not isinstance(v, list)},
+                                # 添加列表项的字段
+                                **list_item
+                            }
+                            flattened_data.append(new_doc)
+                    
+                    # 找到第一个字典列表后就退出，避免重复处理
+                    break
+        
+        # 如果没有找到嵌套列表，直接添加原文档
+        if not nested_list_found:
+            flattened_data.append(doc)
+    
+    return flattened_data
 ## ----------- 分类查询结果 ----------------
 
 def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str, Any]) -> Dict[str, Any]:
