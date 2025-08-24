@@ -566,90 +566,232 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     def _display_full_table(self, result_data: List[Dict[str, Any]]):
         """
         显示完整的表格 - 带展开/收缩功能的可交互表格
+        只显示指定字段，参考read_archive_tab.py的display_results_as_table函数
         Args:
             result_data: 查询结果数据列表
         """
         if not result_data:
-            ui.label("🔍 查询结果: 无数据").classes(
+            ui.label("🔍 明细查询结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
             return
         
         # 显示结果标题
-        ui.label(f'🔍 查询结果 (共{len(result_data)}条数据)').classes('text-base font-bold text-primary mb-3')
+        ui.label(f'🔍 明细查询结果 (共{len(result_data)}条数据)').classes('text-base font-bold text-primary mb-3')
         
-        # 动态构建表格列定义
-        if result_data:
-            # 获取所有字段作为列
-            all_fields = set()
-            for item in result_data:
-                all_fields.update(item.keys())
-            
-            # 构建列定义
-            columns = []
-            for field in sorted(all_fields):
-                columns.append({
-                    'name': field,
-                    'label': field.replace('_', ' ').title(),
-                    'field': field
-                })
-            
-            # 构建行数据
-            rows = []
-            for i, item in enumerate(result_data):
-                row_data = {'row_id': i}  # 添加唯一标识
-                for field in all_fields:
-                    value = item.get(field, '')
-                    # 处理复杂数据类型
-                    if isinstance(value, (dict, list)):
-                        row_data[field] = str(value)
-                    else:
-                        row_data[field] = value
-                rows.append(row_data)
-            
-            # 创建可展开表格
-            table = ui.table(columns=columns, rows=rows, row_key='row_id' , pagination=5).classes('max-w-9/10')
-            
-            # 添加自定义表头
-            table.add_slot('header', r'''
-                <q-tr :props="props">
-                    <q-th auto-width />
-                    <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                        {{ col.label }}
-                    </q-th>
-                </q-tr>
-            ''')
-            
-            # 添加可展开的表体
-            table.add_slot('body', r'''
-                <q-tr :props="props">
-                    <q-td auto-width>
-                        <q-btn size="sm" color="accent" round dense
-                            @click="props.expand = !props.expand"
-                            :icon="props.expand ? 'remove' : 'add'" />
-                    </q-td>
-                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
-                            {{ col.value }}
-                        </div>
-                    </q-td>
-                </q-tr>
-                <q-tr v-show="props.expand" :props="props">
-                    <q-td colspan="100%">
-                        <div class="text-left bg-blue-50 p-4 rounded">
-                            <div class="text-subtitle2 text-primary mb-2">📋 详细信息</div>
-                            <div v-for="col in props.cols" :key="col.name" class="mb-2">
-                                <strong>{{ col.label }}:</strong> 
-                                <span class="ml-2">{{ col.value || 'N/A' }}</span>
+        # 定义表格列 - 只显示指定的7个字段
+        columns = [
+            {'name': 'enterprise_name', 'label': '企业名称', 'field': 'enterprise_name', 'sortable': True, 'align': 'left'},
+            {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
+            {'name': 'value', 'label': '字段值', 'field': 'value', 'sortable': True, 'align': 'left'},
+            {'name': 'encoding', 'label': '编码格式', 'field': 'encoding', 'sortable': True, 'align': 'left'},
+            {'name': 'format', 'label': '数据格式', 'field': 'format', 'sortable': True, 'align': 'left'},
+            {'name': 'created_time', 'label': '创建时间', 'field': 'created_time', 'sortable': True, 'align': 'left'},
+            {'name': 'updated_time', 'label': '更新时间', 'field': 'updated_time', 'sortable': True, 'align': 'left'},
+        ]
+        
+        # 准备行数据 - 只提取指定字段
+        rows = []
+        for i, item in enumerate(result_data):
+            # 提取主要显示字段
+            row_data = {
+                'id': i,
+                'enterprise_name': item.get('enterprise_name', item.get('企业名称', '未知企业')),
+                'field_name': item.get('field_name', item.get('字段名称', '未知字段')),
+                'value': self._format_field_value(item.get('value', item.get('字段值', ''))),
+                'encoding': item.get('encoding', item.get('编码格式', '未指定')),
+                'format': item.get('format', item.get('数据格式', '未指定')),
+                'created_time': self._format_time(item.get('created_time', item.get('创建时间', ''))),
+                'updated_time': self._format_time(item.get('updated_time', item.get('更新时间', ''))),
+                # 保存展开显示所需的原始数据
+                '_expand_data': {
+                    'field_description': item.get('field_description', item.get('字段说明', '无说明')),
+                    'value_pic_url': item.get('value_pic_url', item.get('字段关联图片', '')),
+                    'value_doc_url': item.get('value_doc_url', item.get('字段关联文档', '')),
+                    'value_video_url': item.get('value_video_url', item.get('字段关联视频', '')),
+                    'data_url': item.get('data_url', item.get('数据源url', '')),
+                    'data_source': item.get('data_source', item.get('数据来源', '未指定')),
+                    'license': item.get('license', item.get('许可证', '未指定')),
+                    'rights': item.get('rights', item.get('使用权限', '未指定')),
+                    'update_frequency': item.get('update_frequency', item.get('更新频率', '未指定')),
+                    'value_dict': item.get('value_dict', item.get('字典值选项', ''))
+                }
+            }
+            rows.append(row_data)
+        
+        # 创建表格
+        table = ui.table(
+            columns=columns, 
+            rows=rows, 
+            row_key='id',
+            pagination=10,  # 每页显示10条
+            column_defaults={
+                'align': 'left',
+                'headerClasses': 'uppercase text-primary text-base font-bold',
+            }
+        ).classes('w-full')
+        
+        # 添加表头（包含展开按钮列）
+        table.add_slot('header', r'''
+            <q-tr :props="props">
+                <q-th auto-width />
+                <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                    {{ col.label }}
+                </q-th>
+            </q-tr>
+        ''')
+        
+        # 添加表格主体（包含展开功能）
+        table.add_slot('body', r'''
+            <q-tr :props="props">
+                <q-td auto-width>
+                    <q-btn size="sm" color="accent" round dense
+                        @click="props.expand = !props.expand"
+                        :icon="props.expand ? 'remove' : 'add'" />
+                </q-td>
+                <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                    <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                        {{ col.value }}
+                    </div>
+                </q-td>
+            </q-tr>
+            <q-tr v-show="props.expand" :props="props">
+                <q-td colspan="100%">
+                    <div class="text-left bg-blue-50 p-4 rounded">
+                        <div class="text-subtitle2 text-primary mb-3">📋 详细信息</div>
+                        <!-- 参考read_archive_tab.py的两列布局 -->
+                        <div class="row q-col-gutter-md">
+                            <!-- 左列 -->
+                            <div class="col-6">
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">字段说明:</strong>
+                                    <div class="q-ml-sm">{{ props.row._expand_data.field_description || 'N/A' }}</div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">字段关联图片:</strong>
+                                    <div class="q-ml-sm">
+                                        <a v-if="props.row._expand_data.value_pic_url" 
+                                        :href="props.row._expand_data.value_pic_url" 
+                                        target="_blank" class="text-blue-600">
+                                            {{ props.row._expand_data.value_pic_url }}
+                                        </a>
+                                        <span v-else class="text-grey-6">暂无图片</span>
+                                    </div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">字段关联文档:</strong>
+                                    <div class="q-ml-sm">
+                                        <a v-if="props.row._expand_data.value_doc_url" 
+                                        :href="props.row._expand_data.value_doc_url" 
+                                        target="_blank" class="text-blue-600">
+                                            {{ props.row._expand_data.value_doc_url }}
+                                        </a>
+                                        <span v-else class="text-grey-6">暂无文档</span>
+                                    </div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">字段关联视频:</strong>
+                                    <div class="q-ml-sm">
+                                        <a v-if="props.row._expand_data.value_video_url" 
+                                        :href="props.row._expand_data.value_video_url" 
+                                        target="_blank" class="text-blue-600">
+                                            {{ props.row._expand_data.value_video_url }}
+                                        </a>
+                                        <span v-else class="text-grey-6">暂无视频</span>
+                                    </div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">数据源URL:</strong>
+                                    <div class="q-ml-sm">
+                                        <a v-if="props.row._expand_data.data_url" 
+                                        :href="props.row._expand_data.data_url" 
+                                        target="_blank" class="text-blue-600">
+                                            {{ props.row._expand_data.data_url }}
+                                        </a>
+                                        <span v-else class="text-grey-6">N/A</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 右列 -->
+                            <div class="col-6">
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">数据来源:</strong>
+                                    <div class="q-ml-sm">{{ props.row._expand_data.data_source || 'N/A' }}</div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">许可证:</strong>
+                                    <div class="q-ml-sm">{{ props.row._expand_data.license || 'N/A' }}</div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">使用权限:</strong>
+                                    <div class="q-ml-sm">{{ props.row._expand_data.rights || 'N/A' }}</div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">更新频率:</strong>
+                                    <div class="q-ml-sm">{{ props.row._expand_data.update_frequency || 'N/A' }}</div>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <strong class="text-grey-8">字典值选项:</strong>
+                                    <div class="q-ml-sm">{{ props.row._expand_data.value_dict || 'N/A' }}</div>
+                                </div>
                             </div>
                         </div>
-                    </q-td>
-                </q-tr>
-            ''')
+                    </div>
+                </q-td>
+            </q-tr>
+        ''')
+
+    def _format_field_value(self, value):
+        """
+        格式化字段值显示
+        Args:
+            value: 原始字段值
+        Returns:
+            str: 格式化后的字段值
+        """
+        if not value or value == '':
+            return '暂无数据'
+        
+        # 如果是复杂数据类型，简化显示
+        if isinstance(value, dict):
+            return f"{{对象: {len(value)}个字段}}"
+        elif isinstance(value, list):
+            return f"[数组: {len(value)}项]"
+        elif isinstance(value, str) and len(value) > 50:
+            # 长文本截断显示
+            return f"{value[:50]}..."
+        else:
+            return str(value)
+
+    def _format_time(self, time_value):
+        """
+        格式化时间显示
+        Args:
+            time_value: 原始时间值
+        Returns:
+            str: 格式化后的时间字符串
+        """
+        if not time_value or time_value == '':
+            return '未指定'
+        
+        # 如果已经是字符串格式，直接返回
+        if isinstance(time_value, str):
+            return time_value
+        
+        # 如果是datetime对象，格式化为字符串
+        try:
+            from datetime import datetime
+            if isinstance(time_value, datetime):
+                return time_value.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                return str(time_value)
+        except:
+            return str(time_value)
 
     def _display_simple_table(self, result_data: List[Dict[str, Any]]):
         """
         显示简化的表格（当 field_strategy != "full_table" 时使用）
+        如果字典字段超过10个，表头显示前5个，其余折叠隐藏
         Args:
             result_data: 查询结果数据列表
         """
@@ -665,13 +807,35 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         # 动态构建表格列定义
         if result_data:
             # 获取所有字段作为列
-            all_fields = set()
-            for item in result_data:
-                all_fields.update(item.keys())
+            # all_fields = set()
+            # for item in result_data:
+            #     if isinstance(item, dict):
+            #         all_fields.update(item.keys())
+            # all_fields_list = sorted(all_fields)
             
-            # 构建列定义
+            first_item = result_data[0]
+            if isinstance(first_item, dict):
+                all_fields_list = sorted(first_item.keys())
+            else:
+                # 如果第一个项不是字典，显示错误信息
+                ui.label("❌ 数据格式错误：预期为字典类型").classes('text-red-500')
+                return
+
+            # 判断是否需要折叠显示
+            if len(all_fields_list) > 10:
+                # 超过10个字段，显示前5个，其余折叠
+                visible_fields = all_fields_list[:5]
+                hidden_fields = all_fields_list[5:]
+                use_expand = True
+            else:
+                # 10个或以下字段，全部显示
+                visible_fields = all_fields_list
+                hidden_fields = []
+                use_expand = False
+            
+            # 构建可见列定义
             columns = []
-            for field in sorted(all_fields):
+            for field in visible_fields:
                 columns.append({
                     'name': field,
                     'label': field.replace('_', ' ').title(),
@@ -683,9 +847,11 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             # 构建行数据
             rows = []
             for i, item in enumerate(result_data):
-                row_data = {}
-                for field in all_fields:
-                    value = item.get(field, '')
+                row_data = {'id': i}
+                
+                # 处理可见字段
+                for field in visible_fields:
+                    value = item.get(field, '') if isinstance(item, dict) else ''
                     # 处理复杂数据类型
                     if isinstance(value, (dict, list)):
                         # 复杂数据类型简化显示
@@ -698,19 +864,114 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         row_data[field] = f"{str(value)[:50]}..."
                     else:
                         row_data[field] = value
+                
+                # 如果需要展开功能，保存隐藏字段数据
+                if use_expand:
+                    expand_data = {}
+                    for field in hidden_fields:
+                        value = item.get(field, '') if isinstance(item, dict) else ''
+                        # 处理复杂数据类型
+                        if isinstance(value, (dict, list)):
+                            if isinstance(value, dict):
+                                expand_data[field] = f"{{对象: {len(value)}个字段}}"
+                            else:  # list
+                                expand_data[field] = f"[数组: {len(value)}项]"
+                        elif isinstance(value, str) and len(str(value)) > 50:
+                            # 长文本截断显示
+                            expand_data[field] = f"{str(value)[:50]}..."
+                        else:
+                            expand_data[field] = str(value) if value else 'N/A'
+                    row_data['_expand_data'] = expand_data
+                
                 rows.append(row_data)
             
-            # 创建普通表格
-            ui.table(
-                columns=columns, 
-                rows=rows
-            ).classes('w-full').props('flat bordered dense wrap-cells')
-            
-            # 添加数据说明
-            if len(result_data) > 10:
-                ui.label(f"💡 提示: 当前显示所有 {len(result_data)} 条记录，如需详细信息可切换到完整表格模式").classes(
+            if use_expand:
+                # 创建带展开功能的表格
+                table = ui.table(
+                    columns=columns, 
+                    rows=rows,
+                    row_key='id',
+                    pagination=10,  # 每页显示10条
+                    column_defaults={
+                        'align': 'left',
+                        'headerClasses': 'uppercase text-primary text-base font-bold',
+                    }
+                ).classes('w-full')
+                
+                # 添加展开功能的表头
+                table.add_slot('header', r'''
+                    <q-tr :props="props">
+                        <q-th auto-width />
+                        <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                            {{ col.label }}
+                        </q-th>
+                    </q-tr>
+                ''')
+                
+                # 动态生成展开区域的字段显示HTML
+                expand_fields_html = ""
+                # 将隐藏字段分为两列显示，类似_display_full_card_mode
+                for i, field in enumerate(hidden_fields):
+                    field_label = field.replace('_', ' ').title()
+                    col_class = "col-6" if len(hidden_fields) > 1 else "col-12"
+                    
+                    if i % 2 == 0:  # 偶数索引，开始新行或左列
+                        if i == 0:
+                            expand_fields_html += f'<div class="row q-col-gutter-md">'
+                        expand_fields_html += f'<div class="{col_class}">'
+                    
+                    expand_fields_html += f'''
+                        <div class="q-mb-sm">
+                            <strong class="text-grey-8">{field_label}:</strong>
+                            <div class="q-ml-sm text-body2">{{{{ props.row._expand_data.{field} || 'N/A' }}}}</div>
+                        </div>
+                    '''
+                    
+                    if i % 2 == 1 or i == len(hidden_fields) - 1:  # 奇数索引或最后一个，结束列
+                        expand_fields_html += '</div>'
+                        if i == len(hidden_fields) - 1:  # 最后一个，结束行
+                            expand_fields_html += '</div>'
+                
+                # 添加展开功能的表格主体
+                table.add_slot('body', f'''
+                    <q-tr :props="props">
+                        <q-td auto-width>
+                            <q-btn size="sm" color="accent" round dense
+                                @click="props.expand = !props.expand"
+                                :icon="props.expand ? 'remove' : 'add'" />
+                        </q-td>
+                        <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                            <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                                {{{{ col.value }}}}
+                            </div>
+                        </q-td>
+                    </q-tr>
+                    <q-tr v-show="props.expand" :props="props">
+                        <q-td colspan="100%">
+                            <div class="text-left bg-blue-50 p-4 rounded">
+                                <div class="text-subtitle2 text-primary mb-3">📋 更多字段信息</div>
+                                {expand_fields_html}
+                            </div>
+                        </q-td>
+                    </q-tr>
+                ''')
+                
+                # 添加数据说明
+                ui.label(f"💡 提示: 表格显示前5个字段，点击展开按钮查看其余{len(hidden_fields)}个字段").classes(
                     'text-sm text-gray-600 mt-2'
                 )
+            else:
+                # 创建普通表格（字段数量≤10个）
+                ui.table(
+                    columns=columns, 
+                    rows=rows
+                ).classes('w-full').props('flat bordered dense wrap-cells')
+                
+                # 添加数据说明
+                if len(result_data) > 10:
+                    ui.label(f"💡 提示: 当前显示所有 {len(result_data)} 条记录的 {len(visible_fields)} 个字段").classes(
+                        'text-sm text-gray-600 mt-2'
+                    )
 
     #### ================== _display_card 模式字段渲染 ==========================
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
