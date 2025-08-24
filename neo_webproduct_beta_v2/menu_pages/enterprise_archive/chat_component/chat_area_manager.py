@@ -498,12 +498,12 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             ui.label("📊 分组结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
+    
     ### ------------------- 明细数据渲染展示 -------------------------
     def _display_detail_result(self, result_data: List[Dict[str, Any]], result_structure:str,field_strategy:str):
         """
         显示明细查询结果 - 基于field_strategy进行字段匹配展示
         根据数据条数选择不同的显示方式，同时考虑字段策略
-        
         Args:
             result_data: 明细查询结果数据列表
             result: 完整的查询结果，包含field_strategy信息
@@ -522,190 +522,32 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]], result_structure: str, field_strategy: str):
         """
         用卡片方式展示明细查询结果
-        
         Args:
             result_data: 明细查询结果数据列表
             result_structure: 结果结构类型
             field_strategy: 字段策略
         """
-        from nicegui import ui
-        
         if not result_data:
-            ui.label("🔍 明细查询结果: 无数据").classes(
-                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-            )
+            ui.label("🔍 明细查询结果: 无数据").classes('whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2')
             return
-        
-        # 使用一个 ui.card 展示数据
-        with ui.card().classes('w-full p-4 mb-4'):
-            ui.label(f'📄 明细数据展示 ({len(result_data)} 条记录)').classes('text-lg font-bold mb-4')
-            
-            # 遍历每条数据
-            for i, data_item in enumerate(result_data):
-                if data_item is None:
-                    continue
-                    
-                # 每条数据用一个分隔的区域展示
-                if i > 0:
-                    ui.separator().classes('my-4')
-                
-                ui.label(f'第 {i + 1} 条记录').classes('text-base font-semibold text-primary mb-2')
-                
-                # 使用左右两列布局展示数据
-                with ui.row().classes('w-full gap-4 items-start'):
-                    # 左侧：主要字段信息
-                    with ui.column().classes('flex-1'):
-                        self._display_card_left_fields(data_item, field_strategy)
-                    
-                    # 右侧：元数据信息
-                    with ui.column().classes('flex-1'):
-                        self._display_card_right_fields(data_item, field_strategy)
-
-    def _display_card_left_fields(self, data_item: Dict[str, Any], field_strategy: str):
-        """
-        显示卡片左侧字段（主要数据字段）
-        
-        Args:
-            data_item: 单条数据
-            field_strategy: 字段策略
-        """
-        from nicegui import ui
-        
-        ui.label('📋 字段信息').classes('text-subtitle2 font-medium mb-2 text-blue-600')
-        
-        # full_path_name（标题） - 优先显示，如果没有则显示 field_name
-        title = data_item.get('字段完整名称') or data_item.get('full_path_name') or \
-                data_item.get('字段名称') or data_item.get('field_name') or '未知字段'
-        ui.label(title).classes('text-base font-bold text-primary mb-2')
-        
-        # value（字段值）
-        value = data_item.get('字段值') or data_item.get('value') or '暂无数据'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('data_object').classes('text-lg text-blue-600')
-            ui.label('字段值:').classes('text-sm font-medium')
-            display_value = str(value)
-            if len(display_value) > 50:
-                display_value = display_value[:50] + "..."
-            ui.label(display_value).classes('text-sm')
-        
-        # value_pic_url（字段关联图片）
-        pic_url = data_item.get('字段关联图片') or data_item.get('value_pic_url') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('image').classes('text-lg text-green-600')
-            ui.label('关联图片:').classes('text-sm font-medium')
-            if pic_url and pic_url != '暂无数据':
-                ui.link('查看图片', target=pic_url).classes('text-sm text-primary')
-            else:
-                ui.label('暂无数据').classes('text-sm text-grey-6')
-        
-        # value_doc_url（字段关联文档）
-        doc_url = data_item.get('字段关联文档') or data_item.get('value_doc_url') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('description').classes('text-lg text-orange-600')
-            ui.label('关联文档:').classes('text-sm font-medium')
-            if doc_url and doc_url != '暂无数据':
-                ui.link('查看文档', target=doc_url).classes('text-sm text-primary')
-            else:
-                ui.label('暂无数据').classes('text-sm text-grey-6')
-        
-        # value_video_url（字段关联视频）
-        video_url = data_item.get('字段关联视频') or data_item.get('value_video_url') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('video_library').classes('text-lg text-red-600')
-            ui.label('关联视频:').classes('text-sm font-medium')
-            if video_url and video_url != '暂无数据':
-                ui.link('查看视频', target=video_url).classes('text-sm text-primary')
-            else:
-                ui.label('暂无数据').classes('text-sm text-grey-6')
-
-    def _display_card_right_fields(self, data_item: Dict[str, Any], field_strategy: str):
-        """
-        显示卡片右侧字段（元数据信息）
-        
-        Args:
-            data_item: 单条数据
-            field_strategy: 字段策略
-        """
-        from nicegui import ui
-        
-        ui.label('⚙️ 元数据信息').classes('text-subtitle2 font-medium mb-2 text-purple-600')
-        
-        # data_url（数据源url）
-        data_url = data_item.get('数据源url') or data_item.get('data_url') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('link').classes('text-lg text-blue-500')
-            ui.label('数据API:').classes('text-sm font-medium')
-            if data_url and data_url != '暂无数据':
-                ui.link('查看接口', target=data_url).classes('text-sm text-primary')
-            else:
-                ui.label('暂无数据').classes('text-sm text-grey-6')
-        
-        # encoding（编码格式）
-        encoding = data_item.get('编码格式') or data_item.get('encoding') or '未指定'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('code').classes('text-lg text-green-500')
-            ui.label('编码方式:').classes('text-sm font-medium')
-            ui.label(str(encoding)).classes('text-sm')
-        
-        # format（数据格式）
-        format_val = data_item.get('数据格式') or data_item.get('format') or '未指定'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('text_format').classes('text-lg text-orange-500')
-            ui.label('格式:').classes('text-sm font-medium')
-            ui.label(str(format_val)).classes('text-sm')
-        
-        # license（许可证）
-        license_val = data_item.get('许可证') or data_item.get('license') or '未指定'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('gavel').classes('text-lg text-amber-600')
-            ui.label('使用许可:').classes('text-sm font-medium')
-            ui.label(str(license_val)).classes('text-sm')
-        
-        # rights（使用权限）
-        rights = data_item.get('使用权限') or data_item.get('rights') or '未指定'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('security').classes('text-lg text-red-500')
-            ui.label('使用权限:').classes('text-sm font-medium')
-            ui.label(str(rights)).classes('text-sm')
-        
-        # update_frequency（更新频率）
-        update_freq = data_item.get('更新频率') or data_item.get('update_frequency') or '未指定'
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('update').classes('text-lg text-blue-500')
-            ui.label('更新频率:').classes('text-sm font-medium')
-            ui.label(str(update_freq)).classes('text-sm')
-        
-        # value_dict（字典值选项）
-        value_dict = data_item.get('字典值选项') or data_item.get('value_dict') or ''
-        with ui.row().classes('gap-2 items-center mb-2'):
-            ui.icon('book').classes('text-lg text-green-500')
-            ui.label('数据字典:').classes('text-sm font-medium')
-            if value_dict and value_dict != '暂无数据':
-                display_dict = str(value_dict)
-                if len(display_dict) > 30:
-                    display_dict = display_dict[:30] + "..."
-                ui.label(display_dict).classes('text-sm')
-            else:
-                ui.label('暂无数据').classes('text-sm text-grey-6')
+        with self.chat_content_container:
+            # 使用ui.card展示数据
+            pass
 
     def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]], result_structure: str, field_strategy: str):
         """
         用表格方式展示明细查询结果
-        
         Args:
             result_data: 明细查询结果数据列表  
             result_structure: 结果结构类型
             field_strategy: 字段策略
         """
-        from nicegui import ui
-        
         if not result_data:
             ui.label("🔍 明细查询结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
             return
-        
-        # 如果 field_strategy == "full_table"，参考 read_archive_tab.py 的实现
+        # 如果 field_strategy == "full_table"
         if field_strategy == "full_table":
             self._display_full_table(result_data)
         else:
@@ -714,188 +556,20 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
 
     def _display_full_table(self, result_data: List[Dict[str, Any]]):
         """
-        显示完整的表格（参考 read_archive_tab.py 的 display_results_as_table 函数）
-        
+        显示完整的表格
         Args:
             result_data: 查询结果数据列表
         """
-        from nicegui import ui
-        
-        ui.label(f'📊 找到 {len(result_data)} 条数据').classes('text-body2 text-grey-7 mb-4')
-        
-        # 定义表格列（参考 read_archive_tab.py）
-        columns = [
-            {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
-            {'name': 'value', 'label': '字段值', 'field': 'value', 'sortable': True, 'align': 'left'},
-            {'name': 'encoding', 'label': '编码方式', 'field': 'encoding', 'sortable': True, 'align': 'left'},
-            {'name': 'format', 'label': '格式', 'field': 'format', 'sortable': True, 'align': 'left'},
-        ]
-        
-        # 准备行数据
-        rows = []
-        for i, result in enumerate(result_data):
-            # 兼容中英文字段名
-            field_name = result.get('字段名称') or result.get('field_name') or '未知字段'
-            value = result.get('字段值') or result.get('value') or '暂无数据'
-            encoding = result.get('编码格式') or result.get('encoding') or '未指定'
-            format_val = result.get('数据格式') or result.get('format') or '未指定'
-            
-            row = {
-                'id': i,
-                'field_name': field_name,
-                'value': value or '暂无数据',
-                'encoding': encoding or '未指定', 
-                'format': format_val or '未指定',
-                '_raw_data': result  # 保存完整的原始数据用于展开行
-            }
-            rows.append(row)
-        
-        # 创建表格
-        table = ui.table(
-            columns=columns, 
-            rows=rows, 
-            row_key='id',
-            pagination=10,  # 每页显示10条
-            column_defaults={
-                'align': 'left',
-                'headerClasses': 'uppercase text-primary text-base font-bold',
-            }
-        ).classes('w-full')
-        
-        # 添加表头（包含展开按钮列）
-        table.add_slot('header', r'''
-            <q-tr :props="props">
-                <q-th auto-width />
-                <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                    {{ col.label }}
-                </q-th>
-            </q-tr>
-        ''')
-        
-        # 添加表格主体（包含展开功能）
-        table.add_slot('body', r'''
-            <q-tr :props="props">
-                <q-td auto-width>
-                    <q-btn size="sm" color="accent" round dense
-                        @click="props.expand = !props.expand"
-                        :icon="props.expand ? 'keyboard_arrow_up' : 'keyboard_arrow_down'" />
-                </q-td>
-                <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                    {{ col.value }}
-                </q-td>
-            </q-tr>
-            <q-tr v-show="props.expand" :props="props">
-                <q-td colspan="100%">
-                    <div class="row q-gutter-md q-pa-md">
-                        <div class="col">
-                            <div class="text-caption text-grey-8">完整字段信息</div>
-                            <div class="text-body2 q-mb-xs"><strong>企业编码:</strong> {{ props.row._raw_data.企业统一信用编码 || props.row._raw_data.enterprise_code || '未知' }}</div>
-                            <div class="text-body2 q-mb-xs"><strong>企业名称:</strong> {{ props.row._raw_data.企业名称 || props.row._raw_data.enterprise_name || '未知' }}</div>
-                            <div class="text-body2 q-mb-xs"><strong>字段代码:</strong> {{ props.row._raw_data.字段代码 || props.row._raw_data.field_code || '未知' }}</div>
-                            <div class="text-body2 q-mb-xs"><strong>完整路径:</strong> {{ props.row._raw_data.字段完整代码 || props.row._raw_data.full_path_code || '未知' }}</div>
-                        </div>
-                        <div class="col">
-                            <div class="text-caption text-grey-8">关联资源</div>
-                            <div class="text-body2 q-mb-xs"><strong>关联图片:</strong> {{ props.row._raw_data.字段关联图片 || props.row._raw_data.value_pic_url || '暂无数据' }}</div>
-                            <div class="text-body2 q-mb-xs"><strong>关联文档:</strong> {{ props.row._raw_data.字段关联文档 || props.row._raw_data.value_doc_url || '暂无数据' }}</div>
-                            <div class="text-body2 q-mb-xs"><strong>关联视频:</strong> {{ props.row._raw_data.字段关联视频 || props.row._raw_data.value_video_url || '暂无数据' }}</div>
-                            <div class="text-body2 q-mb-xs"><strong>数据字典:</strong> {{ props.row._raw_data.字典值选项 || props.row._raw_data.value_dict || '暂无数据' }}</div>
-                        </div>
-                    </div>
-                </q-td>
-            </q-tr>
-        ''')
+        pass
+
 
     def _display_simple_table(self, result_data: List[Dict[str, Any]]):
         """
         显示简化的表格（当 field_strategy != "full_table" 时使用）
-        
         Args:
             result_data: 查询结果数据列表
         """
-        from nicegui import ui
-        
-        ui.label(f'📊 查询结果 ({len(result_data)} 条记录)').classes('text-body2 text-grey-7 mb-4')
-        
-        # 动态构建列定义，只显示有数据的列
-        all_fields = set()
-        for item in result_data:
-            if isinstance(item, dict):
-                all_fields.update(item.keys())
-        
-        # 定义核心列
-        columns = [
-            {'name': 'index', 'label': '序号', 'field': 'index', 'sortable': False, 'align': 'center'},
-        ]
-        
-        # 添加有数据的列
-        field_mapping = {
-            'field_name': {'chinese': ['字段名称'], 'english': ['field_name'], 'label': '字段名称'},
-            'value': {'chinese': ['字段值'], 'english': ['value'], 'label': '字段值'},
-            'enterprise_name': {'chinese': ['企业名称'], 'english': ['enterprise_name'], 'label': '企业名称'},
-            'encoding': {'chinese': ['编码格式'], 'english': ['encoding'], 'label': '编码方式'},
-            'format': {'chinese': ['数据格式'], 'english': ['format'], 'label': '格式'},
-        }
-        
-        for field_key, field_info in field_mapping.items():
-            # 检查是否有该字段的数据
-            has_data = False
-            for item in result_data:
-                for chinese_key in field_info['chinese']:
-                    if chinese_key in item and item[chinese_key]:
-                        has_data = True
-                        break
-                if not has_data:
-                    for english_key in field_info['english']:
-                        if english_key in item and item[english_key]:
-                            has_data = True
-                            break
-                if has_data:
-                    break
-            
-            if has_data:
-                columns.append({
-                    'name': field_key, 
-                    'label': field_info['label'], 
-                    'field': field_key, 
-                    'sortable': True, 
-                    'align': 'left'
-                })
-        
-        # 准备行数据
-        rows = []
-        for i, item in enumerate(result_data):
-            row = {'id': i, 'index': i + 1}
-            
-            for field_key, field_info in field_mapping.items():
-                value = None
-                # 先尝试中文字段名
-                for chinese_key in field_info['chinese']:
-                    if chinese_key in item:
-                        value = item[chinese_key]
-                        break
-                # 如果没有，尝试英文字段名
-                if value is None:
-                    for english_key in field_info['english']:
-                        if english_key in item:
-                            value = item[english_key]
-                            break
-                
-                row[field_key] = value or '暂无数据'
-            
-            rows.append(row)
-        
-        # 创建简化表格
-        ui.table(
-            columns=columns,
-            rows=rows,
-            row_key='id',
-            pagination=10,
-            column_defaults={
-                'align': 'left',
-                'headerClasses': 'uppercase text-primary text-sm font-bold',
-            }
-        ).classes('w-full')
+        pass
 
     def _display_data_value_fields(self, data_value: Dict[str, Any], field_strategy: str, display_context: str = "left_card"):
         """
