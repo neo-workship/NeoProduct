@@ -1529,9 +1529,10 @@ def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[st
     """
     提取嵌套列表中的数据，将复杂的嵌套结构扁平化处理
     
-    处理两种情况：
+    处理多种情况：
     1. 字段值是列表且包含字典：如 {"匹配的字段": [{"enterprise_code": "xxx"}, ...]}
     2. fields字段包含列表：如 {"fields": [{"enterprise_code": "xxx"}, ...]}
+    3. fields字段是字典：如 {"fields": {"enterprise_code": "xxx", "enterprise_name": "yyy", ...}}
     
     Args:
         result_data: 原始查询结果数据
@@ -1545,15 +1546,16 @@ def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[st
         if doc is None:
             continue
             
-        # 检查是否包含嵌套的列表数据
-        nested_list_found = False
+        # 检查是否包含嵌套的列表数据或字典数据
+        nested_data_found = False
         
-        # 遍历文档的每个字段，查找包含字典列表的字段
+        # 遍历文档的每个字段，查找包含字典列表或字典的字段
         for field_name, field_value in doc.items():
+            # 情况1和2：字段值是列表且包含字典
             if isinstance(field_value, list) and field_value:
                 # 检查列表第一个元素是否为字典
                 if isinstance(field_value[0], dict):
-                    nested_list_found = True
+                    nested_data_found = True
                     
                     # 提取列表中的每个字典数据
                     for list_item in field_value:
@@ -1569,12 +1571,32 @@ def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[st
                     
                     # 找到第一个字典列表后就退出，避免重复处理
                     break
+            
+            # 情况3：字段值是字典且包含多个键值对（新增的处理逻辑）
+            elif isinstance(field_value, dict) and len(field_value) > 1:
+                # 检查字典是否包含类似数据字段的键（避免处理配置类或元数据类字典）
+                # 如果字典包含多个键值对，且不是明显的元数据字段，则进行扁平化处理
+                if not field_name.startswith('_') and field_name not in ['metadata', 'config', 'settings']:
+                    nested_data_found = True
+                    
+                    # 创建新的文档，包含原文档的基础信息和字典的详细信息
+                    new_doc = {
+                        # 保留原文档的非当前字典字段
+                        **{k: v for k, v in doc.items() if k != field_name},
+                        # 添加字典中的字段
+                        **field_value
+                    }
+                    flattened_data.append(new_doc)
+                    
+                    # 找到字典后就退出，避免重复处理
+                    break
         
-        # 如果没有找到嵌套列表，直接添加原文档
-        if not nested_list_found:
+        # 如果没有找到嵌套列表或字典，直接添加原文档
+        if not nested_data_found:
             flattened_data.append(doc)
     
     return flattened_data
+
 ## ----------- 分类查询结果 ----------------
 
 def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str, Any]) -> Dict[str, Any]:

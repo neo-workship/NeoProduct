@@ -545,6 +545,44 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         else:  # flat_card 或其他情况
             self._display_flat_card_mode(result_data)
 
+    def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]], result_structure: str, field_strategy: str):
+        """
+        用表格方式展示明细查询结果
+        Args:
+            result_data: 明细查询结果数据列表  
+            result_structure: 结果结构类型
+            field_strategy: 字段策略
+        """
+        if not result_data:
+            ui.label("🔍 明细查询结果: 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+            return
+        # 如果 field_strategy == "full_table"
+        if field_strategy == "full_table":
+            self._display_full_table(result_data)
+        else:
+            # 简化表格显示
+            self._display_simple_table(result_data)
+
+    #### ================== _display_table 模式字段渲染 ==========================
+    def _display_full_table(self, result_data: List[Dict[str, Any]]):
+        """
+        显示完整的表格
+        Args:
+            result_data: 查询结果数据列表
+        """
+        pass
+
+    def _display_simple_table(self, result_data: List[Dict[str, Any]]):
+        """
+        显示简化的表格（当 field_strategy != "full_table" 时使用）
+        Args:
+            result_data: 查询结果数据列表
+        """
+        pass
+
+    #### ================== _display_card 模式字段渲染 ==========================
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
         """
         full_card模式：按标准字段模板展示（左右卡片布局）
@@ -739,42 +777,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         if not isinstance(value, str):
             return False
         return value.startswith('http://') or value.startswith('https://')
-
-    def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]], result_structure: str, field_strategy: str):
-        """
-        用表格方式展示明细查询结果
-        Args:
-            result_data: 明细查询结果数据列表  
-            result_structure: 结果结构类型
-            field_strategy: 字段策略
-        """
-        if not result_data:
-            ui.label("🔍 明细查询结果: 无数据").classes(
-                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-            )
-            return
-        # 如果 field_strategy == "full_table"
-        if field_strategy == "full_table":
-            self._display_full_table(result_data)
-        else:
-            # 简化表格显示
-            self._display_simple_table(result_data)
-
-    def _display_full_table(self, result_data: List[Dict[str, Any]]):
-        """
-        显示完整的表格
-        Args:
-            result_data: 查询结果数据列表
-        """
-        pass
-
-    def _display_simple_table(self, result_data: List[Dict[str, Any]]):
-        """
-        显示简化的表格（当 field_strategy != "full_table" 时使用）
-        Args:
-            result_data: 查询结果数据列表
-        """
-        pass
 
     def _display_data_value_fields(self, data_value: Dict[str, Any], field_strategy: str, display_context: str = "left_card"):
         """
@@ -978,81 +980,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     ui.icon(icon).classes(f'text-lg text-{color}')
                     ui.label(f'{label}:').classes('text-lg font-medium')
                     ui.label(str(data_meta[field_key])).classes('text-lg')
-
-    def _build_table_columns_by_strategy(self, result_data: List[Dict[str, Any]], field_strategy: str) -> List[Dict[str, Any]]:
-        """根据field_strategy构建表格列定义"""
-        # 基础列（总是显示）
-        columns = [
-            {'name': 'enterprise_name', 'label': '企业名称', 'field': 'enterprise_name', 'sortable': True, 'align': 'left'},
-            {'name': 'field_name', 'label': '字段名称', 'field': 'field_name', 'sortable': True, 'align': 'left'},
-            {'name': 'value', 'label': '字段值', 'field': 'value', 'sortable': True, 'align': 'left'},
-        ]
-        
-        if field_strategy == "full_fields":
-            # 显示完整字段集合
-            columns.extend([
-                {'name': 'encoding', 'label': '编码方式', 'field': 'encoding', 'sortable': True, 'align': 'left'},
-                {'name': 'format', 'label': '格式', 'field': 'format', 'sortable': True, 'align': 'left'},
-                {'name': 'license', 'label': '使用许可', 'field': 'license', 'sortable': True, 'align': 'left'},
-            ])
-        else:
-            # 根据实际数据动态添加存在的列
-            existing_fields = set()
-            for item in result_data:
-                if isinstance(item, dict) and "data_value" in item:
-                    data_value = item["data_value"]
-                    for field in ['encoding', 'format', 'license', 'rights']:
-                        if field in data_value and data_value[field] and data_value[field] != '暂无数据':
-                            existing_fields.add(field)
-            
-            field_labels = {
-                'encoding': '编码方式',
-                'format': '格式', 
-                'license': '使用许可',
-                'rights': '使用权限'
-            }
-            
-            for field in existing_fields:
-                columns.append({
-                    'name': field, 
-                    'label': field_labels[field], 
-                    'field': field, 
-                    'sortable': True, 
-                    'align': 'left'
-                })
-        
-        # 添加详情列
-        columns.append({'name': 'details', 'label': '详情', 'field': 'details', 'sortable': False, 'align': 'center'})
-        
-        return columns
-
-    def _build_table_row_by_strategy(self, data_value: Dict[str, Any], field_strategy: str, row_id: int) -> Dict[str, Any]:
-        """根据field_strategy构建表格行数据"""
-        # 基础行数据
-        row = {
-            'id': row_id,
-            'enterprise_name': data_value.get('enterprise_name', '未知企业'),
-            'field_name': data_value.get('field_name', '未知字段'),
-            'value': data_value.get('value', '暂无数据') or '暂无数据',
-            'details': '',  # 详情列占位
-        }
-        
-        if field_strategy == "full_fields":
-            # 显示完整字段，缺失的显示默认值
-            row.update({
-                'encoding': data_value.get('encoding', '未指定') or '未指定',
-                'format': data_value.get('format', '未指定') or '未指定',
-                'license': data_value.get('license', '未指定') or '未指定',
-            })
-        else:
-            # 只添加实际存在的字段
-            for field in ['encoding', 'format', 'license', 'rights']:
-                if field in data_value and data_value[field] and data_value[field] != '暂无数据':
-                    row[field] = data_value[field]
-        
-        return row
-
-    ### ------------------- 明细数据渲染展示 -------------------------
+    ### ------------------- 其他或错误情况下，明细数据渲染展示 -------------------------
     def _display_other_result(self, query_type: str, result_data: List[Any]):
         """
         显示其他类型查询结果
