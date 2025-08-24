@@ -769,6 +769,7 @@ async def execute_mongo_command(
             period=f"{round(execution_time, 2)}ms",
             messages=response_data["messages"],
             result_data=response_data["result_data"][0:100],
+            structure_type = response_data["structure_type"],
             field_strategy=response_data.get("field_strategy", "")  # 获取字段策略，默认为空
         )
         
@@ -785,6 +786,7 @@ async def execute_mongo_command(
             period=f"{round(execution_time, 2)}ms",
             messages=f"查询执行失败: {str(e)}",
             result_data=[],
+            structure_type="",
             field_strategy=""  # 错误情况下字段策略为空
         )
 

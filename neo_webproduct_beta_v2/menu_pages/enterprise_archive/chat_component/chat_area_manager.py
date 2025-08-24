@@ -340,7 +340,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     if response.status == 200:
                         result = await response.json()
                         # 添加 success 字段以保持兼容性
-                        result["success"] = (result.get("messages") == "正常处理")
+                        result["success"] = (result.get("type") != "错误" and result.get("messages") == "正常处理" )
                         return result
                     else:
                         error_text = await response.text()
