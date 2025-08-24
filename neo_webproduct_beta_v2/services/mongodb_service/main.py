@@ -768,7 +768,7 @@ async def execute_mongo_command(
             type=response_data["type"],
             period=f"{round(execution_time, 2)}ms",
             messages=response_data["messages"],
-            result_data=response_data["result_data"],
+            result_data=response_data["result_data"][0:100],
             field_strategy=response_data.get("field_strategy", "")  # 获取字段策略，默认为空
         )
         
@@ -1193,6 +1193,60 @@ def _split_parameters(params_str: str) -> List[str]:
     return params
 
 ## ----------- 分类查询结果 ----------------
+def _remove_duplicate_keys_from_data(result_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    检测并移除result_data中每项数据字典的重复key
+    
+    Args:
+        result_data: 查询结果数据列表
+        
+    Returns:
+        List[Dict[str, Any]]: 移除重复key后的数据列表
+    """
+    if not result_data:
+        return result_data
+    
+    cleaned_data = []
+    
+    for doc in result_data:
+        if doc is None:
+            continue
+            
+        # 检测重复key
+        keys = list(doc.keys())
+        unique_keys = []
+        seen_keys = set()
+        duplicate_keys = []
+        
+        for key in keys:
+            key_lower = key.lower().strip()  # 标准化key进行比较
+            if key_lower in seen_keys:
+                duplicate_keys.append(key)
+            else:
+                seen_keys.add(key_lower)
+                unique_keys.append(key)
+        
+        # 如果发现重复key，记录日志并移除
+        if duplicate_keys:
+            log_info(f"发现重复字段键: {duplicate_keys}", 
+                    extra_data=f'{{"duplicate_keys": {duplicate_keys}, "doc_keys": {keys}}}')
+            
+            # 创建新的字典，只保留第一次出现的key
+            cleaned_doc = {}
+            processed_keys = set()
+            
+            for key, value in doc.items():
+                key_lower = key.lower().strip()
+                if key_lower not in processed_keys:
+                    cleaned_doc[key] = value
+                    processed_keys.add(key_lower)
+            
+            cleaned_data.append(cleaned_doc)
+        else:
+            # 没有重复key，直接添加
+            cleaned_data.append(doc)
+    
+    return cleaned_data
 
 def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
@@ -1204,24 +1258,27 @@ def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List
     Returns:
         元组：(处理后的数据列表, 包含字段策略的字典)
     """
+    # 1. 先检测并移除重复key
+    cleaned_data = _remove_duplicate_keys_from_data(result_data)
+    
     # 获取完整字段模板
     field_dict = _get_complete_field_template()
     
     # 如果没有数据，返回空结果
-    if not result_data:
+    if not cleaned_data:
         return [], {"field_strategy": "flat_card"}
     
     processed_data = []
     
     # 处理单个或空数据的情况
-    for doc in result_data:
+    for doc in cleaned_data:
         if doc is None:
             continue
             
         processed_doc = {}
         matched_fields = set()  # 记录匹配的字段
         
-        # 遍历文档的每个字段
+        # 2. 遍历文档的每个字段进行字段映射和对比操作
         for key, value in doc.items():
             if key in field_dict:
                 # 如果字段在模板中，替换为中文名称
@@ -1235,9 +1292,9 @@ def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List
         processed_data.append(processed_doc)
     
     # 判断字段策略：如果所有模板字段都能匹配到，则为full_card，否则为flat_card
-    if result_data:
+    if cleaned_data:
         # 获取第一个非None文档来判断字段匹配情况
-        first_doc = next((doc for doc in result_data if doc is not None), {})
+        first_doc = next((doc for doc in cleaned_data if doc is not None), {})
         matched_template_keys = set(first_doc.keys()) & set(field_dict.keys())
         
         # 判断是否模板字段全部匹配
@@ -1260,15 +1317,18 @@ def _create_multi_docs_document(result_data: List[Dict[str, Any]]) -> Tuple[List
     Returns:
         元组：(处理后的数据列表, 包含字段策略的字典)
     """
+    # 1. 先检测并移除重复key
+    cleaned_data = _remove_duplicate_keys_from_data(result_data)
+    
     # 获取完整字段模板
     field_dict = _get_complete_field_template()
     
     # 如果没有数据，返回空结果
-    if not result_data:
+    if not cleaned_data:
         return [], {"field_strategy": "flat_table"}
     
     # 先用第一个文档判断字段策略
-    first_doc = result_data[0] if result_data else {}
+    first_doc = cleaned_data[0] if cleaned_data else {}
     field_strategy = "flat_table"  # 默认为平表策略
     
     if first_doc:
@@ -1281,8 +1341,8 @@ def _create_multi_docs_document(result_data: List[Dict[str, Any]]) -> Tuple[List
     
     processed_data = []
     
-    # 遍历所有文档进行字段映射处理
-    for doc in result_data:
+    # 2. 遍历所有文档进行字段映射处理和对比操作
+    for doc in cleaned_data:
         if doc is None:
             continue
             
@@ -1678,6 +1738,7 @@ async def _execute_mongodb_query(
         log_error("MongoDB查询执行失败", exception=e, 
                  extra_data=f'{{"query_type": "{query_type}", "query_params": {query_params}, "collection": "{manager.collection_name}"}}')
         raise
+
 # ==================== 错误处理 ====================
 
 @app.exception_handler(Exception)
