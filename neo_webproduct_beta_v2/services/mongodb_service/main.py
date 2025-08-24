@@ -1194,7 +1194,7 @@ def _split_parameters(params_str: str) -> List[str]:
 
 ## ----------- 分类查询结果 ----------------
 def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # 操作步骤：
+    # 待实现，操作步骤：
     # 匹配对 result_data 与 filed_dict：
     #   如 result_data 与 filed_dict匹配的key，将result_data的key替换为filed_dict的value值；result_data中未匹配字段保留。处理后的result_data作为返回数据的第一个参数。
     #   如果filed_dict能全部匹配，那返回数据中的第二个参数：field_strategy:'full_card', 否则为field_strategy:'flat_card'。
@@ -1202,7 +1202,7 @@ def _create_single_doc_document(result_data: List[Dict[str, Any]]) -> Tuple[List
     pass
 
 def _create_multi_docs_document(result_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    # 操作步骤：
+    # 待实现，操作步骤：
     # 取出result_data[0] 与 filed_dict 进行匹配：
     #   如果filed_dict能全部匹配，那返回数据中的第二个参数：field_strategy:'full_table', 否则为field_strategy:'flat_table'。
     # 遍历result_data与filed_dict匹配，对于匹配上的将result_data的key替换为filed_dict的value值；result_data中未匹配字段保留。处理后的result_data作为返回数据的第一个参数。

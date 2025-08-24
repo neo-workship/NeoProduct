@@ -383,13 +383,15 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             if result.get("messages") == "正常处理":  # 查询成功
                 query_type = result.get("type", "")
                 result_data = result.get("result_data", [])
+                result_structure = result.get("result_structure","")
+                field_strategy = result.get("field_strategy","")
                 
                 if query_type == "汇总":
                     self._display_summary_result(result_data)
                 elif query_type == "分组":
                     self._display_group_result(result_data)
                 elif query_type == "明细":
-                    self._display_detail_result(result_data)
+                    self._display_detail_result(result_data,result_structure,field_strategy)
                 else:
                     self._display_other_result(query_type, result_data)
             else:
@@ -497,7 +499,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
     ### ------------------- 明细数据渲染展示 -------------------------
-    def _display_detail_result(self, result_data: List[Dict[str, Any]], result: Dict[str, Any] = None):
+    def _display_detail_result(self, result_data: List[Dict[str, Any]], result_structure:str,field_strategy:str):
         """
         显示明细查询结果 - 基于field_strategy进行字段匹配展示
         根据数据条数选择不同的显示方式，同时考虑字段策略
@@ -508,161 +510,22 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         """
         if isinstance(result_data, list) and result_data:
             # 根据数据条数选择显示方式（完全借鉴read_archive_tab的逻辑）
-            if len(result_data) <= 1:
-                # 无数据或只有一条数据时，使用卡片方式显示
-                self._display_detail_results_as_cards(result_data, result)
-            else:
-                # 多条数据时，使用表格分页方式显示
-                self._display_detail_results_as_table(result_data, result)
+            if result_structure == "single_data":
+                self._display_detail_results_as_cards(result_data, result_structure,field_strategy)
+            elif result_structure == "multi_data" :
+                self._display_detail_results_as_table(result_data, result_structure,field_strategy)
         else:
             ui.label("🔍 明细查询结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
         )
 
-    def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]], result: Dict[str, Any] = None):
-        """
-        卡片方式显示明细查询结果（无数据或只有一条数据）- 基于field_strategy优化字段显示
-        完全参考read_archive_tab.py的display_results_as_cards方法
-        
-        Args:
-            result_data: 明细查询结果数据列表
-            result: 完整的查询结果，包含field_strategy信息
-        """
-        if not result_data:
-            # 无数据情况，显示空状态
-            ui.label("🔍 明细查询结果: 无数据").classes(
-                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-            )
-            return
-        
-        # 获取字段策略
-        field_strategy = result.get("field_strategy", "") if result else ""
-        
-        # 有数据时，参考read_archive_tab的卡片展示方式
-        for i, result_item in enumerate(result_data):
-            with ui.row().classes('w-full gap-4 items-stretch'):
-                # 左侧card展示：类似read_archive_tab的左侧card
-                # 展示字段信息：full_path_name、value、value_pic_url、value_doc_url、value_video_url
-                with ui.card().classes('flex-1 p-4'):
-                    ui.label('字段信息').classes('text-subtitle1 font-medium mb-3')
-                    
-                    if isinstance(result_item, dict) and "data_value" in result_item:
-                        data_value = result_item["data_value"]
-                        
-                        # 根据field_strategy决定字段显示策略
-                        self._display_data_value_fields(data_value, field_strategy, "left_card")
-                        
-                    else:
-                        # 显示默认的技术信息
-                        with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('info').classes('text-lg text-gray-600')
-                            ui.label('暂无字段信息').classes('text-lg font-medium')
-                
-                # 右侧card展示：类似read_archive_tab的右侧card
-                # 展示技术信息：data_url、encoding、format、license、rights、update_frequency、value_dict
-                with ui.card().classes('flex-1 p-4'):
-                    ui.label('技术信息').classes('text-subtitle1 font-medium mb-3')
-                    
-                    if isinstance(result_item, dict) and "data_meta" in result_item:
-                        data_meta = result_item["data_meta"]
-                        
-                        # 根据field_strategy决定字段显示策略
-                        self._display_data_meta_fields(data_meta, field_strategy, "right_card")
-                        
-                    else:
-                        # 显示默认的技术信息
-                        with ui.row().classes('gap-2 items-center mb-2'):
-                            ui.icon('info').classes('text-lg text-gray-600')
-                            ui.label('暂无技术信息').classes('text-lg font-medium')
+    def _display_detail_results_as_cards(self, result_data: List[Dict[str, Any]], result_structure:str,field_strategy:str):
+        # 待实现：以ui.card组件展示result_data数据
+        pass
 
-    def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]], result: Dict[str, Any] = None):
-        """
-        表格方式显示明细查询结果（多条数据，分页模式）- 基于field_strategy优化字段显示
-        完全参考read_archive_tab.py的display_results_as_table方法
-        
-        Args:
-            result_data: 明细查询结果数据列表
-            result: 完整的查询结果，包含field_strategy信息
-        """
-        ui.html(f"<b>🔍 明细查询结果</b> (共 {len(result_data)} 条记录):").classes(
-            'whitespace-pre-wrap w-full text-base bg-blue-50 border-l-4 border-blue-500 p-3 mb-2'
-        )
-        
-        # 获取字段策略
-        field_strategy = result.get("field_strategy", "") if result else ""
-        
-        # 根据field_strategy动态构建表格列
-        columns = self._build_table_columns_by_strategy(result_data, field_strategy)
-        
-        # 构建表格行数据
-        rows = []
-        for i, result_item in enumerate(result_data):
-            if isinstance(result_item, dict) and "data_value" in result_item:
-                data_value = result_item["data_value"]
-                
-                # 根据field_strategy构建行数据
-                row = self._build_table_row_by_strategy(data_value, field_strategy, i)
-                row['_raw_data'] = result_item  # 保留原始数据用于详情展示
-                rows.append(row)
-        
-        if not rows:
-            ui.label("🔍 明细查询结果: 无有效数据").classes(
-                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-            )
-            return
-        
-        # 创建表格
-        table = ui.table(
-            columns=columns, 
-            rows=rows, 
-            row_key='id',
-            pagination=10,
-            column_defaults={
-                'align': 'left',
-                'headerClasses': 'uppercase text-primary text-sm font-bold',
-            }
-        ).classes('w-full')
-        
-        # 添加详情展开槽（保持现有UI布局）
-        table.add_slot('body-cell-details', '''
-            <q-td :props="props">
-                <q-btn flat dense color="primary" icon="expand_more" size="sm" 
-                    @click="props.expand = !props.expand">
-                    详情
-                </q-btn>
-            </q-td>
-        ''')
-        
-        # 详情展开行（保持现有UI布局）
-        table.add_slot('body-cell-expand', '''
-            <q-tr v-show="props.expand" :props="props">
-                <q-td colspan="100%">
-                    <div class="text-left">
-                        <!-- 详情内容将由Vue处理 -->
-                        <div><strong>字段路径:</strong> {{props.row._raw_data.data_value?.full_path_name || '暂无数据'}}</div>
-                        <div><strong>企业代码:</strong> {{props.row._raw_data.data_value?.enterprise_code || '暂无数据'}}</div>
-                        <div><strong>图片链接:</strong> 
-                            <a v-if="props.row._raw_data.data_value?.value_pic_url" 
-                            :href="props.row._raw_data.data_value.value_pic_url" 
-                            target="_blank" class="text-primary">查看图片</a>
-                            <span v-else>暂无数据</span>
-                        </div>
-                        <div><strong>文档链接:</strong> 
-                            <a v-if="props.row._raw_data.data_value?.value_doc_url" 
-                            :href="props.row._raw_data.data_value.value_doc_url" 
-                            target="_blank" class="text-primary">查看文档</a>
-                            <span v-else>暂无数据</span>
-                        </div>
-                        <div><strong>视频链接:</strong> 
-                            <a v-if="props.row._raw_data.data_value?.value_video_url" 
-                            :href="props.row._raw_data.data_value.value_video_url" 
-                            target="_blank" class="text-primary">查看视频</a>
-                            <span v-else>暂无数据</span>
-                        </div>
-                    </div>
-                </q-td>
-            </q-tr>
-        ''')
+    def _display_detail_results_as_table(self, result_data: List[Dict[str, Any]], result_structure:str,field_strategy:str):
+        # 待实现：以ui.table组件展示result_data数据，如果field_strategy == "full_table",参考\menu_pages\enterprise_archive\read_archive_tab.py中display_results_as_table函数进行展示。
+        pass
 
     def _display_data_value_fields(self, data_value: Dict[str, Any], field_strategy: str, display_context: str = "left_card"):
         """
