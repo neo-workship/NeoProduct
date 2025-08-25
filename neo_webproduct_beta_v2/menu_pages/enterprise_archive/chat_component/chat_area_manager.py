@@ -494,6 +494,71 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
         )
     
+    def _download_table_data(self, table_data: Dict[str, Any]):
+        """
+        通用表格数据下载功能 - 下载表格数据为CSV文件
+        这是一个通用功能，可以被任何ui.table组件使用
+        Args:
+            table_data: 表格数据字典，包含 'columns' 和 'rows' 键
+        """
+        if not table_data or 'columns' not in table_data or 'rows' not in table_data:
+            ui.notify('没有可下载的数据', type='warning')
+            return
+        
+        try:
+            import io
+            import csv
+            
+            # 创建CSV内容
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # 写入表头 - 使用列的label作为表头
+            headers = []
+            for col in table_data['columns']:
+                if isinstance(col, dict):
+                    # 排除内部字段（以_开头的字段）
+                    if not col.get('name', '').startswith('_'):
+                        headers.append(col.get('label', col.get('name', '')))
+                else:
+                    headers.append(str(col))
+            writer.writerow(headers)
+            
+            # 写入数据行
+            for row in table_data['rows']:
+                if isinstance(row, dict):
+                    # 如果行是字典，按列的顺序提取值，排除内部字段
+                    row_values = []
+                    for col in table_data['columns']:
+                        col_name = col['name'] if isinstance(col, dict) else col
+                        # 排除内部字段（以_开头的字段）
+                        if not col_name.startswith('_'):
+                            value = row.get(col_name, '')
+                            # 处理特殊值
+                            if value is None:
+                                row_values.append('')
+                            else:
+                                row_values.append(str(value))
+                    writer.writerow(row_values)
+                else:
+                    # 如果行是列表，直接写入
+                    writer.writerow(row)
+            
+            # 获取CSV内容
+            csv_content = output.getvalue()
+            output.close()
+            
+            # 生成文件名（包含时间戳）
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'table_data_{timestamp}.csv'
+            
+            # 触发下载
+            ui.download(csv_content.encode('utf-8-sig'), filename)
+            ui.notify('文件下载成功', type='positive')
+            
+        except Exception as e:
+            ui.notify(f'下载失败: {str(e)}', type='negative')
     ### ------------------- 明细数据渲染展示 -------------------------
     def _display_detail_result(self, result_data: List[Dict[str, Any]], structure_type:str,field_strategy:str):
         """
@@ -615,128 +680,137 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 }
             }
             rows.append(row_data)
-        
-        # 创建表格
-        table = ui.table(
-            columns=columns, 
-            rows=rows, 
-            row_key='id',
-            pagination=10,  # 每页显示10条
-            column_defaults={
-                'align': 'left',
-                'headerClasses': 'uppercase text-primary text-base font-bold',
-            }
-        ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
-        
-        # 添加表头（包含展开按钮列）
-        table.add_slot('header', r'''
-            <q-tr :props="props">
-                <q-th auto-width />
-                <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                    {{ col.label }}
-                </q-th>
-            </q-tr>
-        ''')
-        
-        # 添加表格主体（包含展开功能）
-        table.add_slot('body', r'''
-            <q-tr :props="props">
-                <q-td auto-width>
-                    <q-btn size="sm" color="accent" round dense
-                        @click="props.expand = !props.expand"
-                        :icon="props.expand ? 'remove' : 'add'" />
-                </q-td>
-                <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                    <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
-                        {{ col.value }}
-                    </div>
-                </q-td>
-            </q-tr>
-            <q-tr v-show="props.expand" :props="props">
-                <q-td colspan="100%">
-                    <div class="text-left bg-blue-50 p-4 rounded">
-                        <div class="text-subtitle2 text-primary mb-3">📋 详细信息</div>
-                        <!-- 参考read_archive_tab.py的两列布局 -->
-                        <div class="row q-col-gutter-md">
-                            <!-- 左列 -->
-                            <div class="col-6">
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">字段说明:</strong>
-                                    <div class="q-ml-sm">{{ props.row._expand_data.field_description || 'N/A' }}</div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">字段关联图片:</strong>
-                                    <div class="q-ml-sm">
-                                        <a v-if="props.row._expand_data.value_pic_url" 
-                                        :href="props.row._expand_data.value_pic_url" 
-                                        target="_blank" class="text-blue-600">
-                                            {{ props.row._expand_data.value_pic_url }}
-                                        </a>
-                                        <span v-else class="text-grey-6">暂无图片</span>
+
+        with ui.card().classes('w-full relative bg-[#81c784]'):
+            with ui.row().classes('absolute top-2 right-2 z-10'):
+                ui.button(
+                    icon='download',
+                    on_click=lambda: self._download_table_data({
+                        'columns': columns,
+                        'rows': rows
+                    })
+                ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载表格数据')
+            # 创建表格
+            table = ui.table(
+                columns=columns, 
+                rows=rows, 
+                row_key='id',
+                pagination=10,  # 每页显示10条
+                column_defaults={
+                    'align': 'left',
+                    'headerClasses': 'uppercase text-primary text-base font-bold',
+                }
+            ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
+            
+            # 添加表头（包含展开按钮列）
+            table.add_slot('header', r'''
+                <q-tr :props="props">
+                    <q-th auto-width />
+                    <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                        {{ col.label }}
+                    </q-th>
+                </q-tr>
+            ''')
+            
+            # 添加表格主体（包含展开功能）
+            table.add_slot('body', r'''
+                <q-tr :props="props">
+                    <q-td auto-width>
+                        <q-btn size="sm" color="accent" round dense
+                            @click="props.expand = !props.expand"
+                            :icon="props.expand ? 'remove' : 'add'" />
+                    </q-td>
+                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                        <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                            {{ col.value }}
+                        </div>
+                    </q-td>
+                </q-tr>
+                <q-tr v-show="props.expand" :props="props">
+                    <q-td colspan="100%">
+                        <div class="text-left bg-blue-50 p-4 rounded">
+                            <div class="text-subtitle2 text-primary mb-3">📋 详细信息</div>
+                            <!-- 参考read_archive_tab.py的两列布局 -->
+                            <div class="row q-col-gutter-md">
+                                <!-- 左列 -->
+                                <div class="col-6">
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">字段说明:</strong>
+                                        <div class="q-ml-sm">{{ props.row._expand_data.field_description || 'N/A' }}</div>
+                                    </div>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">字段关联图片:</strong>
+                                        <div class="q-ml-sm">
+                                            <a v-if="props.row._expand_data.value_pic_url" 
+                                            :href="props.row._expand_data.value_pic_url" 
+                                            target="_blank" class="text-blue-600">
+                                                {{ props.row._expand_data.value_pic_url }}
+                                            </a>
+                                            <span v-else class="text-grey-6">暂无图片</span>
+                                        </div>
+                                    </div>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">字段关联文档:</strong>
+                                        <div class="q-ml-sm">
+                                            <a v-if="props.row._expand_data.value_doc_url" 
+                                            :href="props.row._expand_data.value_doc_url" 
+                                            target="_blank" class="text-blue-600">
+                                                {{ props.row._expand_data.value_doc_url }}
+                                            </a>
+                                            <span v-else class="text-grey-6">暂无文档</span>
+                                        </div>
+                                    </div>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">字段关联视频:</strong>
+                                        <div class="q-ml-sm">
+                                            <a v-if="props.row._expand_data.value_video_url" 
+                                            :href="props.row._expand_data.value_video_url" 
+                                            target="_blank" class="text-blue-600">
+                                                {{ props.row._expand_data.value_video_url }}
+                                            </a>
+                                            <span v-else class="text-grey-6">暂无视频</span>
+                                        </div>
+                                    </div>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">数据源URL:</strong>
+                                        <div class="q-ml-sm">
+                                            <a v-if="props.row._expand_data.data_url" 
+                                            :href="props.row._expand_data.data_url" 
+                                            target="_blank" class="text-blue-600">
+                                                {{ props.row._expand_data.data_url }}
+                                            </a>
+                                            <span v-else class="text-grey-6">N/A</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">字段关联文档:</strong>
-                                    <div class="q-ml-sm">
-                                        <a v-if="props.row._expand_data.value_doc_url" 
-                                        :href="props.row._expand_data.value_doc_url" 
-                                        target="_blank" class="text-blue-600">
-                                            {{ props.row._expand_data.value_doc_url }}
-                                        </a>
-                                        <span v-else class="text-grey-6">暂无文档</span>
+                                <!-- 右列 -->
+                                <div class="col-6">
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">数据来源:</strong>
+                                        <div class="q-ml-sm">{{ props.row._expand_data.data_source || 'N/A' }}</div>
                                     </div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">字段关联视频:</strong>
-                                    <div class="q-ml-sm">
-                                        <a v-if="props.row._expand_data.value_video_url" 
-                                        :href="props.row._expand_data.value_video_url" 
-                                        target="_blank" class="text-blue-600">
-                                            {{ props.row._expand_data.value_video_url }}
-                                        </a>
-                                        <span v-else class="text-grey-6">暂无视频</span>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">许可证:</strong>
+                                        <div class="q-ml-sm">{{ props.row._expand_data.license || 'N/A' }}</div>
                                     </div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">数据源URL:</strong>
-                                    <div class="q-ml-sm">
-                                        <a v-if="props.row._expand_data.data_url" 
-                                        :href="props.row._expand_data.data_url" 
-                                        target="_blank" class="text-blue-600">
-                                            {{ props.row._expand_data.data_url }}
-                                        </a>
-                                        <span v-else class="text-grey-6">N/A</span>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">使用权限:</strong>
+                                        <div class="q-ml-sm">{{ props.row._expand_data.rights || 'N/A' }}</div>
                                     </div>
-                                </div>
-                            </div>
-                            <!-- 右列 -->
-                            <div class="col-6">
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">数据来源:</strong>
-                                    <div class="q-ml-sm">{{ props.row._expand_data.data_source || 'N/A' }}</div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">许可证:</strong>
-                                    <div class="q-ml-sm">{{ props.row._expand_data.license || 'N/A' }}</div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">使用权限:</strong>
-                                    <div class="q-ml-sm">{{ props.row._expand_data.rights || 'N/A' }}</div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">更新频率:</strong>
-                                    <div class="q-ml-sm">{{ props.row._expand_data.update_frequency || 'N/A' }}</div>
-                                </div>
-                                <div class="q-mb-sm">
-                                    <strong class="text-grey-8">字典值选项:</strong>
-                                    <div class="q-ml-sm">{{ props.row._expand_data.value_dict || 'N/A' }}</div>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">更新频率:</strong>
+                                        <div class="q-ml-sm">{{ props.row._expand_data.update_frequency || 'N/A' }}</div>
+                                    </div>
+                                    <div class="q-mb-sm">
+                                        <strong class="text-grey-8">字典值选项:</strong>
+                                        <div class="q-ml-sm">{{ props.row._expand_data.value_dict || 'N/A' }}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </q-td>
-            </q-tr>
-        ''')
+                    </q-td>
+                </q-tr>
+            ''')
 
     def _format_field_value(self, value):
         """
@@ -884,92 +958,112 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             
             if use_expand:
                 # 创建带展开功能的表格
-                table = ui.table(
-                    columns=columns, 
-                    rows=rows,
-                    row_key='id',
-                    pagination=5,  # 每页显示5条
-                    column_defaults={
-                        'align': 'left',
-                        'headerClasses': 'uppercase text-primary text-base font-bold',
-                    }
-                ).classes('w-full bg-[#81c784] text-gray-800')
-                
-                # 添加展开功能的表头
-                table.add_slot('header', r'''
-                    <q-tr :props="props">
-                        <q-th auto-width />
-                        <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                            {{ col.label }}
-                        </q-th>
-                    </q-tr>
-                ''')
-                
-                # 动态生成展开区域的字段显示HTML
-                expand_fields_html = ""
-                # 将隐藏字段分为两列显示，类似_display_full_card_mode
-                for i, field in enumerate(hidden_fields):
-                    field_label = field.replace('_', ' ').title()
-                    col_class = "col-6" if len(hidden_fields) > 1 else "col-12"
+                with ui.card().classes('w-full relative bg-[#81c784]'):
+                    with ui.row().classes('absolute top-2 right-2 z-10'):
+                        ui.button(
+                            icon='download',
+                            on_click=lambda: self._download_table_data({
+                                'columns': columns,
+                                'rows': rows
+                            })
+                        ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载表格数据')
+                    table = ui.table(
+                        columns=columns, 
+                        rows=rows,
+                        row_key='id',
+                        pagination=5,  # 每页显示5条
+                        column_defaults={
+                            'align': 'left',
+                            'headerClasses': 'uppercase text-primary text-base font-bold',
+                        }
+                    ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
                     
-                    if i % 2 == 0:  # 偶数索引，开始新行或左列
-                        if i == 0:
-                            expand_fields_html += f'<div class="row q-col-gutter-md">'
-                        expand_fields_html += f'<div class="{col_class}">'
+                    # 添加展开功能的表头
+                    table.add_slot('header', r'''
+                        <q-tr :props="props">
+                            <q-th auto-width />
+                            <q-th v-for="col in props.cols" :key="col.name" :props="props">
+                                {{ col.label }}
+                            </q-th>
+                        </q-tr>
+                    ''')
                     
-                    expand_fields_html += f'''
-                        <div class="q-mb-sm">
-                            <strong class="text-grey-8">{field_label}:</strong>
-                            <div class="q-ml-sm text-body2">{{{{ props.row._expand_data.{field} || 'N/A' }}}}</div>
-                        </div>
-                    '''
-                    
-                    if i % 2 == 1 or i == len(hidden_fields) - 1:  # 奇数索引或最后一个，结束列
-                        expand_fields_html += '</div>'
-                        if i == len(hidden_fields) - 1:  # 最后一个，结束行
+                    # 动态生成展开区域的字段显示HTML
+                    expand_fields_html = ""
+                    # 将隐藏字段分为两列显示，类似_display_full_card_mode
+                    for i, field in enumerate(hidden_fields):
+                        field_label = field.replace('_', ' ').title()
+                        col_class = "col-6" if len(hidden_fields) > 1 else "col-12"
+                        
+                        if i % 2 == 0:  # 偶数索引，开始新行或左列
+                            if i == 0:
+                                expand_fields_html += f'<div class="row q-col-gutter-md">'
+                            expand_fields_html += f'<div class="{col_class}">'
+                        
+                        expand_fields_html += f'''
+                            <div class="q-mb-sm">
+                                <strong class="text-grey-8">{field_label}:</strong>
+                                <div class="q-ml-sm text-body2">{{{{ props.row._expand_data.{field} || 'N/A' }}}}</div>
+                            </div>
+                        '''
+                        
+                        if i % 2 == 1 or i == len(hidden_fields) - 1:  # 奇数索引或最后一个，结束列
                             expand_fields_html += '</div>'
-                
-                # 添加展开功能的表格主体
-                table.add_slot('body', f'''
-                    <q-tr :props="props">
-                        <q-td auto-width>
-                            <q-btn size="sm" color="accent" round dense
-                                @click="props.expand = !props.expand"
-                                :icon="props.expand ? 'remove' : 'add'" />
-                        </q-td>
-                        <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                            <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
-                                {{{{ col.value }}}}
-                            </div>
-                        </q-td>
-                    </q-tr>
-                    <q-tr v-show="props.expand" :props="props">
-                        <q-td colspan="100%">
-                            <div class="text-left bg-blue-50 p-4 rounded">
-                                <div class="text-sm text-primary mb-3">📋 更多字段信息</div>
-                                {expand_fields_html}
-                            </div>
-                        </q-td>
-                    </q-tr>
-                ''')
-                
-                # 添加数据说明
-                ui.label(f"💡 提示: 表格显示前5个字段，点击展开按钮查看其余{len(hidden_fields)}个字段").classes(
-                    'text-sm text-gray-600 mt-2'
-                )
-            else:
-                # 创建普通表格（字段数量≤10个）
-                ui.table(
-                    columns=columns, 
-                    rows=rows,
-                    pagination=5,
-                ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
-                
-                # 添加数据说明
-                if len(result_data) > 10:
-                    ui.label(f"💡 提示: 当前显示所有 {len(result_data)} 条记录的 {len(visible_fields)} 个字段").classes(
+                            if i == len(hidden_fields) - 1:  # 最后一个，结束行
+                                expand_fields_html += '</div>'
+                    
+                    # 添加展开功能的表格主体
+                    table.add_slot('body', f'''
+                        <q-tr :props="props">
+                            <q-td auto-width>
+                                <q-btn size="sm" color="accent" round dense
+                                    @click="props.expand = !props.expand"
+                                    :icon="props.expand ? 'remove' : 'add'" />
+                            </q-td>
+                            <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                                <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">
+                                    {{{{ col.value }}}}
+                                </div>
+                            </q-td>
+                        </q-tr>
+                        <q-tr v-show="props.expand" :props="props">
+                            <q-td colspan="100%">
+                                <div class="text-left bg-blue-50 p-4 rounded">
+                                    <div class="text-sm text-primary mb-3">📋 更多字段信息</div>
+                                    {expand_fields_html}
+                                </div>
+                            </q-td>
+                        </q-tr>
+                    ''')
+                    
+                    # 添加数据说明
+                    ui.label(f"💡 提示: 表格显示前5个字段，点击展开按钮查看其余{len(hidden_fields)}个字段").classes(
                         'text-sm text-gray-600 mt-2'
                     )
+            else:
+                # 创建普通表格（字段数量≤10个）
+                with ui.card().classes('w-full relative bg-[#81c784]'):
+                    
+                    with ui.row().classes('absolute top-2 right-2 z-10'):
+                        ui.button(
+                            icon='download',
+                            on_click=lambda: self._download_table_data({
+                                'columns': columns,
+                                'rows': rows
+                            })
+                        ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载表格数据')
+
+                    ui.table(
+                        columns=columns, 
+                        rows=rows,
+                        pagination=5,
+                    ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
+                    
+                    # 添加数据说明
+                    if len(result_data) > 10:
+                        ui.label(f"💡 提示: 当前显示所有 {len(result_data)} 条记录的 {len(visible_fields)} 个字段").classes(
+                            'text-sm text-gray-600 mt-2'
+                        )
 
     #### ------------------- _display_cards 模式字段渲染 -------------------
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
@@ -1288,11 +1382,24 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             rows.append(row_data)
         
         # 创建表格
-        ui.table(
-            columns=columns,
-            rows=rows,
-            pagination=5
-        ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
+        with ui.card().classes('w-full relative bg-[#81c784]'):
+            with ui.row().classes('absolute top-2 right-2 z-10'):
+                ui.button(
+                    icon='download',
+                    on_click=lambda: self._download_table_data({
+                        'columns': columns,
+                        'rows': rows
+                    })
+                ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载表格数据')
+            ui.table(
+                columns=columns,
+                rows=rows,
+                pagination=5,
+                column_defaults={
+                    'align': 'left',
+                    'headerClasses': 'uppercase text-primary text-base font-bold',
+                }
+            ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
 
     ### ------------------- other 数据渲染展示 -------------------------
     def _display_other_as_cards(self, query_type: str, result_data: List[Any]):
@@ -1392,22 +1499,39 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 rows.append(row_data)
             
             # 创建表格
-            ui.table(
-                columns=columns,
-                rows=rows,
-                pagination=5
-            ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
-        
+            with ui.card().classes('w-full relative bg-[#81c784]'):
+                with ui.row().classes('absolute top-2 right-2 z-10'):
+                    ui.button(
+                        icon='download',
+                        on_click=lambda: self._download_table_data({
+                            'columns': columns,
+                            'rows': rows
+                        })
+                    ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载表格数据')
+                ui.table(
+                    columns=columns,
+                    rows=rows,
+                    pagination=5
+                ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
         else:
             # 非字典类型数据，创建简单的单列表格
             columns = [{'name': 'content', 'label': '内容', 'field': 'content', 'align': 'left'}]
             rows = [{'id': i, 'content': str(item)} for i, item in enumerate(result_data)]
             
-            ui.table(
-                columns=columns,
-                rows=rows,
-                pagination=5
-            ).classes('w-full').props('flat bordered dense wrap-cells')
+            with ui.card().classes('w-full relative bg-[#81c784]'):
+                with ui.row().classes('absolute top-2 right-2 z-10'):
+                    ui.button(
+                        icon='download',
+                        on_click=lambda: self._download_table_data({
+                            'columns': columns,
+                            'rows': rows
+                        })
+                    ).classes('bg-blue-500 hover:bg-blue-600 text-white').props('flat round size=sm').tooltip('下载表格数据')
+                ui.table(
+                    columns=columns,
+                    rows=rows,
+                    pagination=5
+                ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
 
     def _format_numeric_value(self, value):
         """
@@ -1711,13 +1835,23 @@ class ChatAreaManager:
                 ).classes('w-full'):
                     # 创建临时的chat_content_container用于单条消息渲染
                     with ui.column().classes('w-full') as self.chat_content_container:
-                        temp_reply_label = ui.markdown(message['content']).classes('w-full')
-                        # 调用optimize_content_display进行内容优化显示
-                        await self.markdown_parser.optimize_content_display(
-                            temp_reply_label, 
-                            message['content'], 
-                            self.chat_content_container
-                        )
+                        if self.chat_data_state.current_prompt_config.selected_prompt == '一企一档专家':
+                                with ui.card().classes('w-full relative bg-[#81c784]'):
+                                    with ui.row().classes('absolute top-2 right-2 z-10'):
+                                        ui.button(
+                                            icon='terminal',
+                                            on_click=lambda: ui.notify("hello")
+                                        ).classes(' hover:bg-blue-600').props('flat round size=sm').tooltip('执行查询')
+
+                                    ui.code(message['content']).classes('w-full bg-gray-200 dark:bg-zinc-600')
+                        else:
+                            temp_reply_label = ui.markdown(message['content']).classes('w-full')
+                            # 调用optimize_content_display进行内容优化显示
+                            await self.markdown_parser.optimize_content_display(
+                                temp_reply_label, 
+                                message['content'], 
+                                self.chat_content_container
+                            )
     #endregion
 
     # 重构后的 handle_message 方法
@@ -1860,21 +1994,25 @@ class ChatAreaManager:
             self.chat_data_state.current_chat_messages.extend(messages)
             await self.stop_waiting_effect()
             await self.cleanup_waiting_effect()
+
+            # 恢复历史聊天，侧边栏设置
+            self.chat_data_state.current_state.model_select_widget.set_value(model_name)
+            self.chat_data_state.current_state.prompt_select_widget.set_value(prompt_name)
+            self.chat_data_state.switch = (prompt_name == '一企一档专家')
+
             # 清空聊天界面
             self.chat_messages_container.clear()
             # 使用异步任务来渲染消息
             async def render_messages_async():
                 for msg in messages:
                     await self.render_single_message(msg)
+
             # 创建异步任务来处理消息渲染
             ui.timer(0.01, lambda: asyncio.create_task(render_messages_async()), once=True)
             # 滚动到底部
             ui.timer(0.1, lambda: self.scroll_area.scroll_to(percent=1), once=True)
             ui.notify(f'已加载聊天: {chat_title}', type='positive') 
-            # -----------------------------
-            self.chat_data_state.current_state.model_select_widget.set_value(model_name)
-            self.chat_data_state.current_state.prompt_select_widget.set_value(prompt_name)
-            self.chat_data_state.switch = (prompt_name == '一企一档专家')
+ 
         except Exception as e:
             await self.stop_waiting_effect()
             await self.cleanup_waiting_effect()
