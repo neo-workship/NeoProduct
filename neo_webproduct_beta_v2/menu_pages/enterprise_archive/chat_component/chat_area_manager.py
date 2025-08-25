@@ -1720,6 +1720,15 @@ class MessageProcessor:
             
             return error_message
 
+    async def execute_query_only(self, query_content: str) -> str:
+        """仅执行查询逻辑，不进行完整的对话流程"""
+        try:
+            # 不需要调用AI，直接提交query_content执行，执行完毕后结果就按原来的流程进行展示，但展示在ui.code的下方。
+            pass
+        except Exception as e:
+            error_message = f"查询执行失败：{str(e)[:300]}..."
+            return error_message
+
 # 更新后的 ChatAreaManager 类
 class ChatAreaManager:
     """主聊天区域管理器 - 负责聊天内容展示和用户交互"""  
@@ -1840,7 +1849,7 @@ class ChatAreaManager:
                                 with ui.row().classes('absolute top-2 right-2 z-10'):
                                     ui.button(
                                         icon='terminal',
-                                        on_click=lambda: ui.notify("hello")
+                                        on_click=lambda: self._execute_query_from_message(message['content'])
                                     ).classes(' hover:bg-blue-600').props('flat round size=sm').tooltip('执行查询')
                                 # with ui.expansion('代码', icon='code',value=True).classes('w-full'):
                                 ui.code(message['content']).classes('w-full bg-gray-200 dark:bg-zinc-600')
@@ -1852,6 +1861,17 @@ class ChatAreaManager:
                                 message['content'], 
                                 self.chat_content_container
                             )
+    
+    async def _execute_query_from_message(self, query_content: str):
+        """从消息内容执行查询"""
+        # 显示执行中的提示
+        ui.notify("正在执行查询...", type='info')
+        
+        try:
+            # 使用专门的查询执行方法
+            await self.message_processor.execute_query_only(query_content)
+        except Exception as e:
+            ui.notify(f"查询执行失败: {str(e)}", type='negative')
     #endregion
 
     # 重构后的 handle_message 方法
