@@ -1014,60 +1014,6 @@ def _parse_query_parameters_with_json5(query_cmd: str, query_type: str) -> Dict[
         log_error("解析查询参数失败", exception=e)
         return {}
 
-def _add_group_field_aliases(pipeline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    为group聚合操作添加字段别名处理
-    
-    Args:
-        pipeline: 聚合管道
-        
-    Returns:
-        处理后的聚合管道
-    """
-    # 聚合操作符到中文别名的映射
-    AGGREGATION_ALIASES = {
-        "$sum": "求和",
-        "$avg": "平均值", 
-        "$min": "最小值",
-        "$max": "最大值",
-        "$stdDevPop": "总体标准差",
-        "$stdDevSamp": "样本标准差",
-        "$count": "计数"
-    }
-    
-    processed_pipeline = []
-    field_aliases = {}
-    
-    for stage in pipeline:
-        if isinstance(stage, dict) and "$group" in stage:
-            group_stage = stage.copy()
-            group_spec = group_stage["$group"]
-            
-            # 处理group阶段中的聚合字段
-            if isinstance(group_spec, dict):
-                for field_name, field_expr in group_spec.items():
-                    if field_name != "_id" and isinstance(field_expr, dict):
-                        # 检查是否包含聚合操作符
-                        for agg_op, agg_value in field_expr.items():
-                            if agg_op in AGGREGATION_ALIASES:
-                                # 生成中文别名
-                                chinese_alias = AGGREGATION_ALIASES[agg_op]
-                                field_aliases[field_name] = chinese_alias
-                                
-                                log_info(f"为字段 {field_name} 添加别名: {chinese_alias}")
-            
-            processed_pipeline.append(group_stage)
-        else:
-            processed_pipeline.append(stage)
-    
-    # 如果有别名，添加到pipeline的元数据中
-    if field_aliases:
-        # 可以选择将别名信息添加到某个位置，或者在后续处理中使用
-        # 这里先记录日志，具体使用方式可以在后续步骤中确定
-        log_info(f"Group查询字段别名映射: {field_aliases}")
-    
-    return processed_pipeline
-
 def _extract_first_parameter(params_str: str) -> str:
     """
     从参数字符串中提取第一个参数（考虑嵌套括号和引号）
@@ -1194,7 +1140,141 @@ def _split_parameters(params_str: str) -> List[str]:
     
     return params
 
-## ----------- 分类查询结果 ----------------
+def _classify_query_result_new_format(query_type: str, 
+                                      result_data: List[Dict[str, Any]], 
+                                      total_count: int,
+                                      query_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    优化后的查询结果分类处理函数 - 支持嵌套列表数据处理
+    
+    Args:
+        query_type: 查询类型
+        result_data: 查询结果数据
+        total_count: 总数量
+        query_params: 查询参数
+    Returns:
+        分类后的数据字典 - 新格式
+    """
+    result = None
+    field_strategy = ""
+    structure_type = "unknown"  # 用于标识实际处理的结构类型
+    
+    # 1、汇总数据   
+    if query_type in ["count", "countDocuments", "distinct"]:
+        # 汇总类型：count、countDocuments、distinct
+        structure_type = "summary"
+        if result_data and len(result_data) > 0 and "count" in result_data[0]:
+            count_value = result_data[0]["count"]
+        else:
+            count_value = total_count
+        result = {
+            "type": "汇总",
+            "messages": "正常处理",
+            "result_data": [count_value] if count_value is not None else [0],
+            "structure_type": structure_type,
+            "field_strategy": field_strategy
+        }
+    
+    # 2、分组操作    
+    elif query_type == "group":
+        # 分组汇总类型：$group 聚合操作
+        # ========== 核心优化：参考find/findOne/aggregate的处理逻辑 ==========
+        # 1. 检测并提取嵌套列表中的数据
+        flattened_data = _extract_nested_list_data(result_data)
+        # 2. 重新计算实际需要处理的数据量
+        actual_data_count = len(flattened_data)
+        # 3. 处理分组结果，应用字段别名
+        processed_group_data = []
+        for doc in flattened_data:
+            if doc is not None and isinstance(doc, dict):
+                # 处理分组结果，应用字段别名
+                processed_doc = _apply_group_field_aliases(doc, query_params)
+                processed_group_data.append(processed_doc)
+            elif doc is not None:
+                # 如果不是字典但也不是None，直接添加
+                processed_group_data.append(doc)
+        
+        # 4. 根据实际数据量决定structure_type
+        if actual_data_count > 1:
+            structure_type = "multi_group"
+        else:
+            structure_type = "single_group"
+        
+        result = {
+            "type": "分组",
+            "messages": "正常处理", 
+            "result_data": processed_group_data,
+            "structure_type": structure_type,  # 动态设置结构类型
+            "field_strategy": "group"
+        }
+    
+    # 3、明细数据处理 - 优化后的逻辑  
+    elif query_type in ["find", "findOne", "aggregate"]:
+        # 明细类型：find、findOne、aggregate
+        result_list = []
+        
+        # ========== 核心优化：处理嵌套列表的逻辑 ==========
+        # 检测并提取嵌套列表中的数据
+        flattened_data = _extract_nested_list_data(result_data)
+        
+        # 重新计算实际需要处理的数据量
+        actual_data_count = len(flattened_data)
+        
+        # 根据实际数据量决定处理方式
+        if actual_data_count > 1:    # 有多条数据
+            result_list, strategy_dict = _create_multi_docs_document(flattened_data)
+            structure_type = "multi_data"
+            field_strategy = strategy_dict["field_strategy"]
+        elif actual_data_count <= 1:  # 只有1条数据或无数据
+            result_list, strategy_dict = _create_single_doc_document(flattened_data)
+            structure_type = "single_data"
+            field_strategy = strategy_dict["field_strategy"]
+
+        result = {
+            "type": "明细",
+            "messages": "正常处理",
+            "result_data": result_list,
+            "structure_type": structure_type,  # 标识实际处理的结构类型
+            "field_strategy": field_strategy     # 标识使用的字段策略
+        }
+    
+    # 记录执行命令和结果(临时测试使用)
+    try:
+        def convert_datetime_to_string(obj: Any) -> Any:
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, dict):
+                return {key: convert_datetime_to_string(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_datetime_to_string(item) for item in obj]
+            else:
+                return obj
+        
+        storage_data = {
+            "query_type": query_type,
+            "query_params": query_params,
+            "result": {
+                "type": result["type"],
+                "result": result["result_data"],
+                "structure_type": result.get("structure_type", "unknown"),
+                "field_strategy": result.get("field_strategy", "existing_fields")
+            },
+            "total_count": total_count,
+        }
+        serializable_data = convert_datetime_to_string(storage_data)
+        # 以query_type命名文件
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"D://mongoquery_history//{query_type}_{timestamp}.json"
+        # 使用json5写入文件，支持更灵活的JSON格式
+        with open(filename, 'w', encoding='utf-8') as f:
+            json5.dump(serializable_data , f, ensure_ascii=False, indent=2)
+            
+    except Exception as e:
+        # 文件存储失败不影响主要功能，可以记录日志或静默处理
+        print(f"文件存储失败{e}")
+    return result
+
+#region ----------- 明细查询结果 ----------------
 def _remove_duplicate_keys_from_data(result_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     检测并移除result_data中每项数据字典的重复key
@@ -1397,130 +1477,6 @@ def _get_complete_field_template() -> Dict[str, str]:
         "update_time": "更新时间",            
     }
 
-def _classify_query_result_new_format(query_type: str, 
-                                      result_data: List[Dict[str, Any]], 
-                                      total_count: int,
-                                      query_params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    优化后的查询结果分类处理函数 - 支持嵌套列表数据处理
-    
-    Args:
-        query_type: 查询类型
-        result_data: 查询结果数据
-        total_count: 总数量
-        query_params: 查询参数
-    Returns:
-        分类后的数据字典 - 新格式
-    """
-    result = None
-    field_strategy = ""
-    structure_type = "unknown"  # 用于标识实际处理的结构类型
-    
-    # 1、汇总数据   
-    if query_type in ["count", "countDocuments", "distinct"]:
-        # 汇总类型：count、countDocuments、distinct
-        structure_type = "summary"
-        if result_data and len(result_data) > 0 and "count" in result_data[0]:
-            count_value = result_data[0]["count"]
-        else:
-            count_value = total_count
-        result = {
-            "type": "汇总",
-            "messages": "正常处理",
-            "result_data": [count_value] if count_value is not None else [0],
-            "structure_type": structure_type,
-            "field_strategy": field_strategy
-        }
-    
-    # 2、分组操作    
-    elif query_type == "group":
-        # 分组汇总类型：$group 聚合操作
-        processed_group_data = []
-        structure_type = "grouped"
-        for doc in result_data:
-            if doc is not None and isinstance(doc, dict):
-                # 处理分组结果，应用字段别名
-                processed_doc = _apply_group_field_aliases(doc, query_params)
-                processed_group_data.append(processed_doc)
-            elif doc is not None:
-                # 如果不是字典但也不是None，直接添加
-                processed_group_data.append(doc)
-            # 跳过 None 值
-        
-        result = {
-            "type": "分组",
-            "messages": "正常处理", 
-            "result_data": processed_group_data,
-            "structure_type": structure_type,
-            "field_strategy": "group"
-        }
-    
-    # 3、明细数据处理 - 优化后的逻辑  
-    elif query_type in ["find", "findOne", "aggregate"]:
-        # 明细类型：find、findOne、aggregate
-        result_list = []
-        
-        # ========== 核心优化：处理嵌套列表的逻辑 ==========
-        # 检测并提取嵌套列表中的数据
-        flattened_data = _extract_nested_list_data(result_data)
-        
-        # 重新计算实际需要处理的数据量
-        actual_data_count = len(flattened_data)
-        
-        # 根据实际数据量决定处理方式
-        if actual_data_count > 1:    # 有多条数据
-            result_list, strategy_dict = _create_multi_docs_document(flattened_data)
-            structure_type = "multi_data"
-            field_strategy = strategy_dict["field_strategy"]
-        elif actual_data_count <= 1:  # 只有1条数据或无数据
-            result_list, strategy_dict = _create_single_doc_document(flattened_data)
-            structure_type = "single_data"
-            field_strategy = strategy_dict["field_strategy"]
-
-        result = {
-            "type": "明细",
-            "messages": "正常处理",
-            "result_data": result_list,
-            "structure_type": structure_type,  # 标识实际处理的结构类型
-            "field_strategy": field_strategy     # 标识使用的字段策略
-        }
-    
-    # 记录执行命令和结果(临时测试使用)
-    try:
-        def convert_datetime_to_string(obj: Any) -> Any:
-            if isinstance(obj, datetime):
-                return obj.isoformat()
-            elif isinstance(obj, dict):
-                return {key: convert_datetime_to_string(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_datetime_to_string(item) for item in obj]
-            else:
-                return obj
-        
-        storage_data = {
-            "query_type": query_type,
-            "query_params": query_params,
-            "result": {
-                "type": result["type"],
-                "result": result["result_data"],
-                "structure_type": result.get("structure_type", "unknown"),
-                "field_strategy": result.get("field_strategy", "existing_fields")
-            },
-            "total_count": total_count,
-        }
-        serializable_data = convert_datetime_to_string(storage_data)
-        # 以query_type命名文件
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"D://mongoquery_history//{query_type}_{timestamp}.json"
-        # 使用json5写入文件，支持更灵活的JSON格式
-        with open(filename, 'w', encoding='utf-8') as f:
-            json5.dump(serializable_data , f, ensure_ascii=False, indent=2)
-            
-    except Exception as e:
-        # 文件存储失败不影响主要功能，可以记录日志或静默处理
-        print(f"文件存储失败{e}")
-    return result
-
 def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     提取嵌套列表中的数据，将复杂的嵌套结构扁平化处理
@@ -1592,8 +1548,62 @@ def _extract_nested_list_data(result_data: List[Dict[str, Any]]) -> List[Dict[st
             flattened_data.append(doc)
     
     return flattened_data
+#endregion ----------- 明细查询结果 --------------
 
-## ----------- 分类查询结果 ----------------
+#region---------- 分组查询处理 -------------------
+def _add_group_field_aliases(pipeline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    为group聚合操作添加字段别名处理
+    
+    Args:
+        pipeline: 聚合管道
+        
+    Returns:
+        处理后的聚合管道
+    """
+    # 聚合操作符到中文别名的映射
+    AGGREGATION_ALIASES = {
+        "$sum": "求和",
+        "$avg": "平均值", 
+        "$min": "最小值",
+        "$max": "最大值",
+        "$stdDevPop": "总体标准差",
+        "$stdDevSamp": "样本标准差",
+        "$count": "计数"
+    }
+    
+    processed_pipeline = []
+    field_aliases = {}
+    
+    for stage in pipeline:
+        if isinstance(stage, dict) and "$group" in stage:
+            group_stage = stage.copy()
+            group_spec = group_stage["$group"]
+            
+            # 处理group阶段中的聚合字段
+            if isinstance(group_spec, dict):
+                for field_name, field_expr in group_spec.items():
+                    if field_name != "_id" and isinstance(field_expr, dict):
+                        # 检查是否包含聚合操作符
+                        for agg_op, agg_value in field_expr.items():
+                            if agg_op in AGGREGATION_ALIASES:
+                                # 生成中文别名
+                                chinese_alias = AGGREGATION_ALIASES[agg_op]
+                                field_aliases[field_name] = chinese_alias
+                                
+                                log_info(f"为字段 {field_name} 添加别名: {chinese_alias}")
+            
+            processed_pipeline.append(group_stage)
+        else:
+            processed_pipeline.append(stage)
+    
+    # 如果有别名，添加到pipeline的元数据中
+    if field_aliases:
+        # 可以选择将别名信息添加到某个位置，或者在后续处理中使用
+        # 这里先记录日志，具体使用方式可以在后续步骤中确定
+        log_info(f"Group查询字段别名映射: {field_aliases}")
+    
+    return processed_pipeline
 
 def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -1657,6 +1667,7 @@ def _apply_group_field_aliases(group_doc: Dict[str, Any], query_params: Dict[str
         return group_doc
     
     return processed_doc
+#endregion ---------- 分组查询处理 ---------------
     
 async def _execute_mongodb_query(
     manager: MongoDBManager, 

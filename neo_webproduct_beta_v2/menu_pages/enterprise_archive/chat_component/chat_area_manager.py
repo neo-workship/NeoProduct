@@ -489,9 +489,6 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2 w-full'
             )
             
-            # 显示分组汇总统计
-            self._display_group_summary(result_data)
-            
         else:
             ui.label("📊 分组结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
@@ -587,7 +584,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             {'name': 'encoding', 'label': '编码格式', 'field': 'encoding', 'sortable': True, 'align': 'left'},
             {'name': 'format', 'label': '数据格式', 'field': 'format', 'sortable': True, 'align': 'left'},
             {'name': 'created_time', 'label': '创建时间', 'field': 'created_time', 'sortable': True, 'align': 'left'},
-            {'name': 'updated_time', 'label': '更新时间', 'field': 'updated_time', 'sortable': True, 'align': 'left'},
+            # {'name': 'updated_time', 'label': '更新时间', 'field': 'updated_time', 'sortable': True, 'align': 'left'},
         ]
         
         # 准备行数据 - 只提取指定字段
@@ -602,7 +599,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 'encoding': item.get('encoding', item.get('编码格式', '未指定')),
                 'format': item.get('format', item.get('数据格式', '未指定')),
                 'created_time': self._format_time(item.get('created_time', item.get('创建时间', ''))),
-                'updated_time': self._format_time(item.get('updated_time', item.get('更新时间', ''))),
+                # 'updated_time': self._format_time(item.get('updated_time', item.get('更新时间', ''))),
                 # 保存展开显示所需的原始数据
                 '_expand_data': {
                     'field_description': item.get('field_description', item.get('字段说明', '无说明')),
@@ -976,22 +973,133 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
     #### ================== _display_card 模式字段渲染 ==========================
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
         """
-        full_card模式：朴素清晰地展示数据，单卡片两列均衡布局
+        full_card模式：展示与_display_full_table函数相同的数据字段，使用ui.card展示，并保持两列均衡排列
+        显示的字段包括：enterprise_name, field_name, value, encoding, format, created_time, updated_time
+        以及展开显示的额外字段：field_description, value_pic_url, value_doc_url, value_video_url, 
+        data_url, data_source, license, rights, update_frequency, value_dict
         """
         for index, data_item in enumerate(result_data):
             with ui.card().classes('w-full p-4 mb-4'):
                 # 卡片标题
                 ui.label(f'数据记录 {index + 1}').classes('text-subtitle1 font-medium mb-3')
                 
-                # 将所有字段分为两列展示
+                # 主要字段展示 - 分两列均衡排列
                 with ui.row().classes('w-full gap-4'):
-                    # 左列
+                    # 左列 - 显示主要字段的一部分
                     with ui.column().classes('flex-1 gap-2'):
-                        self._display_column_fields(data_item, 0)  # 左列显示偶数索引字段
+                        # 企业名称
+                        enterprise_name = data_item.get('enterprise_name', data_item.get('企业名称', '未知企业'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('企业名称:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(enterprise_name)).classes('text-sm text-gray-800')
+                        
+                        # 字段值
+                        value = self._format_field_value(data_item.get('value', data_item.get('字段值', '')))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('字段值:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(value)).classes('text-sm text-gray-800')
+                        
+                        # 数据格式
+                        format_val = data_item.get('format', data_item.get('数据格式', '未指定'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('数据格式:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(format_val)).classes('text-sm text-gray-800')
+                        
+                        # 更新时间
+                        updated_time = self._format_time(data_item.get('updated_time', data_item.get('更新时间', '')))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('更新时间:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(updated_time)).classes('text-sm text-gray-800')
                     
-                    # 右列
+                    # 右列 - 显示主要字段的另一部分
                     with ui.column().classes('flex-1 gap-2'):
-                        self._display_column_fields(data_item, 1)  # 右列显示奇数索引字段
+                        # 字段名称
+                        field_name = data_item.get('field_name', data_item.get('字段名称', '未知字段'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('字段名称:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(field_name)).classes('text-sm text-gray-800')
+                        
+                        # 编码格式
+                        encoding = data_item.get('encoding', data_item.get('编码格式', '未指定'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('编码格式:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(encoding)).classes('text-sm text-gray-800')
+                        
+                        # 创建时间
+                        created_time = self._format_time(data_item.get('created_time', data_item.get('创建时间', '')))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('创建时间:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(created_time)).classes('text-sm text-gray-800')
+                
+                # 分隔线
+                ui.separator().classes('my-3')
+                
+                # 扩展字段展示 - 分两列均衡排列
+                ui.label('📋 更多字段信息').classes('text-sm font-medium text-primary mb-2')
+                with ui.row().classes('w-full gap-4'):
+                    # 左列 - 扩展字段
+                    with ui.column().classes('flex-1 gap-2'):
+                        # 字段说明
+                        field_description = data_item.get('field_description', data_item.get('字段说明', '无说明'))
+                        with ui.row().classes('items-start gap-2'):
+                            ui.label('字段说明:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(field_description)).classes('text-sm text-gray-800')
+                        
+                        # 关联图片
+                        value_pic_url = data_item.get('value_pic_url', data_item.get('字段关联图片', ''))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('关联图片:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.link(str(value_pic_url) if value_pic_url else '无',str(value_pic_url) if value_pic_url else '无').classes('text-sm text-gray-800')
+                        
+                        # 关联文档
+                        value_doc_url = data_item.get('value_doc_url', data_item.get('字段关联文档', ''))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('关联文档:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.link(str(value_doc_url) if value_doc_url else '无',str(value_doc_url) if value_doc_url else '无').classes('text-sm text-gray-800')
+                        
+                        # 关联视频
+                        value_video_url = data_item.get('value_video_url', data_item.get('字段关联视频', ''))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('关联视频:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.link(str(value_video_url) if value_video_url else '无',str(value_video_url) if value_video_url else '无').classes('text-sm text-gray-800')
+                        
+                        # 使用许可
+                        license_val = data_item.get('license', data_item.get('许可证', '未指定'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('使用许可:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(license_val)).classes('text-sm text-gray-800')
+                    
+                    # 右列 - 扩展字段
+                    with ui.column().classes('flex-1 gap-2'):
+                        # 数据源API
+                        data_url = data_item.get('data_url', data_item.get('数据源url', ''))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('数据API:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.link(str(data_url) if data_url else '无',str(data_url) if data_url else '无').classes('text-sm text-gray-800')
+                        
+                        # 数据来源
+                        data_source = data_item.get('data_source', data_item.get('数据来源', '未指定'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('数据来源:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(data_source)).classes('text-sm text-gray-800')
+                        
+                        # 使用权限
+                        rights = data_item.get('rights', data_item.get('使用权限', '未指定'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('使用权限:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(rights)).classes('text-sm text-gray-800')
+                        
+                        # 更新频率
+                        update_frequency = data_item.get('update_frequency', data_item.get('更新频率', '未指定'))
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label('更新频率:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(update_frequency)).classes('text-sm text-gray-800')
+                        
+                        # 数据字典
+                        value_dict = data_item.get('value_dict', data_item.get('字典值选项', ''))
+                        with ui.row().classes('items-start gap-2'):
+                            ui.label('数据字典:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label(str(value_dict) if value_dict else '无').classes('text-sm text-gray-800')
             
             # 如果不是最后一条数据，添加分隔线
             if index < len(result_data) - 1:
