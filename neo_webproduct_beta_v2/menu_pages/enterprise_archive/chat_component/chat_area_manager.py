@@ -1611,6 +1611,36 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                                 'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
                             )
 
+    async def display_query_result_in_container(self, query_content: str, target_container):
+        """在指定容器中显示查询结果"""
+        try:
+            # 保存原容器引用
+            original_container = self.chat_content_container
+            # 临时设置目标容器
+            self.chat_content_container = target_container
+
+            # 调用原有的显示方法
+            query_cmd = self._detect_mongodb_query(query_content)
+            if query_cmd:
+                # 异步执行查询
+                try:
+                    result = await self._execute_mongodb_query(query_cmd)
+                    self._display_query_result(result)
+                    # 执行完查询后滚动到底部
+                    if hasattr(self.ui_components, 'scroll_to_bottom_smooth'):
+                        await self.ui_components.scroll_to_bottom_smooth()
+                except Exception as e:
+                    # 查询执行失败时显示错误信息
+                    error_msg = f"❌ MongoDB查询执行失败: {str(e)}"
+                    if self.chat_content_container:
+                        with self.chat_content_container:
+                            ui.label(error_msg).classes(
+                                'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+                            )
+        finally:
+            # 恢复原容器引用
+            self.chat_content_container = original_container
+
 class StreamResponseProcessor:
     """流式响应处理器"""
     
@@ -1651,6 +1681,10 @@ class StreamResponseProcessor:
         # 完成内容显示
         await self.display_strategy.finalize_content(assistant_reply)
         return assistant_reply
+
+    async def execute_query_in_container(self, query_content: str, target_container) -> str:
+        self.display_strategy = self.get_display_strategy()
+        await self.display_strategy.display_query_result_in_container(query_content, target_container)
 
 class MessageProcessor:
     """消息处理门面类"""
@@ -1720,11 +1754,11 @@ class MessageProcessor:
             
             return error_message
 
-    async def execute_query_only(self, query_content: str) -> str:
+    async def execute_query_only(self, query_content: str,render_history_container) -> str:
         """仅执行查询逻辑，不进行完整的对话流程"""
         try:
             # 不需要调用AI，直接提交query_content执行，执行完毕后结果就按原来的流程进行展示，但展示在ui.code的下方。
-            pass
+            return await self.stream_processor.execute_query_in_container(query_content, render_history_container)
         except Exception as e:
             error_message = f"查询执行失败：{str(e)[:300]}..."
             return error_message
@@ -1849,7 +1883,7 @@ class ChatAreaManager:
                                 with ui.row().classes('absolute top-2 right-2 z-10'):
                                     run_code_btn=ui.button(
                                         icon='terminal',
-                                        on_click=lambda: self._execute_query_from_message(message['content'])
+                                        on_click=lambda: self._execute_query_from_message(message['content'],render_history_container)
                                     ).classes(' hover:bg-blue-600').props('flat round size=sm').tooltip('执行查询')
                                 # with ui.expansion('代码', icon='code',value=True).classes('w-full'):
                                 ui.code(message['content']).classes('w-full bg-gray-200 dark:bg-zinc-600')
@@ -1862,14 +1896,13 @@ class ChatAreaManager:
                                 self.chat_content_container
                             )
     
-    async def _execute_query_from_message(self, query_content: str):
+    async def _execute_query_from_message(self, query_content: str , render_history_container):
         """从消息内容执行查询"""
         # 显示执行中的提示
         ui.notify("正在执行查询...", type='info')
-        
         try:
             # 使用专门的查询执行方法
-            await self.message_processor.execute_query_only(query_content)
+            await self.message_processor.execute_query_only(query_content,render_history_container)
         except Exception as e:
             ui.notify(f"查询执行失败: {str(e)}", type='negative')
     #endregion
