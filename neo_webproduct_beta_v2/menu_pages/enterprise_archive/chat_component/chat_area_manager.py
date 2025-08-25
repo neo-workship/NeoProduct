@@ -1836,14 +1836,14 @@ class ChatAreaManager:
                     # 创建临时的chat_content_container用于单条消息渲染
                     with ui.column().classes('w-full') as self.chat_content_container:
                         if self.chat_data_state.current_prompt_config.selected_prompt == '一企一档专家':
-                                with ui.card().classes('w-full relative bg-[#81c784]'):
-                                    with ui.row().classes('absolute top-2 right-2 z-10'):
-                                        ui.button(
-                                            icon='terminal',
-                                            on_click=lambda: ui.notify("hello")
-                                        ).classes(' hover:bg-blue-600').props('flat round size=sm').tooltip('执行查询')
+                            with ui.card().classes('w-full relative bg-[#81c784]'):
+                                with ui.row().classes('absolute top-2 right-2 z-10'):
+                                    ui.button(
+                                        icon='terminal',
+                                        on_click=lambda: ui.notify("hello")
+                                    ).classes(' hover:bg-blue-600').props('flat round size=sm').tooltip('执行查询')
 
-                                    ui.code(message['content']).classes('w-full bg-gray-200 dark:bg-zinc-600')
+                                ui.code(message['content']).classes('w-full bg-gray-200 dark:bg-zinc-600')
                         else:
                             temp_reply_label = ui.markdown(message['content']).classes('w-full')
                             # 调用optimize_content_display进行内容优化显示
