@@ -912,7 +912,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     columns=columns, 
                     rows=rows,
                     row_key='id',
-                    pagination=10,  # 每页显示10条
+                    pagination=5,  # 每页显示5条
                     column_defaults={
                         'align': 'left',
                         'headerClasses': 'uppercase text-primary text-base font-bold',
@@ -985,7 +985,8 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 # 创建普通表格（字段数量≤10个）
                 ui.table(
                     columns=columns, 
-                    rows=rows
+                    rows=rows,
+                    pagination=5,
                 ).classes('w-full').props('flat bordered dense wrap-cells')
                 
                 # 添加数据说明
@@ -994,7 +995,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         'text-sm text-gray-600 mt-2'
                     )
 
-    #### ------------------- _display_card 模式字段渲染 -------------------
+    #### ------------------- _display_cards 模式字段渲染 -------------------
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
         """
         full_card模式：展示与_display_full_table函数相同的数据字段，使用ui.card展示，并保持两列均衡排列
