@@ -362,7 +362,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 "result_data": []
             }
     
-    # ------------------------ 各类数据的渲染展示 -----------------------------
+    #region ------------------------ 各类数据的渲染展示 -----------------------------
     def _display_query_result(self, result: Dict[str, Any]):
         """
         显示MongoDB查询结果
@@ -494,6 +494,30 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
     
+     ### ------------------- 其他或错误情况下，明细数据渲染展示 -------------------------
+    
+    def _display_other_result(self, query_type: str, result_data: List[Any]):
+        """
+        显示其他类型查询结果
+        Args:
+            query_type: 查询类型字符串
+            result_data: 查询结果数据列表
+        """
+        ui.label(f"❓ 未知查询类型 '{query_type}': {str(result_data)}").classes(
+            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+        )
+
+    def _display_error_result(self, result: Dict[str, Any]):
+        """
+        显示查询错误结果
+        Args:
+            result: 包含错误信息的结果字典
+        """
+        error_text = f"❌ 查询执行失败: {result.get('messages', '未知错误')}"
+        ui.label(error_text).classes(
+            'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
+        )
+    
     ### ------------------- 明细数据渲染展示 -------------------------
     def _display_detail_result(self, result_data: List[Dict[str, Any]], structure_type:str,field_strategy:str):
         """
@@ -559,7 +583,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             # 简化表格显示
             self._display_simple_table(result_data)
 
-    #### ================== _display_table 模式字段渲染 ==========================
+    #### -------------------_display_table 模式字段渲染 -------------------
     def _display_full_table(self, result_data: List[Dict[str, Any]]):
         """
         显示完整的表格 - 带展开/收缩功能的可交互表格
@@ -970,7 +994,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         'text-sm text-gray-600 mt-2'
                     )
 
-    #### ================== _display_card 模式字段渲染 ==========================
+    #### ------------------- _display_card 模式字段渲染 -------------------
     def _display_full_card_mode(self, result_data: List[Dict[str, Any]]):
         """
         full_card模式：展示与_display_full_table函数相同的数据字段，使用ui.card展示，并保持两列均衡排列
@@ -1163,30 +1187,9 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         if not isinstance(value, str):
             return False
         return value.startswith('http://') or value.startswith('https://')
-    ### ------------------- 其他或错误情况下，明细数据渲染展示 -------------------------
-    def _display_other_result(self, query_type: str, result_data: List[Any]):
-        """
-        显示其他类型查询结果
-        Args:
-            query_type: 查询类型字符串
-            result_data: 查询结果数据列表
-        """
-        ui.label(f"❓ 未知查询类型 '{query_type}': {str(result_data)}").classes(
-            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-        )
-
-    def _display_error_result(self, result: Dict[str, Any]):
-        """
-        显示查询错误结果
-        Args:
-            result: 包含错误信息的结果字典
-        """
-        error_text = f"❌ 查询执行失败: {result.get('messages', '未知错误')}"
-        ui.label(error_text).classes(
-            'whitespace-pre-wrap w-full bg-red-50 border-l-4 border-red-500 p-3 mb-2'
-        )
-    # ------------------------ 各类数据的渲染展示 -----------------------------
-
+   
+    #endregion ------------------------ 各类数据的渲染展示 -----------------------------
+    
     def update_content(self, parse_result: Dict[str, Any]) -> bool:
         """更新专家模式展示内容"""
         # 只执行通用内容更新，不进行MongoDB查询检测
