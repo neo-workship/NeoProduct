@@ -247,7 +247,8 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                             'whitespace-pre-wrap bg-[#81c784] border-l-4 border-blue-500 p-3'
                         )
                 else:
-                    self.reply_label = ui.markdown('').classes('w-full')
+                    with ui.expansion('代码', icon='code',value=True).classes('w-full'):
+                        self.reply_label = ui.code('').classes('w-full bg-gray-200 dark:bg-zinc-600')
                     self.reply_created = True
     
     def _detect_mongodb_query(self, content: str) -> Optional[str]:
@@ -437,75 +438,50 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
 
     def _display_group_result(self, result_data: List[Dict[str, Any]]):
         """
-        显示分组查询结果
+        显示分组查询结果 - 根据数据长度选择不同展示模式
+        当数据长度 <= 2 时，使用 ui.card 展示模式
+        当数据长度 > 2 时，使用简化表格展示模式
         
         Args:
             result_data: 分组查询结果数据列表
         """
-        if isinstance(result_data, list) and result_data:
-            # 格式化显示分组数据
-            display_count = min(10, len(result_data))  # 最多显示10个分组
-            result_text = f"📊 分组统计结果 (显示前{display_count}组，共{len(result_data)}组):\n\n"
-            
-            for i, group_item in enumerate(result_data[:display_count]):
-                result_text += f"📋 第 {i+1} 组:\n"
-                
-                if isinstance(group_item, dict):
-                    # 处理分组标识 (_id)
-                    group_id = group_item.get('_id', 'N/A')
-                    if isinstance(group_id, dict):
-                        # 多字段分组
-                        result_text += f"  🔖 分组条件:\n"
-                        for key, value in group_id.items():
-                            result_text += f"    • {key}: {value}\n"
-                    else:
-                        # 单字段分组
-                        result_text += f"  🔖 分组值: {group_id}\n"
-                    
-                    # 处理聚合统计字段
-                    result_text += f"  📈 统计结果:\n"
-                    for field_name, field_value in group_item.items():
-                        if field_name != '_id':
-                            # 格式化数值显示
-                            if isinstance(field_value, (int, float)):
-                                if isinstance(field_value, float):
-                                    formatted_value = f"{field_value:.2f}"
-                                else:
-                                    formatted_value = f"{field_value:,}"
-                            else:
-                                formatted_value = str(field_value)
-                            
-                            result_text += f"    • {field_name}: {formatted_value}\n"
-                else:
-                    # 如果不是字典格式，直接显示
-                    result_text += f"  • 内容: {str(group_item)}\n"
-                
-                result_text += "\n"
-            
-            if len(result_data) > display_count:
-                result_text += f"... 还有 {len(result_data) - display_count} 个分组\n"
-            
-            ui.label(result_text).classes(
-                'whitespace-pre-wrap bg-purple-50 border-l-4 border-purple-500 p-3 mb-2 w-full'
-            )
-            
-        else:
+        if not isinstance(result_data, list) or not result_data:
             ui.label("📊 分组结果: 无数据").classes(
                 'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
             )
+            return
+        
+        if len(result_data) <= 2:
+            # 使用 ui.card 展示模式（参考 _display_flat_card_mode）
+            self._display_group_as_cards(result_data)
+        else:
+            # 使用简化表格展示模式（参考 _display_simple_table）
+            self._display_group_as_table(result_data)
     
      ### ------------------- 其他或错误情况下，明细数据渲染展示 -------------------------
     
     def _display_other_result(self, query_type: str, result_data: List[Any]):
         """
-        显示其他类型查询结果
+        显示其他类型查询结果 - 根据数据长度选择不同展示模式
+        当数据长度 <= 2 时，使用 ui.card 展示模式
+        当数据长度 > 2 时，使用简化表格展示模式
+        
         Args:
             query_type: 查询类型字符串
             result_data: 查询结果数据列表
         """
-        ui.label(f"❓ 未知查询类型 '{query_type}': {str(result_data)}").classes(
-            'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
-        )
+        if not isinstance(result_data, list) or not result_data:
+            ui.label(f"❓ 未知查询类型 '{query_type}': 无数据").classes(
+                'whitespace-pre-wrap bg-gray-50 border-l-4 border-gray-500 p-3 mb-2'
+            )
+            return
+        
+        if len(result_data) <= 2:
+            # 使用 ui.card 展示模式（参考 _display_flat_card_mode）
+            self._display_other_as_cards(query_type, result_data)
+        else:
+            # 使用简化表格展示模式（参考 _display_simple_table）
+            self._display_other_as_table(query_type, result_data)
 
     def _display_error_result(self, result: Dict[str, Any]):
         """
@@ -650,7 +626,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                 'align': 'left',
                 'headerClasses': 'uppercase text-primary text-base font-bold',
             }
-        ).classes('w-full')
+        ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
         
         # 添加表头（包含展开按钮列）
         table.add_slot('header', r'''
@@ -917,7 +893,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         'align': 'left',
                         'headerClasses': 'uppercase text-primary text-base font-bold',
                     }
-                ).classes('w-full')
+                ).classes('w-full bg-[#81c784] text-gray-800')
                 
                 # 添加展开功能的表头
                 table.add_slot('header', r'''
@@ -970,7 +946,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     <q-tr v-show="props.expand" :props="props">
                         <q-td colspan="100%">
                             <div class="text-left bg-blue-50 p-4 rounded">
-                                <div class="text-subtitle2 text-primary mb-3">📋 更多字段信息</div>
+                                <div class="text-sm text-primary mb-3">📋 更多字段信息</div>
                                 {expand_fields_html}
                             </div>
                         </q-td>
@@ -987,7 +963,7 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                     columns=columns, 
                     rows=rows,
                     pagination=5,
-                ).classes('w-full').props('flat bordered dense wrap-cells')
+                ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
                 
                 # 添加数据说明
                 if len(result_data) > 10:
@@ -1004,9 +980,9 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         data_url, data_source, license, rights, update_frequency, value_dict
         """
         for index, data_item in enumerate(result_data):
-            with ui.card().classes('w-full p-4 mb-4'):
+            with ui.card().classes('w-full bg-white p-4 mb-4'):
                 # 卡片标题
-                ui.label(f'数据记录 {index + 1}').classes('text-subtitle1 font-medium mb-3')
+                ui.label(f'数据记录 {index + 1}').classes('text-base text-gray-900 font-bold')
                 
                 # 主要字段展示 - 分两列均衡排列
                 with ui.row().classes('w-full gap-4'):
@@ -1015,25 +991,25 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         # 企业名称
                         enterprise_name = data_item.get('enterprise_name', data_item.get('企业名称', '未知企业'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('企业名称:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('企业名称:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(enterprise_name)).classes('text-sm text-gray-800')
                         
                         # 字段值
                         value = self._format_field_value(data_item.get('value', data_item.get('字段值', '')))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('字段值:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('字段值:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(value)).classes('text-sm text-gray-800')
                         
                         # 数据格式
                         format_val = data_item.get('format', data_item.get('数据格式', '未指定'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('数据格式:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('数据格式:').classes('text-sm  text-gray-600 min-w-20 font-bold')
                             ui.label(str(format_val)).classes('text-sm text-gray-800')
                         
                         # 更新时间
                         updated_time = self._format_time(data_item.get('updated_time', data_item.get('更新时间', '')))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('更新时间:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('更新时间:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(updated_time)).classes('text-sm text-gray-800')
                     
                     # 右列 - 显示主要字段的另一部分
@@ -1041,57 +1017,57 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         # 字段名称
                         field_name = data_item.get('field_name', data_item.get('字段名称', '未知字段'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('字段名称:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('字段名称:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(field_name)).classes('text-sm text-gray-800')
                         
                         # 编码格式
                         encoding = data_item.get('encoding', data_item.get('编码格式', '未指定'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('编码格式:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('编码格式:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(encoding)).classes('text-sm text-gray-800')
                         
                         # 创建时间
                         created_time = self._format_time(data_item.get('created_time', data_item.get('创建时间', '')))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('创建时间:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('创建时间:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(created_time)).classes('text-sm text-gray-800')
                 
                 # 分隔线
                 ui.separator().classes('my-3')
                 
                 # 扩展字段展示 - 分两列均衡排列
-                ui.label('📋 更多字段信息').classes('text-sm font-medium text-primary mb-2')
+                ui.label('📋 更多字段信息').classes('text-base text-primary mb-2 font-bold')
                 with ui.row().classes('w-full gap-4'):
                     # 左列 - 扩展字段
                     with ui.column().classes('flex-1 gap-2'):
                         # 字段说明
                         field_description = data_item.get('field_description', data_item.get('字段说明', '无说明'))
                         with ui.row().classes('items-start gap-2'):
-                            ui.label('字段说明:').classes('text-sm font-medium text-gray-600 min-w-20')
-                            ui.label(str(field_description)).classes('text-sm text-gray-800')
+                            ui.label('字段说明:').classes('text-sm text-gray-600 min-w-20 font-bold')
+                            ui.label(str(field_description)).classes('text-sm text-gray-800 font-bold')
                         
                         # 关联图片
                         value_pic_url = data_item.get('value_pic_url', data_item.get('字段关联图片', ''))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('关联图片:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('关联图片:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.link(str(value_pic_url) if value_pic_url else '无',str(value_pic_url) if value_pic_url else '无').classes('text-sm text-gray-800')
                         
                         # 关联文档
                         value_doc_url = data_item.get('value_doc_url', data_item.get('字段关联文档', ''))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('关联文档:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('关联文档:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.link(str(value_doc_url) if value_doc_url else '无',str(value_doc_url) if value_doc_url else '无').classes('text-sm text-gray-800')
                         
                         # 关联视频
                         value_video_url = data_item.get('value_video_url', data_item.get('字段关联视频', ''))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('关联视频:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('关联视频:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.link(str(value_video_url) if value_video_url else '无',str(value_video_url) if value_video_url else '无').classes('text-sm text-gray-800')
                         
                         # 使用许可
                         license_val = data_item.get('license', data_item.get('许可证', '未指定'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('使用许可:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('使用许可:').classes('text-sm  text-gray-600 min-w-20 font-bold')
                             ui.label(str(license_val)).classes('text-sm text-gray-800')
                     
                     # 右列 - 扩展字段
@@ -1099,31 +1075,31 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
                         # 数据源API
                         data_url = data_item.get('data_url', data_item.get('数据源url', ''))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('数据API:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('数据API:').classes('text-sm  text-gray-600 min-w-20 font-bold')
                             ui.link(str(data_url) if data_url else '无',str(data_url) if data_url else '无').classes('text-sm text-gray-800')
                         
                         # 数据来源
                         data_source = data_item.get('data_source', data_item.get('数据来源', '未指定'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('数据来源:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('数据来源:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(data_source)).classes('text-sm text-gray-800')
                         
                         # 使用权限
                         rights = data_item.get('rights', data_item.get('使用权限', '未指定'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('使用权限:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('使用权限:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(rights)).classes('text-sm text-gray-800')
                         
                         # 更新频率
                         update_frequency = data_item.get('update_frequency', data_item.get('更新频率', '未指定'))
                         with ui.row().classes('items-center gap-2'):
-                            ui.label('更新频率:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('更新频率:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(update_frequency)).classes('text-sm text-gray-800')
                         
                         # 数据字典
                         value_dict = data_item.get('value_dict', data_item.get('字典值选项', ''))
                         with ui.row().classes('items-start gap-2'):
-                            ui.label('数据字典:').classes('text-sm font-medium text-gray-600 min-w-20')
+                            ui.label('数据字典:').classes('text-sm text-gray-600 min-w-20 font-bold')
                             ui.label(str(value_dict) if value_dict else '无').classes('text-sm text-gray-800')
             
             # 如果不是最后一条数据，添加分隔线
@@ -1135,9 +1111,9 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         flat_card模式：朴素清晰地展示数据，单卡片两列均衡布局
         """
         for index, data_item in enumerate(result_data):
-            with ui.card().classes('w-full p-4 mb-4'):
+            with ui.card().classes('w-full bg-white p-4 mb-4'):
                 # 卡片标题
-                ui.label(f'数据记录 {index + 1}').classes('text-subtitle1 font-medium mb-3')
+                ui.label(f'数据记录 {index + 1}').classes('text-sm text-gray-900 mb-3')
                 
                 # 将所有字段分为两列展示
                 with ui.row().classes('w-full gap-4'):
@@ -1174,14 +1150,14 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         for key, value in column_fields:
             with ui.row().classes('w-full gap-2 items-start mb-2'):
                 # 字段名
-                ui.label(f'{key}:').classes('text-sm font-medium min-w-fit')
+                ui.label(f'{key}:').classes('text-sm text-gray-600 min-w-fit font-bold')
                 
                 # 字段值 - 判断是否为URL
                 str_value = str(value).strip()
                 if self._is_url(str_value):
                     ui.link(text='查看链接', target=str_value).classes('text-sm text-blue-600 break-all')
                 else:
-                    ui.label(str_value).classes('text-sm text-grey-8 break-all')
+                    ui.label(str_value).classes('text-sm text-gray-600 break-all')
 
     def _is_url(self, value: str) -> bool:
         """判断字符串是否为URL"""
@@ -1189,6 +1165,269 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
             return False
         return value.startswith('http://') or value.startswith('https://')
    
+    ### ------------------- group 数据渲染展示 -------------------------
+    def _display_group_as_cards(self, result_data: List[Dict[str, Any]]):
+        """
+        使用卡片模式展示分组结果（数据长度 <= 2）
+        采用朴素、紧凑、清晰的展示方式
+        """
+        ui.label(f'📊 分组统计结果 (共{len(result_data)}组)').classes(
+            'text-base font-bold text-primary mb-3'
+        )
+        
+        for index, group_item in enumerate(result_data):
+            with ui.card().classes('w-full bg-white'):
+                # 卡片标题
+                ui.label(f'第 {index + 1} 组').classes('text-lg text-gray-900 font-bold')
+                
+                if isinstance(group_item, dict):
+                    # 处理分组标识 (_id)
+                    group_id = group_item.get('_id', 'N/A')
+                    
+                    # 显示分组条件
+                    with ui.row().classes('w-full gap-2 items-start mb-2'):
+                        ui.icon('folder').classes('text-lg text-blue-600 mt-1')
+                        ui.label('分组条件:').classes('text-base text-gray-800 font-bold')
+                        if isinstance(group_id, dict):
+                            # 多字段分组
+                            condition_text = ', '.join([f"{key}: {value}" for key, value in group_id.items()])
+                        else:
+                            # 单字段分组
+                            condition_text = str(group_id)
+                        ui.label(condition_text).classes('text-sm text-gray-800')
+                    
+                    # 显示统计结果（除 _id 外的其他字段）
+                    stats_fields = [(k, v) for k, v in group_item.items() if k != '_id']
+                    if stats_fields:
+                        with ui.row().classes('w-full gap-2 items-start mb-2'):
+                            ui.icon('assessment').classes('text-lg text-green-600 mt-1')
+                            ui.label('统计结果:').classes('text-base text-gray-800 font-bold')
+                            
+                        # 将统计字段分两列展示
+                        with ui.row().classes('w-full gap-4 ml-6'):
+                            # 左列
+                            with ui.column().classes('flex-1 gap-1'):
+                                for i, (field_name, field_value) in enumerate(stats_fields):
+                                    if i % 2 == 0:  # 偶数索引
+                                        formatted_value = self._format_numeric_value(field_value)
+                                        with ui.row().classes('gap-1 items-center'):
+                                            ui.label(f'• {field_name}:').classes('text-base text-gray-600 font-bold')
+                                            ui.label(formatted_value).classes('text-base font-medium text-gray-800')
+                            
+                            # 右列
+                            with ui.column().classes('flex-1 gap-1'):
+                                for i, (field_name, field_value) in enumerate(stats_fields):
+                                    if i % 2 == 1:  # 奇数索引
+                                        formatted_value = self._format_numeric_value(field_value)
+                                        with ui.row().classes('gap-1 items-center'):
+                                            ui.label(f'• {field_name}:').classes('text-base text-gray-600 font-bold')
+                                            ui.label(formatted_value).classes('text-base font-medium text-gray-800')
+                else:
+                    # 如果不是字典格式，直接显示
+                    with ui.row().classes('w-full gap-2 items-start'):
+                        ui.icon('info').classes('text-lg text-gray-600 font-bold')
+                        ui.label('内容:').classes('text-base font-bold')
+                        ui.label(str(group_item)).classes('text-base text-gray-800')
+            
+            # 如果不是最后一条数据，添加分隔线
+            if index < len(result_data) - 1:
+                ui.separator().classes('my-2')
+
+    def _display_group_as_table(self, result_data: List[Dict[str, Any]]):
+        """
+        使用简化表格模式展示分组结果（数据长度 > 2）
+        采用朴素、清晰的展示方式
+        """
+        ui.label(f'📊 分组统计结果 (共{len(result_data)}组)').classes(
+            'text-base font-bold text-primary mb-3'
+        )
+        
+        if not result_data or not isinstance(result_data[0], dict):
+            ui.label("❌ 数据格式错误：预期为字典类型").classes('text-red-500')
+            return
+        
+        # 动态构建表格列
+        first_item = result_data[0]
+        all_fields = list(first_item.keys())
+        
+        # 构建列定义
+        columns = []
+        for field in all_fields:
+            if field == '_id':
+                columns.append({
+                    'name': field, 
+                    'label': '分组条件', 
+                    'field': field, 
+                    'sortable': True, 
+                    'align': 'left'
+                })
+            else:
+                columns.append({
+                    'name': field, 
+                    'label': field.replace('_', ' ').title(), 
+                    'field': field, 
+                    'sortable': True, 
+                    'align': 'left'
+                })
+        
+        # 准备行数据
+        rows = []
+        for i, item in enumerate(result_data):
+            row_data = {'id': i}
+            for field in all_fields:
+                if field == '_id':
+                    group_id = item.get('_id', 'N/A')
+                    if isinstance(group_id, dict):
+                        # 多字段分组，格式化为字符串
+                        row_data[field] = ', '.join([f"{k}: {v}" for k, v in group_id.items()])
+                    else:
+                        row_data[field] = str(group_id)
+                else:
+                    # 格式化数值
+                    row_data[field] = self._format_numeric_value(item.get(field))
+            rows.append(row_data)
+        
+        # 创建表格
+        ui.table(
+            columns=columns,
+            rows=rows,
+            pagination=5
+        ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
+
+    ### ------------------- other 数据渲染展示 -------------------------
+    def _display_other_as_cards(self, query_type: str, result_data: List[Any]):
+        """
+        使用卡片模式展示其他类型结果（数据长度 <= 2）
+        采用朴素、紧凑、清晰的展示方式
+        """
+        ui.label(f'❓ {query_type} 查询结果 (共{len(result_data)}条)').classes(
+            'text-base font-bold text-primary mb-3'
+        )
+        
+        for index, data_item in enumerate(result_data):
+            with ui.card().classes('w-full p-4 mb-4'):
+                # 卡片标题
+                ui.label(f'数据记录 {index + 1}').classes('text-base text-gray-800')
+                
+                if isinstance(data_item, dict):
+                    # 字典类型数据，分两列展示所有字段
+                    fields = list(data_item.items())
+                    
+                    with ui.row().classes('w-full gap-4'):
+                        # 左列
+                        with ui.column().classes('flex-1 gap-2'):
+                            for i, (key, value) in enumerate(fields):
+                                if i % 2 == 0:  # 偶数索引
+                                    with ui.row().classes('w-full gap-2 items-start'):
+                                        ui.label(f'{key}:').classes('text-base text-gray-500')
+                                        str_value = str(value).strip() if value is not None else '无'
+                                        if self._is_url(str_value):
+                                            ui.link(text='查看链接', target=str_value).classes('text-base text-blue-600')
+                                        else:
+                                            ui.label(str_value).classes('text-base text-gray-800')
+                        
+                        # 右列
+                        with ui.column().classes('flex-1 gap-2'):
+                            for i, (key, value) in enumerate(fields):
+                                if i % 2 == 1:  # 奇数索引
+                                    with ui.row().classes('w-full gap-2 items-start'):
+                                        ui.label(f'{key}:').classes('text-base text-gray-800')
+                                        str_value = str(value).strip() if value is not None else '无'
+                                        if self._is_url(str_value):
+                                            ui.link(text='查看链接', target=str_value).classes('text-base text-blue-600')
+                                        else:
+                                            ui.label(str_value).classes('text-base text-gray-800')
+                else:
+                    # 非字典类型数据，直接显示
+                    with ui.row().classes('w-full gap-2 items-start'):
+                        ui.icon('data_object').classes('text-lg text-gray-800')
+                        ui.label('内容:').classes('text-base text-gray-600')
+                        ui.label(str(data_item)).classes('text-base text-gray-800')
+            
+            # 如果不是最后一条数据，添加分隔线
+            if index < len(result_data) - 1:
+                ui.separator().classes('my-2')
+
+    def _display_other_as_table(self, query_type: str, result_data: List[Any]):
+        """
+        使用简化表格模式展示其他类型结果（数据长度 > 2）
+        采用朴素、清晰的展示方式
+        """
+        ui.label(f'❓ {query_type} 查询结果 (共{len(result_data)}条)').classes(
+            'text-base font-bold text-primary mb-3'
+        )
+        
+        # 检查数据类型
+        if not result_data:
+            return
+        
+        first_item = result_data[0]
+        
+        if isinstance(first_item, dict):
+            # 字典类型数据，动态构建表格
+            all_fields = list(first_item.keys())
+            
+            # 构建列定义
+            columns = []
+            for field in all_fields:
+                columns.append({
+                    'name': field,
+                    'label': field.replace('_', ' ').title(),
+                    'field': field,
+                    'sortable': True,
+                    'align': 'left'
+                })
+            
+            # 准备行数据
+            rows = []
+            for i, item in enumerate(result_data):
+                row_data = {'id': i}
+                for field in all_fields:
+                    value = item.get(field, '')
+                    # 格式化显示值
+                    if isinstance(value, (int, float)):
+                        row_data[field] = self._format_numeric_value(value)
+                    else:
+                        row_data[field] = str(value) if value is not None else '无'
+                rows.append(row_data)
+            
+            # 创建表格
+            ui.table(
+                columns=columns,
+                rows=rows,
+                pagination=5
+            ).classes('w-full bg-[#81c784] text-gray-800').props('flat bordered dense wrap-cells')
+        
+        else:
+            # 非字典类型数据，创建简单的单列表格
+            columns = [{'name': 'content', 'label': '内容', 'field': 'content', 'align': 'left'}]
+            rows = [{'id': i, 'content': str(item)} for i, item in enumerate(result_data)]
+            
+            ui.table(
+                columns=columns,
+                rows=rows,
+                pagination=5
+            ).classes('w-full').props('flat bordered dense wrap-cells')
+
+    def _format_numeric_value(self, value):
+        """
+        格式化数值显示
+        Args:
+            value: 待格式化的值
+        Returns:
+            str: 格式化后的字符串
+        """
+        if value is None:
+            return '无'
+        
+        if isinstance(value, (int, float)):
+            if isinstance(value, float):
+                return f"{value:.2f}"
+            else:
+                return f"{value:,}"
+        else:
+            return str(value)
+
     #endregion ------------------------ 各类数据的渲染展示 -----------------------------
     
     def update_content(self, parse_result: Dict[str, Any]) -> bool:
@@ -1204,7 +1443,8 @@ class ExpertDisplayStrategy(ContentDisplayStrategy):
         if parse_result['think_complete']:
             if self.chat_content_container and not self.reply_created:
                 with self.chat_content_container:
-                    self.reply_label = ui.markdown('').classes('w-full')
+                    with ui.expansion('执行代码', icon='code' ,value=True).classes('w-full'):
+                        self.reply_label = ui.code('').classes('w-full bg-gray-200 dark:bg-zinc-600')
                 self.reply_created = True
             
             if self.think_label:
