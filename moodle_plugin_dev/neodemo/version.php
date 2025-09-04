@@ -1,0 +1,17 @@
+<?php
+/**
+ * Version information for Neodemo
+ *
+ * @package    block_neodemo
+ * @copyright  2025 YOUR NAME <your@email.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+defined('MOODLE_INTERNAL') || die();
+
+$plugin->component = 'block_neodemo';
+$plugin->release = '1.0';
+$plugin->version = 2025090400;
+$plugin->requires = 2025071100.00;
+$plugin->supported = [501, 501];
+$plugin->maturity = MATURITY_STABLE;
