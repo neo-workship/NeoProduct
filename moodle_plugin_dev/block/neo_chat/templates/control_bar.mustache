@@ -1,0 +1,81 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template block_neo_chat/control_bar
+
+    TODO describe template control_bar
+
+    Example context (json):
+    {
+    }
+}}
+
+{{! 
+    1、{^is_edit_mode} 这是一个反向条件判断,（^ 符号表示“非”）
+    如果数据中is_edit_mode的值为假 (false)、空 (empty)、null 或 0，则它内部的代码块会被渲染。
+    这意味着，当不在编辑模式时，会显示一个日志记录图标和弹出按钮。
+
+    2、#logging_enabled 是一个 正向条件判断（# 符号表示“存在”或“真”）
+    如果数据中logging_enabled 的值为真 (true) 且 非空，则它内部的div元素会被渲染。
+
+    3、{"#str" key, component "/str"}: 这是Moodle中常用的 Mustache helper。它用于从指定的 语言包 中获取对应 key 的翻译字符串。
+    会从 block_neo_chat 插件的语言包中查找 loggingenabled 对应的翻译文本.
+    div元素的title属性：指定该元素的额外信息或提示文本，当用户的鼠标悬停在带有title属性的<div>元素上时，会显示一个工具提示（tooltip）
+
+    4、{config.wwwroot}: 这是一个 原始（未转义）变量，直接插入config对象中wwwroot属性的值，
+    通常是 Moodle 站点的根 URL。三个花括号{}表示不进行HTML转义，这对于URL等内容是必要的
+}}
+
+{{^is_edit_mode}}
+    {{#logging_enabled}}
+        <div title='{{#str}}loggingenabled,block_neo_chat{{/str}}' class='recording'></div>
+    {{/logging_enabled}}
+    <button class='neochat_input_popout_btn' 
+            title='{{#str}}popout,block_neo_chat{{/str}}' 
+            id='popout'>
+        <img src='{{{config.wwwroot}}}{{{pix_popout}}}' 
+             alt='{{#str}}popout,block_neo_chat{{/str}}' 
+             class='neochat_input_popout_btn_icon' />
+    </button>
+{{/is_edit_mode}}
+
+<div id="control_bar">
+    <div class='neochat_input_bar' id='input_bar'>
+        <textarea aria-label='{{#str}}askaquestion,block_neo_chat{{/str}}'
+                  rows=2
+                  id='neochat_input'
+                  placeholder='{{#str}}askaquestion,block_neo_chat{{/str}}'
+                  type='text'
+                  name='message'>
+        </textarea>
+        <button class='neochat_input_submit_btn'
+                title='{{#str}}askaquestion,block_neo_chat{{/str}}' 
+                id='go'>
+            <img src='{{{config.wwwroot}}}{{{pix_arrow_right}}}' 
+                 alt='{{#str}}askaquestion,block_neo_chat{{/str}}' 
+                 class='neochat_input_submit_btn_icon' />
+        </button>
+    </div>
+    <button class='neochat_input_refresh_btn' 
+            title='{{#str}}askaquestion,block_neo_chat{{/str}}' 
+            id='refresh' >
+        <img src='{{{config.wwwroot}}}{{{pix_refresh}}}'
+             class='neochat_input_refresh_btn_icon' 
+             alt='{{#str}}new_chat,block_neo_chat{{/str}}' />
+    </button>
+</div>
+

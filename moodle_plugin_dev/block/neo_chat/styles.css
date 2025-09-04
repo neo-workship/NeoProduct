@@ -1,0 +1,146 @@
+:root {
+  --primary: #0073e6; /* 蓝色，提交按钮 */
+  --secondary: #e0e0e0; /* 灰色，刷新按钮 */
+  --white: #ffffff;
+}
+
+/* CSS Document 
+ * 类选择器，表示该规则将应用于所有具有class="block_neo_chat"属性的HTML元素
+ */
+.block_neo_chat {
+  position: relative;
+}
+
+/**
+ * 定义 neo_chat 日志区域的样式
+ * - 使用 flex 布局，垂直排列子元素
+ * - 设置最大高度为 20rem，超出部分可滚动
+ * - 底部外边距为 0.5rem
+
+ * 复合CSS选择器，具体来说属于*后代选择器*
+ * .block_neo_chat 类选择器（Class Selector），匹配所有class属性包含block_neo_chat的HTML元素
+ * #neochat_log  ID 选择器（ID Selector），匹配id属性为neochat_log的唯一HTML元素
+ * 中间的空格 选择 .block_neo_chat 元素内部的任意层级的 #neochat_log 元素
+ */
+.block_neo_chat #neochat_log {
+  display: flex;
+  flex-direction: column;
+  max-height: 20rem;
+  overflow-y: scroll;
+  margin-bottom: 0.5rem;
+}
+
+/* 设置聊天日志段落的内边距为0，消除默认间距 */
+.block_neo_chat #neochat_log p {
+  margin: 0;
+}
+
+/* 为 neo_chat 区块中的日志链接设置白色文本和下划线样式 */
+.block_neo_chat #neochat_log a {
+  color: white;
+  text-decoration: underline;
+}
+
+/*
+ * .block_neo_chat .recording：所有class包含"recording"且位于class为"block_neo_chat"的元素内部的元素
+ *  - width: 0.5rem; 设置元素的宽度为0.5rem（rem是相对于根元素字体大小的单位）
+ *  - height: 0.5rem; - 设置元素的高度为0.5rem，使其成为一个正方形
+ *  - background: red; - 设置背景颜色为红色，通常用于表示录音状态
+ *  - position: absolute; - 使用绝对定位，使元素脱离正常文档流，相对于最近的定位祖先元素定位
+ *  - top: 1.5rem; - 定位元素距离顶部1.5rem
+ *  - right: 3rem; - 定位元素距离右侧3rem
+ *  - border-radius: 99rem; - 设置边框半径为非常大的值(99rem)，实际上会将元素变成完美的圆形
+ *  - filter: opacity(0.5); - 设置元素的不透明度为50%，使其半透明
+ *  - animation: 应用名为"block_neo_chat_thinking"的动画效果，持续3秒，线性变化，无限循环播放。
+ */
+.block_neo_chat .recording {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: red;
+  position: absolute;
+  top: 1.5rem;
+  right: 3rem;
+  border-radius: 99rem;
+  filter: opacity(0.5);
+  animation: block_neo_chat_thinking 3s linear infinite;
+}
+
+/*
+ * 定义了一个绝对定位的圆形按钮（尺寸为2rem × 2rem），
+ * 位于其父容器的右上角（距离顶部0.75rem，右侧0.5rem），
+ * 无边框，有内边距，并支持Flexbox布局
+ * z-index: 2 设置元素的堆叠顺序为2，控制其与其他定位元素的层叠关系,值越大越靠前
+ */
+.block_neo_chat .neochat_input_popout_btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 99rem;
+  padding: 0.4rem;
+  display: flex;
+  border: none;
+  z-index: 2;
+}
+
+/* 设置聊天弹出按钮图片的最大宽度为1.25rem，并禁用指针事件 */
+.block_neo_chat .neochat_input_popout_btn img {
+  max-width: 1.25rem;
+  pointer-events: none;
+}
+
+/**
+ * 控制栏的样式设置，使用flex布局并设置元素间距为0.5rem
+ */
+.block_neo_chat #control_bar {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.neochat_input_bar {
+  display: flex;
+  width: 100%;
+}
+
+.block_neo_chat #control_bar button:hover {
+  filter: brightness(0.8);
+}
+
+.block_neo_chat #control_bar button {
+  transition: filter 0.2s ease;
+  border: none;
+  border-radius: 0.5rem;
+  width: 2.5rem;
+}
+
+.block_neo_chat #control_bar #go {
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.neochat_input_submit_btn {
+  background-color: var(--primary);
+  color: var(--white);
+}
+
+.neochat_input_refresh_btn {
+  background-color: var(--secondary);
+  color: black;
+}
+
+.neochat_input_submit_btn_icon,
+.neochat_input_refresh_btn_icon {
+  width: 80%;
+}
+
+@keyframes block_neo_chat_thinking {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 1;
+  }
+}
