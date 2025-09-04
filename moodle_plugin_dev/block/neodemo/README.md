@@ -1,3 +1,4 @@
+```
 blocks/neodemo/
 ├── version.php # 必需：版本和元数据信息
 ├── block_neodemo.php # 必需：主要的 block 类定义
@@ -43,3 +44,4 @@ blocks/neodemo/
 └── moodle2/
 ├── backup_block_neodemo_stepslib.php
 └── restore_block_neodemo_stepslib.php
+```
