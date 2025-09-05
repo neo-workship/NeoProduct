@@ -89,4 +89,12 @@ class block_blockdemo extends block_base
     {
         return true; // 这个示例不需要全局配置
     }
+
+    /**
+     * 在加载实例后立即在您的子类上调用此函数
+     */
+    public function specialization()
+    {
+
+    }
 }
