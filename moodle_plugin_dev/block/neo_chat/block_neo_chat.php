@@ -24,7 +24,6 @@ class block_neo_chat extends block_base
 
     /**
      * 检查插件是否拥有配置页面
-     * 
      * @return bool 始终返回true，表示该插件有配置页面
      */
     public function has_config()
@@ -34,7 +33,6 @@ class block_neo_chat extends block_base
 
     /**
      * 定义该区块适用的页面格式
-     * 
      * @return array 返回一个关联数组，键为页面格式，值为布尔值表示是否适用
      * 当前设置为适用于所有页面格式 ('all'=>true)
      */
@@ -45,7 +43,6 @@ class block_neo_chat extends block_base
 
     /**
      * 当区块实例有自定义标题时，设置区块标题
-     * 
      * 该方法检查配置中是否存在自定义标题，若存在则将其赋值给区块的title属性
      */
     public function specialization()
