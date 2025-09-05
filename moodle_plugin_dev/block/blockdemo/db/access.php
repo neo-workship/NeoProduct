@@ -8,7 +8,6 @@ defined('MOODLE_INTERNAL') || die();
 
 /**
  * 定义插件的权限能力
- * 
  * 这里定义了谁可以添加和管理这个block
  */
 $capabilities = [
