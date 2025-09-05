@@ -22,11 +22,11 @@ $string['displaymode_simple'] = '>>简洁视图';
 $string['displaymode_detailed'] = '>>详细视图';
 
 // 配置表单相关
-$string['customtext'] = 'Custom text';
-$string['customtext_help'] = 'Enter any custom text you want to display in the block.';
-$string['displaymode'] = 'Display mode';
-$string['displaymode_simple'] = 'Simple view';
-$string['displaymode_detailed'] = 'Detailed view';
+$string['customtext'] = '自定义文本';
+$string['customtext_help'] = '输入您想要在区块中显示的任何自定义文本。';
+$string['displaymode'] = '展示模式';
+$string['displaymode_simple'] = '简单视图';
+$string['displaymode_detailed'] = '细节试图';
 
 // ==================== 全局配置相关 (settings.php) ====================
 $string['generalsettings'] = '常规设置';
