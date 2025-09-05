@@ -5,6 +5,13 @@
  */
 class block_blockdemo extends block_base
 {
+    /*
+    统一接口                        
+     init()           初始化        
+     get_content()    获取UI内容    
+     specialization() 个性化配置  
+     applicable_formats() 适用范围
+    */
 
     /**
      * Block initialisation
