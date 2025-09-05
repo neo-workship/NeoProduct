@@ -10,6 +10,9 @@ $string['blockdemo:myaddinstance'] = '添加一个新的演示区块到仪表盘
 // Block内容相关
 $string['welcome'] = '欢迎，{$a}！';
 $string['viewprofile'] = '查看个人资料';
+$string['morning_title'] = '上午好';
+$string['afternoon_title'] = '下午好';
+$string['evening_title'] = '晚上好';
 
 // 配置表单相关
 $string['customtext'] = '>>自定义文本';

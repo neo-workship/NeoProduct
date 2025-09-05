@@ -19,6 +19,28 @@ class block_blockdemo extends block_base
     public function init()
     {
         $this->title = get_string('pluginname', 'block_blockdemo');
+        // 根据环境设置不同标题
+        if (debugging()) {
+            $this->title .= ' (Debug)';
+        }
+
+        # 动态内容Block
+        $hour = (int) date('H');
+        if ($hour < 12) {
+            $this->title .= get_string('morning_title', 'block_blockdemo');
+        } else if ($hour < 18) {
+            $this->title .= get_string('afternoon_title', 'block_blockdemo');
+        } else {
+            $this->title .= get_string('evening_title', 'block_blockdemo');
+        }
+
+        // 设置技术属性
+        $this->content_type = BLOCK_TYPE_TEXT;
+
+        // 初始化内部状态（但不访问外部数据）
+        $this->internal_state = new stdClass();
+        $this->internal_state->initialized = true;
+        $this->internal_state->init_time = time();
     }
 
     /**
@@ -94,7 +116,7 @@ class block_blockdemo extends block_base
      */
     public function has_config()
     {
-        return true; // 这个示例不需要全局配置
+        return true;    // 这个示例不需要全局配置
     }
 
     /**
