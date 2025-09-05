@@ -1,13 +1,7 @@
 <?php
 /**
  * Capability definitions for 演示区块
- *
  * Documentation: {@link https://moodledev.io/docs/apis/subsystems/access}
- *
- * @package    block_blockdemo
- * @category   access
- * @copyright  2025 YOUR NAME <your@email.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();

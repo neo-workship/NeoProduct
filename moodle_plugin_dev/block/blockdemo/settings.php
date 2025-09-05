@@ -1,7 +1,6 @@
 <?php
 /**
  * Block Demo Plugin - Global Settings
- * 
  * 文件位置: blocks/blockdemo/settings.php
  * 
  * 这个文件定义了插件的全局配置选项，管理员可以在以下位置访问：

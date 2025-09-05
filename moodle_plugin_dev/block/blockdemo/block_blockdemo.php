@@ -1,28 +1,8 @@
 <?php
-/**
- * Block blockdemo
- *
- * Documentation: {@link https://moodledev.io/docs/apis/plugintypes/blocks}
- *
- * @package    block_blockdemo
- * 
- */
-
 /*
-1. Moodle加载插件时首先读取 version.php 获取插件信息
-2. 当需要显示block时，实例化 block_blockdemo 类：
-   - init() 方法设置基本属性
-   - get_content() 方法生成要显示的内容
-   - applicable_formats() 决定在哪些页面显示
-3. 用户点击"配置"时：
-   - 实例化 block_blockdemo_edit_form 类
-   - specific_definition() 方法构建配置表单
-   - 用户提交后，配置保存到 $this->config
-4. 权限检查：
-   - db/access.php 中定义的权限控制谁能添加/配置block
-5. 多语言支持：
-   - get_string() 函数从 lang/en/block_blockdemo.php 获取文本
-*/
+ * Block blockdemo
+ * Documentation: {@link https://moodledev.io/docs/apis/plugintypes/blocks}
+ */
 class block_blockdemo extends block_base
 {
 

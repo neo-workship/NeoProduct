@@ -1,10 +1,6 @@
 <?php
 /**
  * Version information for blockdemo
- *
- * @package    block_blockdemo
- * @copyright  2025 YOUR NAME <your@email.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
