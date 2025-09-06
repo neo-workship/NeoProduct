@@ -1,0 +1,30 @@
+
+{{!
+    @template block_blockdemo/block_properties
+    Template for displaying block properties and base class variables.
+    Classes required for JS:
+}}
+
+<div class="blockdemo-section">
+    <div class="blockdemo-title">{{section_title}}</div>
+    
+    <h5>{{basic_properties_title}}</h5>
+    <table class="blockdemo-table">
+        <thead>
+            <tr>
+                <th>{{#str}}property_name, block_blockdemo{{/str}}</th>
+                <th>{{#str}}property_value, block_blockdemo{{/str}}</th>
+                <th>{{#str}}property_type, block_blockdemo{{/str}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#properties}}
+            <tr>
+                <td>{{name}}</td>
+                <td>{{value}}</td>
+                <td>{{type}}</td>
+            </tr>
+            {{/properties}}
+        </tbody>
+    </table>
+</div>

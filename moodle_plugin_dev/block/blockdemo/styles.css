@@ -1,45 +1,77 @@
-/* Block demo styles */
-.blockdemo-content {
-    padding: 0;
+/* Block demo table styles */
+.blockdemo-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12px;
 }
 
-.blockdemo-table { 
-    width: 100%; 
-    border-collapse: collapse; 
-    margin: 10px 0; 
-    font-size: 12px;
+.blockdemo-table th,
+.blockdemo-table td {
+  border: 5px solid #ddd;
+  padding: 5px;
+  text-align: left;
 }
 
-.blockdemo-table th, 
-.blockdemo-table td { 
-    border: 1px solid #dee2e6; 
-    padding: 8px; 
-    text-align: left; 
+.blockdemo-table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
 }
 
-.blockdemo-table th { 
-    background-color: #f8f9fa; 
-    font-weight: 600; 
+/* Section styling */
+.blockdemo-section {
+  margin: 15px 0;
 }
 
-.blockdemo-section { 
-    margin: 15px 0; 
+.blockdemo-title {
+  font-weight: bold;
+  color: #e90909;
+  margin: 10px 0 5px 0;
 }
 
-.blockdemo-title { 
-    font-weight: 600; 
-    color: #495057; 
-    margin: 10px 0 5px 0; 
-    font-size: 1.1em;
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+  .blockdemo-table {
+    font-size: 11px;
+  }
+
+  .blockdemo-table th,
+  .blockdemo-table td {
+    padding: 3px;
+  }
 }
 
-.blockdemo-content h5 {
-    color: #6c757d;
-    font-size: 0.95em;
-    margin: 8px 0 5px 0;
+/* Dark theme support */
+.theme-boost-union .blockdemo-table th,
+.theme-boost .blockdemo-table th {
+  background-color: var(--gray-200, #f2f2f2);
 }
 
-.blockdemo-content.loaded {
-    opacity: 1;
-    transition: opacity 0.3s ease-in-out;
+.theme-boost-union .blockdemo-table,
+.theme-boost .blockdemo-table {
+  border-color: var(--border-color, #ddd);
+}
+
+.theme-boost-union .blockdemo-table th,
+.theme-boost-union .blockdemo-table td,
+.theme-boost .blockdemo-table th,
+.theme-boost .blockdemo-table td {
+  border-color: var(--border-color, #ddd);
+}
+
+/* Accessibility improvements */
+.blockdemo-table th {
+  scope: col;
+}
+
+/* Print styles */
+@media print {
+  .blockdemo-table {
+    font-size: 10px;
+  }
+
+  .blockdemo-section {
+    margin: 10px 0;
+    page-break-inside: avoid;
+  }
 }

@@ -59,3 +59,11 @@ $string['notice:texttoolong'] = '文本已截断至允许的最大长度。';
 // ==================== 帮助文本 ====================
 $string['help:configuration'] = '使用此表单配置当前区块实例的外观和内容。';
 $string['help:globalsettings'] = '这些设置将影响全站所有演示区块插件的实例。';
+
+// ==================== 模板相关字符串 ====================
+$string['block_properties_title'] = '块属性和基类变量';
+$string['basic_properties'] = '基本属性：';
+$string['property_name'] = '属性名称';
+$string['property_value'] = '值';
+$string['property_type'] = '类型';
+$string['footer_text'] = '{$a}';
