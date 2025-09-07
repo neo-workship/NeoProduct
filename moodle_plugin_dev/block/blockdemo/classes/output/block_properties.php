@@ -79,7 +79,6 @@ class block_properties implements renderable, templatable
 
     /**
      * Format value for display.
-     *
      * @param mixed $value The value to format
      * @return string Formatted value
      */

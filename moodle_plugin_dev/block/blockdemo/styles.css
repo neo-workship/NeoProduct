@@ -29,6 +29,132 @@
   margin: 10px 0 5px 0;
 }
 
+/* ==================== 天气功能样式 ==================== */
+.block_blockdemo .weather-section {
+  margin-top: 15px;
+  padding: 15px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+}
+
+.block_blockdemo .weather-title {
+  color: #495057;
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.block_blockdemo .weather-controls {
+  margin-bottom: 15px;
+}
+
+.block_blockdemo .weather-controls .btn {
+  margin-right: 8px;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.block_blockdemo .weather-loading {
+  padding: 10px;
+  background-color: #e3f2fd;
+  border: 1px solid #bbdefb;
+  border-radius: 4px;
+  color: #1976d2;
+  font-size: 14px;
+}
+
+.block_blockdemo .weather-display {
+  min-height: 60px;
+  padding: 10px;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+.block_blockdemo .weather-data {
+  font-size: 14px;
+}
+
+.block_blockdemo .weather-location {
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 8px;
+}
+
+.block_blockdemo .weather-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.block_blockdemo .weather-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.block_blockdemo .weather-label {
+  font-size: 11px;
+  color: #6c757d;
+  margin-bottom: 2px;
+}
+
+.block_blockdemo .weather-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.block_blockdemo .weather-temperature {
+  color: #e74c3c;
+}
+
+.block_blockdemo .weather-humidity {
+  color: #3498db;
+}
+
+.block_blockdemo .weather-wind {
+  color: #27ae60;
+}
+
+.block_blockdemo .weather-time {
+  font-size: 11px;
+  color: #868e96;
+  margin-top: 8px;
+  text-align: right;
+}
+
+.block_blockdemo .weather-error {
+  padding: 10px;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  color: #721c24;
+}
+
+/* 响应式设计 */
+@media (max-width: 576px) {
+  .block_blockdemo .weather-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .block_blockdemo .weather-item {
+    flex-direction: row;
+    justify-content: space-between;
+    min-width: auto;
+  }
+
+  .block_blockdemo .weather-controls .btn {
+    font-size: 11px;
+    padding: 4px 8px;
+    margin-right: 4px;
+  }
+}
+
 /* Responsive design for smaller screens */
 @media (max-width: 768px) {
   .blockdemo-table {
@@ -73,5 +199,14 @@
   .blockdemo-section {
     margin: 10px 0;
     page-break-inside: avoid;
+  }
+
+  .block_blockdemo .weather-section {
+    background-color: transparent !important;
+    border: 1px solid #000 !important;
+  }
+
+  .block_blockdemo .weather-controls {
+    display: none;
   }
 }

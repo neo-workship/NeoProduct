@@ -48,6 +48,9 @@ class block_blockdemo extends block_base
 
         $this->content = new stdClass();
 
+        // 加载天气功能的JavaScript模块
+        $this->load_weather_javascript();
+
         // 方式1: 使用自定义渲染器（会调用 renderer.php 中的 render_block_properties）
         // 创建块属性显示对象
         $blockproperties = new \block_blockdemo\output\block_properties($this);
@@ -58,7 +61,13 @@ class block_blockdemo extends block_base
          *   查找对应的渲染方法: Moodle会自动查找名为 render_block_properties 的方法
          *   自动调用: 如果找到该方法，就会自动调用；如果没找到，则使用默认渲染逻辑
          */
-        $this->content->text = $OUTPUT->render($blockproperties);
+        $blockpropertieshtml = $OUTPUT->render($blockproperties);
+
+        // 添加天气功能界面
+        $weatherhtml = $this->get_weather_interface();
+
+        // 组合内容
+        $this->content->text = $blockpropertieshtml . $weatherhtml;
 
         // 方式2: 直接使用模板（更简单，不需要自定义渲染器）
         // $blockproperties = new \block_blockdemo\output\block_properties($this);
@@ -72,6 +81,118 @@ class block_blockdemo extends block_base
         );
 
         return $this->content;
+    }
+
+    /**
+     * 加载天气功能的JavaScript
+     */
+    private function load_weather_javascript()
+    {
+        // 获取配置参数
+        $defaultcitycode = get_config('block_blockdemo', 'default_city_code') ?: '110101';
+        $apikey = get_config('block_blockdemo', 'weather_api_key');
+
+        // 准备传递给JavaScript的配置
+        $config = [
+            'blockInstanceId' => $this->instance->id,
+            'defaultCityCode' => $defaultcitycode,
+            'hasApiKey' => !empty($apikey),
+            'autoLoad' => false, // 不自动加载，需要用户点击
+        ];
+
+        // 调用AMD模块
+        $this->page->requires->js_call_amd('block_blockdemo/weather', 'init', [$config]);
+    }
+
+    /**
+     * 获取天气功能的界面HTML
+     * @return string HTML content for weather interface
+     */
+    private function get_weather_interface()
+    {
+        global $OUTPUT;
+
+        // 检查是否配置了API密钥
+        $apikey = get_config('block_blockdemo', 'weather_api_key');
+        if (empty($apikey)) {
+            return html_writer::div(
+                html_writer::tag(
+                    'p',
+                    get_string('weather_api_key_missing', 'block_blockdemo'),
+                    ['class' => 'alert alert-warning']
+                ),
+                'weather-section'
+            );
+        }
+
+        // 获取默认城市
+        $defaultcitycode = get_config('block_blockdemo', 'default_city_code') ?: '110101';
+
+        // 构建天气界面HTML
+        $html = html_writer::start_div('weather-section mt-3');
+
+        // 标题
+        $html .= html_writer::tag(
+            'h5',
+            get_string('weather_title', 'block_blockdemo'),
+            ['class' => 'weather-title']
+        );
+
+        // 按钮组
+        $html .= html_writer::start_div('weather-controls mb-2');
+
+        // 获取天气按钮
+        $html .= html_writer::tag(
+            'button',
+            get_string('get_weather', 'block_blockdemo'),
+            [
+                'class' => 'btn btn-primary btn-sm me-2',
+                'data-action' => 'get-weather',
+                'data-city-code' => $defaultcitycode,
+                'type' => 'button'
+            ]
+        );
+
+        // 刷新按钮
+        $html .= html_writer::tag(
+            'button',
+            get_string('refresh_weather', 'block_blockdemo'),
+            [
+                'class' => 'btn btn-secondary btn-sm',
+                'data-action' => 'refresh-weather',
+                'data-city-code' => $defaultcitycode,
+                'type' => 'button'
+            ]
+        );
+
+        $html .= html_writer::end_div(); // weather-controls
+
+        // 加载状态指示器
+        $html .= html_writer::div(
+            html_writer::tag(
+                'span',
+                get_string('loading', 'block_blockdemo'),
+                ['class' => 'spinner-border spinner-border-sm me-2']
+            ) .
+            get_string('loading_weather', 'block_blockdemo'),
+            'weather-loading',
+            ['data-region' => 'weather-loading', 'style' => 'display:none;']
+        );
+
+        // 天气数据显示区域
+        $html .= html_writer::div(
+            html_writer::tag(
+                'p',
+                get_string('click_to_load_weather', 'block_blockdemo'),
+                ['class' => 'text-muted']
+            ),
+            'weather-display',
+            ['data-region' => 'weather-display']
+        );
+
+        $html .= html_writer::end_div(); // weather-section
+
+        return $html;
     }
 
     /**

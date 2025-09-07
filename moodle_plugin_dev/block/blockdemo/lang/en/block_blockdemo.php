@@ -67,3 +67,22 @@ $string['property_name'] = '属性名称';
 $string['property_value'] = '值';
 $string['property_type'] = '类型';
 $string['footer_text'] = '{$a}';
+
+// ==================== 天气功能相关 ====================
+$string['weather_settings'] = '天气功能设置';
+$string['weather_settings_desc'] = '配置天气API相关设置。';
+$string['weather_api_key'] = '天气API密钥';
+$string['weather_api_key_desc'] = '输入高德地图天气API的密钥。获取方式：访问高德开放平台 (https://lbs.amap.com/)';
+$string['weather_cache_time'] = '天气缓存时间';
+$string['weather_cache_time_desc'] = '天气数据缓存时间（分钟），建议30分钟。';
+$string['default_city_code'] = '默认城市代码';
+$string['default_city_code_desc'] = '默认城市的6位数字代码，例如：110101（北京）';
+$string['weather_api_key_missing'] = '未配置天气API KEY';
+$string['weather_title'] = '天气信息';
+$string['get_weather'] = '获取天气';
+$string['refresh_weather'] = '更新天气';
+$string['loading'] = '获取中...';
+$string['loading_weather'] = '读取数据...';
+$string['click_to_load_weather'] = '点击获取';
+$string['weather_loaded_successfully'] = '天气数据加载成功';
+$string['weather_error_generic'] = '天气错误（通用）';

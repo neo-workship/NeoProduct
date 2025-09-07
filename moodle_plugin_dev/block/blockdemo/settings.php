@@ -58,6 +58,40 @@ if ($ADMIN->fulltree) {
         'card',
         $displayoptions
     ));
+
+    // ==================== 天气功能设置 ====================
+    $settings->add(new admin_setting_heading(
+        'block_blockdemo_weather',
+        get_string('weather_settings', 'block_blockdemo'),
+        get_string('weather_settings_desc', 'block_blockdemo')
+    ));
+
+    // 天气API密钥
+    $settings->add(new admin_setting_configtext(
+        'block_blockdemo/weather_api_key',
+        get_string('weather_api_key', 'block_blockdemo'),
+        get_string('weather_api_key_desc', 'block_blockdemo'),
+        '',
+        PARAM_ALPHANUMEXT
+    ));
+
+    // 缓存时间设置
+    $settings->add(new admin_setting_configtext(
+        'block_blockdemo/weather_cache_time',
+        get_string('weather_cache_time', 'block_blockdemo'),
+        get_string('weather_cache_time_desc', 'block_blockdemo'),
+        30,
+        PARAM_INT
+    ));
+
+    // 默认城市代码
+    $settings->add(new admin_setting_configtext(
+        'block_blockdemo/default_city_code',
+        get_string('default_city_code', 'block_blockdemo'),
+        get_string('default_city_code_desc', 'block_blockdemo'),
+        '110101',
+        PARAM_ALPHANUMEXT
+    ));
 }
 
 /**

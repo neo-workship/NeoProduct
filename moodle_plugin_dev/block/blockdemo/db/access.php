@@ -30,5 +30,19 @@ $capabilities = [
         'archetypes' => [
             'user' => CAP_ALLOW
         ]
+    ],
+
+    // 查看天气信息的权限
+    'block/blockdemo:view' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_BLOCK,
+        'archetypes' => [
+            'guest' => CAP_ALLOW,
+            'user' => CAP_ALLOW,
+            'student' => CAP_ALLOW,
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        ]
     ]
 ];
