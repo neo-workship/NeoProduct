@@ -86,3 +86,43 @@ $string['loading_weather'] = '读取数据...';
 $string['click_to_load_weather'] = '点击获取';
 $string['weather_loaded_successfully'] = '天气数据加载成功';
 $string['weather_error_generic'] = '天气错误（通用）';
+
+
+// ==================== 错误消息 ====================
+$string['invalid_city_code'] = '无效的城市代码';
+$string['weather_api_error'] = '天气API调用失败';
+$string['curl_error'] = '网络连接错误';
+$string['http_error'] = 'HTTP请求错误';
+$string['json_decode_error'] = 'JSON解析错误';
+$string['api_response_error'] = 'API响应错误: {$a}';
+$string['no_weather_data'] = '未找到天气数据';
+$string['missing_weather_field'] = '缺失天气字段: {$a}';
+
+// ==================== 权限相关 ====================
+$string['blockdemo:view'] = '查看演示区块';
+// ==================== 缓存相关字符串 ====================
+$string['cachedef_weather'] = '天气数据缓存';
+$string['cachedef_weather_help'] = '用于缓存从外部API获取的天气数据，减少API调用次数并提高性能。';
+
+// ==================== 调试和状态消息 ====================
+$string['debug_weather_api_called'] = '天气API被调用，参数: {$a}';
+$string['debug_api_key_missing'] = '天气API密钥缺失';
+$string['debug_invalid_city_code'] = '无效的城市代码: {$a}';
+$string['debug_cached_data_used'] = '使用缓存的天气数据';
+$string['debug_fresh_data_fetched'] = '从API获取新的天气数据';
+$string['debug_data_cached'] = '天气数据已缓存';
+
+// ==================== 模板相关字符串 ====================
+$string['weather_location'] = '位置';
+$string['weather_condition'] = '天气状况';
+$string['weather_temp'] = '温度';
+$string['weather_humidity_label'] = '湿度';
+$string['weather_wind_label'] = '风力';
+$string['weather_update_time'] = '更新时间';
+$string['weather_no_data'] = '暂无天气数据';
+
+// ==================== 用户界面文本 ====================
+$string['retry'] = '重试';
+$string['weather_unavailable'] = '天气服务暂时不可用';
+$string['check_connection'] = '请检查网络连接';
+$string['api_key_required'] = '需要配置API密钥才能使用天气功能';
