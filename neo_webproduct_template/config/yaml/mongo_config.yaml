@@ -1,0 +1,204 @@
+# MongoDB 配置文件
+# 支持多环境配置，包含开发、测试、生产、Atlas 云等环境
+
+# 配置元数据
+metadata:
+  version: "1.0.0"
+  created_date: "2024-01-01"
+  updated_date: "2024-01-01"
+  description: "MongoDB 多环境连接配置"
+
+# 默认配置环境
+default_environment: "local"
+
+# 各环境配置
+environments:
+  # 开发环境配置
+  dev:
+    name: "开发环境"
+    host: "localhost"
+    port: 27017
+    database_name: "dev_db"
+    collection_name: "users"
+    auth_type: "password"
+    username: "dev_user"
+    password: "dev_password"
+    auth_database: "admin"
+    ssl_mode: "disabled"
+    ssl_verify_cert: false
+    ssl_cert_file: null
+    ssl_key_file: null
+    ssl_ca_file: null
+    replica_set: null
+    read_preference: "primary"
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 30000
+    server_selection_timeout_ms: 30000
+    max_pool_size: 10
+    min_pool_size: 1
+    max_idle_time_ms: 60000
+    description: "开发环境 MongoDB 配置"
+    is_active: true
+    tags: ["dev", "local"]
+
+  # 测试环境配置
+  test:
+    name: "测试环境"
+    host: "test-mongodb.example.com"
+    port: 27017
+    database_name: "test_db"
+    collection_name: "test_data"
+    auth_type: "SCRAM-SHA-256"
+    username: "test_user"
+    password: "test_password_123"
+    auth_database: "admin"
+    ssl_mode: "preferred"
+    ssl_verify_cert: true
+    ssl_cert_file: null
+    ssl_key_file: null
+    ssl_ca_file: null
+    replica_set: "test-rs"
+    read_preference: "secondary"
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 30000
+    server_selection_timeout_ms: 30000
+    max_pool_size: 20
+    min_pool_size: 2
+    max_idle_time_ms: 60000
+    description: "测试环境 MongoDB 配置"
+    is_active: true
+    tags: ["test", "replica"]
+
+  # 生产环境配置
+  prod:
+    name: "生产环境"
+    host: "prod-mongodb.example.com"
+    port: 27017
+    database_name: "prod_db"
+    collection_name: "orders"
+    auth_type: "SCRAM-SHA-256"
+    username: "prod_user"
+    password: "prod_super_secure_password_456"
+    auth_database: "admin"
+    ssl_mode: "required"
+    ssl_verify_cert: true
+    ssl_cert_file: "/path/to/client.pem"
+    ssl_key_file: "/path/to/client-key.pem"
+    ssl_ca_file: "/path/to/ca.pem"
+    replica_set: "prod-rs"
+    read_preference: "secondaryPreferred"
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 30000
+    server_selection_timeout_ms: 30000
+    max_pool_size: 50
+    min_pool_size: 5
+    max_idle_time_ms: 60000
+    description: "生产环境 MongoDB 配置"
+    is_active: true
+    tags: ["prod", "ssl", "replica"]
+
+  # MongoDB Atlas 云数据库配置
+  atlas:
+    name: "MongoDB Atlas"
+    host: "cluster0.xxxxx.mongodb.net"
+    port: 27017
+    database_name: "atlas_db"
+    collection_name: "app_data"
+    auth_type: "SCRAM-SHA-1"
+    username: "atlas_user"
+    password: "atlas_password_789"
+    auth_database: "admin"
+    ssl_mode: "required"
+    ssl_verify_cert: true
+    ssl_cert_file: null
+    ssl_key_file: null
+    ssl_ca_file: null
+    replica_set: "atlas-cluster0-shard-0"
+    read_preference: "primary"
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 30000
+    server_selection_timeout_ms: 30000
+    max_pool_size: 30
+    min_pool_size: 3
+    max_idle_time_ms: 60000
+    description: "MongoDB Atlas 云数据库配置"
+    is_active: true
+    tags: ["atlas", "cloud", "ssl"]
+
+  # 无认证本地配置
+  local:
+    name: "本地无认证"
+    host: "localhost"
+    port: 27017
+    database_name: "数字政府"
+    collection_name: "一企一档"
+    auth_type: "none"
+    username: null
+    password: null
+    auth_database: null
+    ssl_mode: "disabled"
+    ssl_verify_cert: false
+    ssl_cert_file: null
+    ssl_key_file: null
+    ssl_ca_file: null
+    replica_set: null
+    read_preference: "primary"
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 30000
+    server_selection_timeout_ms: 30000
+    max_pool_size: 50
+    min_pool_size: 20
+    max_idle_time_ms: 60000
+    description: "本地开发用无认证配置"
+    is_active: true
+    tags: ["local", "no-auth"]
+
+  # X.509 证书认证配置
+  x509:
+    name: "X.509认证"
+    host: "secure-mongodb.example.com"
+    port: 27017
+    database_name: "secure_db"
+    collection_name: "secure_data"
+    auth_type: "x509"
+    username: "C=US,ST=NY,L=NYC,O=Example,OU=IT,CN=client"
+    password: null
+    auth_database: "$external"
+    ssl_mode: "required"
+    ssl_verify_cert: true
+    ssl_cert_file: "/path/to/client.pem"
+    ssl_key_file: "/path/to/client-key.pem"
+    ssl_ca_file: "/path/to/ca.pem"
+    replica_set: "secure-rs"
+    read_preference: "primary"
+    connect_timeout_ms: 30000
+    socket_timeout_ms: 30000
+    server_selection_timeout_ms: 30000
+    max_pool_size: 20
+    min_pool_size: 2
+    max_idle_time_ms: 60000
+    description: "使用 X.509 证书认证的安全配置"
+    is_active: true
+    tags: ["x509", "secure", "ssl"]
+
+# 认证类型枚举值
+auth_types:
+  - "none"
+  - "password"
+  - "x509"
+  - "SCRAM-SHA-1"
+  - "SCRAM-SHA-256"
+
+# SSL 模式枚举值
+ssl_modes:
+  - "disabled"
+  - "preferred"
+  - "required"
+
+# 读偏好选项
+read_preferences:
+  - "primary"
+  - "secondary"
+  - "secondaryPreferred"
+  - "primaryPreferred"
+  - "nearest"
