@@ -53,7 +53,10 @@ class LayoutManager:
             'user_management': '用户管理',
             'role_management': '角色管理', 
             'permission_management': '权限管理',
-            
+            # ✅ 新增: 配置管理路由
+            'llm_config_management': '大模型配置',
+            'prompt_config_management': '提示词配置',  # ✅ 新增
+
             # 用户菜单路由（排除logout）
             'user_profile': '个人资料',
             'change_password': '修改密码',
@@ -310,6 +313,10 @@ class LayoutManager:
                         ui.menu_item('用户管理', lambda: self.handle_settings_menu_item_click('user_management', '用户管理'))
                         ui.menu_item('角色管理', lambda: self.handle_settings_menu_item_click('role_management', '角色管理'))
                         ui.menu_item('权限管理', lambda: self.handle_settings_menu_item_click('permission_management', '权限管理'))
+                        # ✅ 新增: 配置管理菜单项
+                        ui.separator()  # 分隔线
+                        ui.menu_item('大模型配置', lambda: self.handle_settings_menu_item_click('llm_config_management', '大模型配置'))
+                        ui.menu_item('提示词配置', lambda: self.handle_settings_menu_item_click('prompt_config_management', '提示词配置'))  # ✅ 新增
 
                 # 用户菜单
                 with ui.button(icon='account_circle').props('flat color=white round').classes('w-10 h-10'):

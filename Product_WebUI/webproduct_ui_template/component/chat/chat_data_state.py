@@ -9,16 +9,16 @@ from typing import List, Dict, Any, Optional, Union
 class SelectedValues:
     """数据输入值数据结构 - 通过 textarea JSON 输入"""
     # 层级数据
-    l1: Optional[str] = None
-    l2: Optional[str] = None
-    l3: Optional[str] = None
-    field: Union[List[str], str, None] = None
-    field_name: Union[List[str], str, None] = None
+    # l1: Optional[str] = None
+    # l2: Optional[str] = None
+    # l3: Optional[str] = None
+    # field: Union[List[str], str, None] = None
+    # field_name: Union[List[str], str, None] = None
     
-    # 扩展字段
-    data_url: Optional[str] = None
-    full_path_code: Optional[str] = None
-    full_path_name: Optional[str] = None
+    # # 扩展字段
+    # data_url: Optional[str] = None
+    # full_path_code: Optional[str] = None
+    # full_path_name: Optional[str] = None
     
     # textarea 输入相关
     raw_input: Optional[str] = None  # textarea原始输入内容

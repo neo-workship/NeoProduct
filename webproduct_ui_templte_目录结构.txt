@@ -1,0 +1,112 @@
+webproduct_ui_template/
+├── auth/                          	   # 认证和权限管理包
+│   ├── migrations/                    # 数据库迁移脚本
+│   │   └── __init__.py                # 包初始化和导出
+│   ├── pages/                         # 页面模块
+│   │   ├── __init__.py                # 包初始化和导出
+│   │   ├── change_password_page.py    # 密码修改页面
+│   │   ├── login_page.py              # 登录页面
+│   │   ├── logout_page.py             # 注销页面
+│   │   ├── permission_management_page.py  # 权限管理页面
+│   │   ├── profile_page.py            # 个人资料页面
+│   │   ├── register_page.py           # 注册页面
+│   │   ├── role_management_page.py    # 角色管理页面
+│   │   └── user_management_page.py    # 用户管理页面
+│   ├── __init__.py                    # 包初始化和导出
+│   ├── auth_manager.py                # 认证管理器（全局auth_manager）
+│   ├── config.py                      # 配置文件
+│   ├── database.py                    # 数据库连接和ORM
+│   ├── decorators.py                  # 装饰器（登录验证等）
+│   ├── detached_helper.py             # 解决SQLAlchemy DetachedInstanceError问题的通用工具
+│   ├── models.py                      # 数据模型
+│   ├── navigation.py                  # 导航工具函数
+│   ├── session_manager.py             # 会话管理器（内存缓存UserSession）
+│   └── utils.py                       # 工具函数
+├── common/                            # 公共功能包
+│   ├── exception_handler.py           # 日志记录了与异常处理
+│   └── safe_openai_client_pool.py     # 线程安全的OpenAI客户端连接池
+├── component/                         # 公共UI框架和组件包
+│   ├── __init__.py                    # 包初始化和导出
+│   ├── layout_config.py               # 复杂布局配置类
+│   ├── layout_manager.py              # 复杂布局管理器
+│   ├── simple_layout_manager.py       # 简单布局管理器
+│   ├── simple_spa_layout.py           # 简单布局管理器
+│   ├── spa_layout.py                  # SPA布局装饰器和工具函数
+│   └── static_resources.py            # 静态资源管理器
+├── config/                            # 配置目录
+│   ├── yaml/
+│   │   ├── llm_model_config.yaml      # 大模型配置
+│   │   └── system_prompt_config.yaml  # 系统提示词
+│   └── __init__.py                    # 包初始化和导出
+├── data/                              
+│   └── auth.db                        # sqlite数据库（登录、认证相关）
+├── database_models/                   # 共享业务表数据，认证和权限（用户、角色、权限）使用auth.auth_manager,auth.session_manager
+│   ├── business_models/               # 业务表模型
+│   │   ├── __init__.py                
+│   │   └── chat_history_model.py      # 聊天历史模型
+│   ├── doc/                           # 文档目录
+│   │   ├── db_define.md
+│   │   └── 数据模型开发模式.md
+│   ├── __init__.py                    # 包初始化和导出
+│   ├── business_utils.py              # 业务模型工具类 - 提供跨模块的辅助功能
+│   └── shared_base.py                 # 基础模型类和公共字段
+├── header_pages/                      # 头部功能页面模块
+│   ├── __init__.py                    # 包初始化和导出
+│   ├── contact_page.py                # 联系我们页面
+│   ├── messages_page.py               # 消息页面
+│   └── search_page.py                 # 搜索页面
+├── logs/                              # 日志文件夹
+│   └── app_logs_2025-10-18.csv
+├── menu_pages/                        # 菜单页面模块
+│   ├── enterprise_archive/
+│   │   ├── chat_component/            # 聊天UI模块
+│   │   │   ├── __init__.py            # 包初始化和导出
+│   │   │   ├── chat.py                # 聊天页面
+│   │   │   ├── chat_area_manager.py   # 聊天框内容显示区域
+│   │   │   ├── chat_data_state.py     # 聊天框数据状态
+│   │   │   ├── chat_sidebar_manager.py        # 聊天页面左侧管理区域
+│   │   │   ├── config.py                      # 读取大模型配置文件
+│   │   │   └── markdown_ui_parser.py          # Markdown 内容解析器和 UI 组件映射器
+│   │   ├── __init__.py                    	   # 包初始化和导出
+│   │   ├── hierarchy_selector_component.py    # 层级选择器组件
+│   │   └── main_page.py               # 聊天框主页面
+│   ├── __init__.py                    # 包初始化和导出
+│   ├── enterprise_archive_page.py     # 包含聊天框的样例页面
+│   ├── home_page.py          		   # 主页页面   
+│   └── person_archive_page.py         # 样例页面
+├── scripts/
+│   ├── doc/                           # 文档目录
+│   │   └── init_database.md
+│   ├── __init__.py                    # 包初始化和导出
+│   ├── database_migrate.py            # 迁移数据库
+│   ├── deploy.py                      # 部署服务的脚本 
+│   ├── health_check.py                
+│   ├── init_database.py               # 初始化数据库脚本
+│   └── start_services.py              # 启动services文件夹下的FastAPI服务的脚本        
+├── services/                          # 独立FastAPI业务服务
+│   ├── fastapi_server1/                # 样例FastAPI服务1
+│   ├── fastapi_server2/                # 样例FastAPI服务2   
+│   └── __init__.py                    # 包初始化和导出
+├── static/                        	   # 静态资源
+│   ├── avatars/
+│   ├── config/
+│   ├── css/
+│   │   ├── themes/
+│   ├── fonts/
+│   │   └── custom-fonts/
+│   ├── icons/
+│   │   ├── header-icons/
+│   │   └── menu-icons/
+│   ├── images/
+│   │   ├── avatars/
+│   │   │   └── default_avatar.png
+│   │   ├── icons/
+│   │   │   ├── header-icons/
+│   │   │   └── menu-icons/
+│   │   └── logo/
+│   │       ├── robot.svg
+│   │       └── user.svg
+│   └── js/
+├── main.py             # 基于component\spa_layout.py脚本构建UI的启动脚本
+├── README.md
+└── simple_main.py      # 基于component\simple_spa_layout.py脚本构建UI的启动脚本

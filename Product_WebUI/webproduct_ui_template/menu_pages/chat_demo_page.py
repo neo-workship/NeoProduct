@@ -7,7 +7,7 @@ from component.chat import ChatComponent
 
 
 @safe_protect(name="一企一档", error_msg="一企一档页面加载失败")
-def one_page_content():
+def chat_page_content():
     """
     企业档案页面内容
     功能说明:
@@ -25,4 +25,4 @@ def one_page_content():
 
 
 # 导出主要功能，保持原有接口不变
-__all__ = ['one_page_content']
+__all__ = ['chat_page_content']

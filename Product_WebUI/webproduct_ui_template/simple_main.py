@@ -29,8 +29,6 @@ if __name__ in {"__main__", "__mp_main__"}:
 
     # 创建自定义配置
     config = LayoutConfig()
-    config.app_title = '政务综合服务平台'  # 修改标题以区分布局
-
     # 登录页面
     @ui.page('/login')
     def login_page():
@@ -55,8 +53,8 @@ if __name__ in {"__main__", "__mp_main__"}:
             config=config,
             nav_items=[
                 {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
-                {'key': 'enterprise_archive', 'label': '一企一档', 'icon': 'business', 'route': 'enterprise_archive'},
-                {'key': 'person_archive', 'label': '一人一档', 'icon': 'people', 'route': 'person_archive','separator_after': True},
+                {'key': 'one_page', 'label': 'ChatDemo', 'icon': 'business', 'route': 'chat_page'},
+                {'key': 'two_page', 'label': 'OtherDemo', 'icon': 'people', 'route': 'other_page','separator_after': True},
              
             ],
             

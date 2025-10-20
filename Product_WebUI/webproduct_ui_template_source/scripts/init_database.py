@@ -93,6 +93,12 @@ class DatabaseInitializer:
             self.logger.info("✅ 认证模型导入成功")
             
             # 导入业务模型（从database_models包）
+            from database_models.business_models.openai_models import OpenAIConfig, OpenAIRequest
+            self.logger.info("✅ OpenAI业务模型导入成功")
+            
+            # 在这里添加其他业务模型的导入
+            # from database_models.business_models.mongodb_models import MongoDBConfig, MongoDBQuery
+            from database_models.business_models.mongodb_models import MongoDBConfig
             from database_models.business_models.chat_history_model import ChatHistory
             # self.logger.info("✅ 审计业务模型导入成功")
             
@@ -104,6 +110,9 @@ class DatabaseInitializer:
                 'Role': Role, 
                 'Permission': Permission,
                 'LoginLog': LoginLog,
+                'OpenAIConfig': OpenAIConfig,
+                'OpenAIRequest': OpenAIRequest,
+                'MongoDBConfig': MongoDBConfig,
                 'ChatHistory': ChatHistory
             }
             

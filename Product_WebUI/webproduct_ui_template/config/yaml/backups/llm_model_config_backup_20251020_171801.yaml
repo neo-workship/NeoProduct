@@ -153,5 +153,5 @@ doubao:
     timeout: 60
     max_retries: 3
     stream: true
-    enabled: true
+    enabled: false
     description: ''

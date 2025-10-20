@@ -62,5 +62,22 @@ prompt_templates:
     examples:
       input_example: 查询注册资本大于100万的所有企业
       output_format: 可执行的MongoDB查询语句，包含注释说明
+  test:
+    name: 测试
+    description: 测试
+    enabled: true
+    version: '1.0'
+    category: 业务助手
+    system_prompt: 'Page Layout
+
+      With ui.header, ui.footer, ui.left_drawer and ui.right_drawer you can add additional
+      layout elements to a page. The fixed argument controls whether the element should
+      scroll or stay fixed on the screen. The top_corner and bottom_corner arguments
+      indicate whether a drawer should expand to the top or bottom of the page. See
+      https://quasar.dev/layout/header-and-footer and https://quasar.dev/layout/drawer
+      for more information about possible props. With ui.page_sticky you can place
+      an element "sticky" on the screen. See https://quasar.dev/layout/page-sticky
+      for more information.'
+    examples: {}
 global_settings:
   default_language: zh-CN

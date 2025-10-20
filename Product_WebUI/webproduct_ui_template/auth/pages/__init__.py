@@ -11,6 +11,10 @@ from .permission_management_page import permission_management_page_content
 from .role_management_page import role_management_page_content
 from .user_management_page import user_management_page_content
 
+# ✅ 新增: 导入大模型配置管理页面
+from .llm_config_management_page import llm_config_management_page_content
+from .prompt_config_management_page import prompt_config_management_page_content  # ✅ 新增
+
 def no_permission_page_content():
     """权限不足页面"""
     from nicegui import ui
@@ -46,7 +50,10 @@ def get_auth_page_handlers():
         'permission_management': permission_management_page_content,
         'role_management': role_management_page_content,
         'user_management': user_management_page_content,
-        'no_permission': no_permission_page_content
+        'no_permission': no_permission_page_content,
+        # ✅ 新增: 大模型配置管理页面路由
+        'llm_config_management': llm_config_management_page_content,
+        'prompt_config_management': prompt_config_management_page_content,  # ✅ 新增
     }
 
 __all__ = [
@@ -59,5 +66,8 @@ __all__ = [
     'role_management_page_content',
     'user_management_page_content',
     'no_permission_page_content',
+    # ✅ 新增导出
+    'llm_config_management_page_content',
+    'prompt_config_management_page_content',  # ✅ 新增导出
     'get_auth_page_handlers'
 ]
