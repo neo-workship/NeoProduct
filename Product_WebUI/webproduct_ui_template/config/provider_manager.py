@@ -67,7 +67,7 @@ class ProviderManager:
             key='zhipu',
             display_name='智谱AI',
             description='智谱 GLM 系列模型 - 国产大模型',
-            default_base_url='https://open.bigmodel.cn/api/paas/v4',
+            default_base_url='https://open.bigmodel.cn/api/paas/v4/',
             icon='lightbulb'
         ),
         ProviderInfo(

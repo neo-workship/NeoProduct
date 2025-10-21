@@ -12,7 +12,7 @@ prompt_templates:
     enabled: true
     version: '1.0'
     category: 文档编写
-    system_prompt: '- 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
+    system_prompt: '# 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
 
       '
     examples: {}

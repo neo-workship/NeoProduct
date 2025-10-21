@@ -5,7 +5,6 @@
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 
-
 @dataclass
 class MultilayerMenuItem:
     """多层菜单项数据类"""
@@ -254,28 +253,6 @@ def create_demo_menu_config() -> MultilayerMenuConfig:
         ]
     )
     
-    # 个人档案管理
-    personal_menu = MultilayerMenuItem(
-        key='personal',
-        label='个人档案管理',
-        icon='people',
-        children=[
-            MultilayerMenuItem(
-                key='profile',
-                label='个人资料',
-                icon='person',
-                route='profile_page'
-            ),
-            MultilayerMenuItem(
-                key='settings',
-                label='设置',
-                icon='settings',
-                route='settings_page'
-            ),
-        ],
-        separator_after=True
-    )
-    
     # 系统管理
     system_menu = MultilayerMenuItem(
         key='system',
@@ -298,7 +275,6 @@ def create_demo_menu_config() -> MultilayerMenuConfig:
     )
     
     config.add_menu_item(enterprise_menu)
-    config.add_menu_item(personal_menu)
     config.add_menu_item(system_menu)
     
     return config

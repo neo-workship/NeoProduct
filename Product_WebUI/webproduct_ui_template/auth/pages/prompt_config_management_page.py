@@ -40,6 +40,19 @@ class PromptConfigManagementPage:
     
     def render(self):
         """渲染页面"""
+        ui.add_head_html('''
+            <style>
+            .prompt_edit_dialog-hide-scrollbar {
+                overflow-y: auto;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+            }
+            .prompt_edit_dialog-hide-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+            </style>
+        ''')
+        
         # 页面标题
         with ui.row().classes('w-full items-center justify-between mb-6'):
             with ui.column():
@@ -182,7 +195,7 @@ class PromptConfigManagementPage:
             ui.label('新增系统提示词').classes('text-xl font-bold mb-4')
             
             # 表单字段
-            with ui.column().classes('w-full gap-4'):
+            with ui.column().classes('w-full gap-4 prompt_edit_dialog-hide-scrollbar'):
                 # 基本信息
                 ui.label('基本信息').classes('text-lg font-semibold text-green-600')
                 
@@ -315,7 +328,8 @@ class PromptConfigManagementPage:
             ui.notify('提示词模板不存在', type='negative')
             return
         
-        with ui.dialog() as dialog, ui.card().classes('w-full max-w-4xl'):
+        with ui.dialog() as dialog, ui.card().classes('w-full max-w-4xl prompt_edit_dialog-hide-scrollbar'):
+        # with ui.column().classes('w-full gap-4 prompt_edit_dialog-hide-scrollbar'):
             # 标题
             name = prompt_config.get('name', template_key)
             ui.label(f'预览: {name}').classes('text-xl font-bold mb-4')
@@ -342,9 +356,9 @@ class PromptConfigManagementPage:
             
             system_prompt = prompt_config.get('system_prompt', '')
             
-            with ui.card().classes('w-full bg-gray-50 dark:bg-gray-800'):
-                with ui.scroll_area().classes('w-full h-96'):
-                    ui.markdown(system_prompt).classes('p-4')
+            # with ui.card().classes('w-full bg-gray-50 dark:bg-gray-800'):
+            with ui.scroll_area().classes('w-full h-96'):
+                ui.markdown(system_prompt).classes('p-4')
             
             # 底部信息
             with ui.row().classes('w-full justify-between mt-4'):
@@ -359,7 +373,7 @@ class PromptConfigManagementPage:
                 ui.button(
                     '编辑',
                     icon='edit',
-                    on_click=lambda: (dialog.close(), self.show_edit_dialog(template_key))
+                    on_click=lambda:  self.show_edit_dialog(template_key)
                 ).classes('bg-green-500 text-white')
         
         dialog.open()
@@ -375,7 +389,7 @@ class PromptConfigManagementPage:
             ui.label(f'编辑提示词: {prompt_config.get("name", template_key)}').classes('text-xl font-bold mb-4')
             
             # 表单字段(预填充)
-            with ui.column().classes('w-full gap-4'):
+            with ui.column().classes('w-full gap-4 prompt_edit_dialog-hide-scrollbar'):
                 # 基本信息
                 ui.label('基本信息').classes('text-lg font-semibold text-green-600')
                 

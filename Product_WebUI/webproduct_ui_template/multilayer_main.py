@@ -67,29 +67,8 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
             ]
         ),
         
-        # 个人档案管理 - 第二个分组
-        MultilayerMenuItem(
-            key='personal',
-            label='个人档案管理',
-            icon='people',
-            children=[
-                MultilayerMenuItem(
-                    key='profile',
-                    label='个人资料',
-                    icon='person',
-                    route='other_page'
-                ),
-                MultilayerMenuItem(
-                    key='settings',
-                    label='个人设置',
-                    icon='settings',
-                    route='other_page'
-                ),
-            ],
-            separator_after=True
-        ),
         
-        # 系统管理 - 第三个分组(演示更多子项)
+        # 系统管理 - 第2个分组(演示更多子项)
         MultilayerMenuItem(
             key='system',
             label='系统管理',
@@ -116,7 +95,7 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
             ]
         ),
         
-        # 配置中心 - 第四个分组
+        # 配置中心 - 第3个分组
         MultilayerMenuItem(
             key='config',
             label='配置中心',
@@ -161,7 +140,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     
     # 创建自定义配置
     config = LayoutConfig()
-    config.app_title = 'NeoUI多层布局演示'
+    config.app_title = 'NeoUI多层布局'
     config.menu_title = '功能导航'
     
     # 登录页面

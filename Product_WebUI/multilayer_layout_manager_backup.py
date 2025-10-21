@@ -76,7 +76,6 @@ class MultilayerLayoutManager:
             .multilayer-drawer {
                 overflow-y: auto;
                 overflow-x: hidden;   /* ✨ 关键修复1: 禁用水平滚动 */
-                border-right: 1px solid #e5e7eb;
             }
             
             /* 菜单内容区域滚动条 */
@@ -84,7 +83,6 @@ class MultilayerLayoutManager:
                 overflow-y: auto;
                 overflow-x: hidden;  /* ✨ 关键修复2: 禁用水平滚动 */
                 max-height: calc(100vh - 100px);
-                border-right: 1px solid #e5e7eb;
             }
                          
             /* Webkit浏览器(Chrome, Safari, Edge)滚动条样式 */
@@ -199,7 +197,7 @@ class MultilayerLayoutManager:
         self._add_drawer_scrollbar_styles()
         
         with ui.left_drawer(fixed=False).props('bordered').classes(
-            f'{self.config.drawer_width} {self.config.drawer_bg}'
+            f'{self.config.drawer_width} {self.config.drawer_bg} multilayer-drawer'
         ) as left_drawer:
             self.left_drawer = left_drawer
             

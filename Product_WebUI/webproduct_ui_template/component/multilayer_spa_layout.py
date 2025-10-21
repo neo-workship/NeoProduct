@@ -284,88 +284,88 @@ if __name__ == '__main__':
     print("=" * 60)
     
     example_code = '''
-# 1. 导入必要的模块
-from component import (
-    with_multilayer_spa_layout, 
-    LayoutConfig,
-    MultilayerMenuItem
-)
-
-# 2. 创建多层菜单结构
-menu_items = [
-    MultilayerMenuItem(
-        key='enterprise',
-        label='企业档案管理',
-        icon='business',
-        expanded=True,
-        children=[
-            MultilayerMenuItem(
-                key='chat',
-                label='AI对话',
-                icon='chat',
-                route='chat_page'
-            ),
-            MultilayerMenuItem(
-                key='doc',
-                label='文档管理',
-                icon='description',
-                route='doc_page'
-            ),
-        ]
-    ),
-    MultilayerMenuItem(
-        key='personal',
-        label='个人档案管理',
-        icon='people',
-        children=[
-            MultilayerMenuItem(
-                key='profile',
-                label='个人资料',
-                icon='person',
-                route='profile_page'
-            ),
-        ]
-    ),
-]
-
-# 3. 定义路由处理器
-def chat_page_handler():
-    ui.label('AI对话页面').classes('text-2xl font-bold')
-    ui.label('这是一个聊天界面...')
-
-def doc_page_handler():
-    ui.label('文档管理页面').classes('text-2xl font-bold')
-    ui.label('这里可以管理各种文档...')
-
-route_handlers = {
-    'chat_page': chat_page_handler,
-    'doc_page': doc_page_handler,
-    'profile_page': lambda: ui.label('个人资料页面'),
-}
-
-# 4. 使用装饰器创建布局
-@ui.page('/workbench')
-def main_page():
-    @with_multilayer_spa_layout(
-        config=LayoutConfig(),
-        menu_items=menu_items,
-        header_config_items=[
-            {'key': 'search', 'icon': 'search', 'route': 'search'},
-            {'key': 'messages', 'icon': 'mail', 'route': 'messages'},
-        ],
-        route_handlers=route_handlers
+    # 1. 导入必要的模块
+    from component import (
+        with_multilayer_spa_layout, 
+        LayoutConfig,
+        MultilayerMenuItem
     )
-    def spa_content():
-        pass
-    
-    return spa_content()
 
-# 5. 在页面中使用导航函数
-from component import multilayer_navigate_to
+    # 2. 创建多层菜单结构
+    menu_items = [
+        MultilayerMenuItem(
+            key='enterprise',
+            label='企业档案管理',
+            icon='business',
+            expanded=True,
+            children=[
+                MultilayerMenuItem(
+                    key='chat',
+                    label='AI对话',
+                    icon='chat',
+                    route='chat_page'
+                ),
+                MultilayerMenuItem(
+                    key='doc',
+                    label='文档管理',
+                    icon='description',
+                    route='doc_page'
+                ),
+            ]
+        ),
+        MultilayerMenuItem(
+            key='personal',
+            label='个人档案管理',
+            icon='people',
+            children=[
+                MultilayerMenuItem(
+                    key='profile',
+                    label='个人资料',
+                    icon='person',
+                    route='profile_page'
+                ),
+            ]
+        ),
+    ]
 
-def some_button_handler():
-    multilayer_navigate_to('chat_page')  # 导航到AI对话页面
-'''
+    # 3. 定义路由处理器
+    def chat_page_handler():
+        ui.label('AI对话页面').classes('text-2xl font-bold')
+        ui.label('这是一个聊天界面...')
+
+    def doc_page_handler():
+        ui.label('文档管理页面').classes('text-2xl font-bold')
+        ui.label('这里可以管理各种文档...')
+
+    route_handlers = {
+        'chat_page': chat_page_handler,
+        'doc_page': doc_page_handler,
+        'profile_page': lambda: ui.label('个人资料页面'),
+    }
+
+    # 4. 使用装饰器创建布局
+    @ui.page('/workbench')
+    def main_page():
+        @with_multilayer_spa_layout(
+            config=LayoutConfig(),
+            menu_items=menu_items,
+            header_config_items=[
+                {'key': 'search', 'icon': 'search', 'route': 'search'},
+                {'key': 'messages', 'icon': 'mail', 'route': 'messages'},
+            ],
+            route_handlers=route_handlers
+        )
+        def spa_content():
+            pass
+        
+        return spa_content()
+
+    # 5. 在页面中使用导航函数
+    from component import multilayer_navigate_to
+
+    def some_button_handler():
+        multilayer_navigate_to('chat_page')  # 导航到AI对话页面
+    '''
     
     print(example_code)
     print("=" * 60)

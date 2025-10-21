@@ -14,9 +14,9 @@ alibaba:
     enabled: true
     description: 阿里通义千问 Plus 中文对话模型
     tags:
-    - chinese
-    - general
-    - multimodal
+      - chinese
+      - general
+      - multimodal
   qwen3-coder-plus:
     name: 通义千问 Coder
     provider: alibaba
@@ -32,8 +32,8 @@ alibaba:
     enabled: true
     description: 阿里通义千问 Coder 中文对话模型
     tags:
-    - chinese
-    - code
+      - chinese
+      - code
 深度求索:
   deepseek-chat:
     name: DeepSeek Chat
@@ -52,9 +52,9 @@ alibaba:
     enabled: true
     description: DeepSeek Chat 中文优化对话模型
     tags:
-    - chinese
-    - chat
-    - reasoning
+      - chinese
+      - chat
+      - reasoning
 moonshot:
   moonshot-v1-8k:
     name: moonshot-v1-8k
@@ -71,8 +71,8 @@ moonshot:
     enabled: true
     description: 月之暗面通用大模型
     tags:
-    - chinese
-    - general
+      - chinese
+      - general
 Ollama:
   qwen3:8b:
     name: qwen3-8b
@@ -89,9 +89,9 @@ Ollama:
     enabled: true
     description: 本地部署的 qwen3 8B 模型
     tags:
-    - local
-    - qwen
-    - opensource
+      - local
+      - qwen
+      - opensource
   deepseek-r1:8b:
     name: deeseek-8b
     provider: ollama
@@ -107,9 +107,9 @@ Ollama:
     enabled: true
     description: 本地部署的 deepseek 8B 模型
     tags:
-    - local
-    - deepseek
-    - opensource
+      - local
+      - deepseek
+      - opensource
   qwen2.5:latest:
     name: qwen2.5-8b
     provider: ollama
@@ -125,9 +125,9 @@ Ollama:
     enabled: true
     description: 本地部署的 deepseek 8B 模型
     tags:
-    - local
-    - deepseek
-    - opensource
+      - local
+      - deepseek
+      - opensource
 defaults:
   timeout: 60
   max_retries: 3
@@ -138,13 +138,13 @@ defaults:
   enabled: true
 metadata:
   version: 1.0.0
-  created_at: '2025-01-01'
+  created_at: "2025-01-01"
   description: LLM 模型统一配置文件
   supported_providers:
-  - deepseek
-  - alibaba
-  - moonshot
-  - ollama
+    - deepseek
+    - alibaba
+    - moonshot
+    - ollama
 doubao:
   deepseek-v3-1-terminus:
     name: 豆包DeepSeek
@@ -154,25 +154,4 @@ doubao:
     max_retries: 3
     stream: true
     enabled: true
-    description: ''
-zhipu:
-  glm-4.5-flash:
-    name: GLM-4.5-Flash
-    provider: zhipu
-    model_name: glm-4.5-flash
-    base_url: https://open.bigmodel.cn/api/paas/v4/
-    api_key: 8741dc327c45445d83c82aca7e636842.H1wbh0PglthU51cQ
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: ''
-  GLM-4.1V-Thinking-Flash:
-    name: GLM-4.1V-Thinking-Flash
-    base_url: https://open.bigmodel.cn/api/paas/v4/
-    api_key: 8741dc327c45445d83c82aca7e636842.H1wbh0PglthU51cQ
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: ''
+    description: ""

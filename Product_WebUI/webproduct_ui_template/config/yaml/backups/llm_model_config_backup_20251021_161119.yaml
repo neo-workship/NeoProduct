@@ -158,8 +158,6 @@ doubao:
 zhipu:
   glm-4.5-flash:
     name: GLM-4.5-Flash
-    provider: zhipu
-    model_name: glm-4.5-flash
     base_url: https://open.bigmodel.cn/api/paas/v4/
     api_key: 8741dc327c45445d83c82aca7e636842.H1wbh0PglthU51cQ
     timeout: 60

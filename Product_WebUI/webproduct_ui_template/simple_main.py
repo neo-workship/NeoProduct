@@ -24,6 +24,7 @@ def create_protected_handlers():
     return {**menu_handlers, **header_handlers, **system_handlers}
 
 if __name__ in {"__main__", "__mp_main__"}:
+    
     # 获取受保护的页面处理器
     protected_handlers = create_protected_handlers()
 

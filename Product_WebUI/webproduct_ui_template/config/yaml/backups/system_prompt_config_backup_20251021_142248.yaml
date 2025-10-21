@@ -8,14 +8,14 @@ metadata:
 prompt_templates:
   默认:
     name: 默认
-    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等。
+    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等
     enabled: true
     version: '1.0'
     category: 文档编写
-    system_prompt: '- 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
+    system_prompt: '# 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
 
       '
-    examples: {}
+    examples: null
   一企一档专家:
     name: 一企一档
     description: 基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句
@@ -59,6 +59,8 @@ prompt_templates:
       1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字\n2. **性能优化**: 优先考虑查询性能和索引使用\n\
       3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行\n4. **控制操作**: 使用合适的操作，尽量使用aggregate，且不要自定义字段名。\n\
       5. **重命名**: 尽量不用重命名，如果非要用重命名操作，请使用**中文**进行重命名。\n"
-    examples: {}
+    examples:
+      input_example: 查询注册资本大于100万的所有企业
+      output_format: 可执行的MongoDB查询语句，包含注释说明
 global_settings:
   default_language: zh-CN

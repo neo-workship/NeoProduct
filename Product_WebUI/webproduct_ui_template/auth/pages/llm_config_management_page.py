@@ -1,7 +1,12 @@
 """
-大模型配置管理页面
+大模型配置管理页面 - 优化版
 管理 config/yaml/llm_model_config.yaml 中的模型配置
 提供新建、修改、删除功能
+
+优化内容:
+1. 添加 model_name 字段配置 (API实际使用的模型名称)
+2. 在 "显示名称 (name)" 旁边添加 "模型名称 (model_name)" 输入框
+3. 更新保存逻辑,包含 model_name 字段
 """
 from nicegui import ui
 from typing import Optional, Dict, Any
@@ -17,7 +22,6 @@ from config.provider_manager import get_provider_manager, ProviderInfo
 from component.chat.config import get_llm_config_manager
 from common.exception_handler import safe_protect
 
-
 class LLMConfigManagementPage:
     """大模型配置管理页面类"""
     
@@ -29,6 +33,20 @@ class LLMConfigManagementPage:
     
     def render(self):
         """渲染页面"""
+
+        ui.add_head_html('''
+            <style>
+            .llm_edit_dialog-hide-scrollbar {
+                overflow-y: auto;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+            }
+            .llm_edit_dialog-hide-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+            </style>
+        ''')
+        
         # 页面标题
         with ui.row().classes('w-full items-center justify-between mb-6'):
             with ui.column():
@@ -62,15 +80,21 @@ class LLMConfigManagementPage:
             },
             {
                 'name': 'model_key', 
-                'label': '模型标识', 
+                'label': '配置唯一标识', 
                 'field': 'model_key', 
                 'align': 'left',
                 'sortable': True
             },
+            # {
+            #     'name': 'name', 
+            #     'label': '显示名称', 
+            #     'field': 'name', 
+            #     'align': 'left'
+            # },
             {
-                'name': 'name', 
-                'label': '显示名称', 
-                'field': 'name', 
+                'name': 'model_name', 
+                'label': '模型名称', 
+                'field': 'model_name', 
                 'align': 'left'
             },
             {
@@ -91,96 +115,67 @@ class LLMConfigManagementPage:
                 'label': '操作', 
                 'field': 'actions', 
                 'align': 'center'
-            },
+            }
         ]
         
-        # 准备表格数据
-        rows = []
-        for model in self.models_data:
-            config = model['config']
-            
-            # 获取 Provider 的显示名称
-            provider_display = self.provider_manager.get_provider_display_name(model['provider'])
-            
-            rows.append({
-                'provider': provider_display,
-                'provider_key': model['provider'],  # 保存原始 key
-                'model_key': model['model_key'],
-                'name': config.get('name', model['model_key']),
-                'base_url': config.get('base_url', 'N/A'),
-                'enabled': config.get('enabled', True),
-                'description': config.get('description', ''),
-                '_raw_config': config
-            })
-        
         # 创建表格
-        with ui.card().classes('w-full'):
-            ui.label(f'配置列表 (共 {len(rows)} 条)').classes('text-lg font-semibold mb-2')
-            
-            if not rows:
-                with ui.column().classes('w-full items-center py-8'):
-                    ui.icon('inventory_2').classes('text-6xl text-gray-400 mb-4')
-                    ui.label('暂无配置').classes('text-lg text-gray-500')
-                    ui.label('点击上方"新增配置"按钮添加第一个模型配置').classes('text-sm text-gray-400')
-            else:
-                self.table = ui.table(
-                    columns=columns, 
-                    rows=rows, 
-                    row_key='model_key',
-                    pagination=10
-                ).classes('w-full')
-                
-                # 自定义状态列
-                self.table.add_slot('body-cell-enabled', '''
-                    <q-td :props="props">
-                        <q-badge :color="props.row.enabled ? 'positive' : 'negative'">
-                            {{ props.row.enabled ? '启用' : '禁用' }}
-                        </q-badge>
-                    </q-td>
-                ''')
-                
-                # 自定义操作列
-                self.table.add_slot('body-cell-actions', '''
-                    <q-td :props="props">
-                        <q-btn 
-                            size="sm" 
-                            flat 
-                            dense
-                            round
-                            color="primary" 
-                            icon="edit"
-                            @click="$parent.$emit('edit', props.row)"
-                        >
-                            <q-tooltip>编辑</q-tooltip>
-                        </q-btn>
-                        <q-btn 
-                            size="sm" 
-                            flat 
-                            dense
-                            round
-                            color="negative" 
-                            icon="delete"
-                            @click="$parent.$emit('delete', props.row)"
-                        >
-                            <q-tooltip>删除</q-tooltip>
-                        </q-btn>
-                    </q-td>
-                ''')
-                
-                # 绑定事件
-                self.table.on('edit', lambda e: self.show_edit_dialog(e.args))
-                self.table.on('delete', lambda e: self.show_delete_confirm(e.args))
+        self.table = ui.table(
+            columns=columns,
+            rows=self.models_data,
+            row_key='model_key',
+            pagination={'rowsPerPage': 10, 'sortBy': 'provider'}
+        ).classes('w-full')
+        
+        # 添加操作按钮列的插槽
+        self.table.add_slot('body-cell-enabled', '''
+            <q-td key="enabled" :props="props">
+                <q-badge :color="props.row.enabled ? 'green' : 'red'">
+                    {{ props.row.enabled ? '已启用' : '已禁用' }}
+                </q-badge>
+            </q-td>
+        ''')
+        
+        self.table.add_slot('body-cell-actions', '''
+            <q-td key="actions" :props="props">
+                <q-btn flat dense icon="edit" color="blue" 
+                       @click="$parent.$emit('edit', props.row)" />
+                <q-btn flat dense icon="delete" color="red" 
+                       @click="$parent.$emit('delete', props.row)" />
+            </q-td>
+        ''')
+        
+        # 绑定操作事件
+        self.table.on('edit', lambda e: self.show_edit_dialog(e.args))
+        self.table.on('delete', lambda e: self.show_delete_confirm(e.args))
     
     def load_models_data(self):
-        """加载模型数据"""
-        self.models_data = self.file_manager.get_all_models_list()
+        """从配置文件加载模型数据"""
+        self.models_data = []
+        
+        providers_config = self.file_manager.get_provider_configs()
+        
+        for provider_key, models in providers_config.items():
+            provider_display = self.provider_manager.get_provider_display_name(provider_key)
+            
+            for model_key, config in models.items():
+                if isinstance(config, dict):
+                    self.models_data.append({
+                        'provider_key': provider_key,  # 原始 key
+                        'provider': provider_display,   # 显示名称
+                        'model_key': model_key,
+                        'name': config.get('name', model_key),
+                        'model_name': config.get('model_name', model_key),  # ✅ 添加 model_name
+                        'base_url': config.get('base_url', ''),
+                        'enabled': config.get('enabled', True),
+                        '_raw_config': config  # 保存完整配置用于编辑
+                    })
     
     def refresh_table(self):
-        """刷新表格"""
-        ui.notify('正在刷新...', type='info', position='top')
+        """刷新表格数据"""
         self.load_models_data()
-        ui.notify('刷新成功!', type='positive', position='top')
-        ui.navigate.reload()
+        if self.table:
+            self.table.update()
+        ui.notify('配置列表已刷新', type='positive')
     
     def show_provider_list_dialog(self):
         """显示 Provider 列表对话框"""
@@ -190,7 +185,7 @@ class LLMConfigManagementPage:
             providers = self.provider_manager.get_all_providers()
             
             # 使用卡片展示 Provider
-            with ui.grid(columns=2).classes('w-full gap-4'):
+            with ui.grid(columns=2).classes('w-full gap-4 llm_edit_dialog-hide-scrollbar'):
                 for provider in providers:
                     with ui.card().classes('w-full'):
                         with ui.card_section():
@@ -220,44 +215,43 @@ class LLMConfigManagementPage:
     
     def show_add_dialog(self):
         """显示新增配置对话框"""
+        # 获取所有 provider 选项
+        provider_options = {
+            p.key: p.display_name 
+            for p in self.provider_manager.get_all_providers()
+        }
+        
         with ui.dialog() as dialog, ui.card().classes('w-full max-w-2xl'):
-            ui.label('新增大模型配置').classes('text-xl font-bold mb-4')
+            ui.label('新增模型配置').classes('text-xl font-bold mb-4')
             
             # 表单字段
-            with ui.column().classes('w-full gap-4'):
+            with ui.column().classes('w-full gap-4 llm_edit_dialog-hide-scrollbar'):
                 # 基本信息
                 ui.label('基本信息').classes('text-lg font-semibold text-blue-600')
-                
-                # Provider 选择器
-                provider_options = self.provider_manager.get_provider_options_for_select()
-                
                 with ui.grid(columns=2).classes('w-full gap-4'):
-                    # Provider 选择器 - 带描述
-                    with ui.column().classes('w-full'):
-                        provider_select = ui.select(
-                            label='提供商 *',
-                            options={opt['value']: opt['label'] for opt in provider_options},
-                            value=provider_options[0]['value'] if provider_options else None
-                        ).classes('w-full')
-                        
-                        # 显示 Provider 描述
-                        provider_desc_label = ui.label('').classes('text-xs text-gray-500')
-                        
-                        # 初始化显示第一个 Provider 的描述
-                        if provider_options:
-                            first_provider = self.provider_manager.get_provider_info(provider_options[0]['value'])
-                            if first_provider:
-                                provider_desc_label.text = first_provider.description
+                    provider_select = ui.select(
+                        options=provider_options,
+                        label='选择 Provider *',
+                        with_input=True
+                    ).classes('w-full')
                     
                     model_key_input = ui.input(
-                        label='模型标识 (key) *',
-                        placeholder='例如: deepseek-chat'
+                        label='配置唯一标识*',
+                        placeholder='说明：可以是任意的唯一字符串'
                     ).classes('w-full')
                 
-                model_name_input = ui.input(
-                    label='显示名称 *',
-                    placeholder='例如: DeepSeek Chat'
-                ).classes('w-full')
+                # ✅ 优化: 将 name 和 model_name 放在一起
+                with ui.grid(columns=2).classes('w-full gap-4'):
+                    model_name_input = ui.input(
+                        label='显示名称 *',
+                        placeholder='说明: 任何有意义名称，便于用户检索区分'
+                    ).classes('w-full')
+                    
+                    # ✅ 新增: model_name 字段
+                    model_name_api_input = ui.input(
+                        label='模型名称 *',
+                        placeholder='大模型名称，如：deepseek-chat'
+                    ).classes('w-full')
                 
                 # API配置
                 ui.separator()
@@ -265,24 +259,8 @@ class LLMConfigManagementPage:
                 
                 base_url_input = ui.input(
                     label='API地址 *',
-                    placeholder='例如: https://api.deepseek.com'
+                    placeholder='如：https://api.example.com/v1'
                 ).classes('w-full')
-                
-                # 初始化默认 base_url
-                if provider_options:
-                    first_provider = self.provider_manager.get_provider_info(provider_options[0]['value'])
-                    if first_provider:
-                        base_url_input.value = first_provider.default_base_url
-                
-                # Provider 改变时更新描述和默认 URL
-                def update_provider_info(e):
-                    """更新 Provider 描述和默认 URL"""
-                    provider_info = self.provider_manager.get_provider_info(e.value)
-                    if provider_info:
-                        provider_desc_label.text = provider_info.description
-                        base_url_input.value = provider_info.default_base_url
-                
-                provider_select.on('update:model-value', update_provider_info)
                 
                 api_key_input = ui.input(
                     label='API Key *',
@@ -336,6 +314,7 @@ class LLMConfigManagementPage:
                         provider_select.value,
                         model_key_input.value,
                         model_name_input.value,
+                        model_name_api_input.value,  # ✅ 新增参数
                         base_url_input.value,
                         api_key_input.value,
                         timeout_input.value,
@@ -348,17 +327,19 @@ class LLMConfigManagementPage:
         
         dialog.open()
     
-    def save_new_config(self, dialog, provider, model_key, name, base_url, 
-                        api_key, timeout, max_retries, stream, enabled, description):
+    def save_new_config(self, dialog, provider, model_key, name, model_name_api,
+                        base_url, api_key, timeout, max_retries, stream, enabled, description):
         """保存新配置"""
         # 验证必填字段
-        if not all([provider, model_key, name, base_url, api_key]):
+        if not all([provider, model_key, name, model_name_api, base_url, api_key]):
             ui.notify('请填写所有必填字段', type='negative')
             return
         
         # 构建配置对象
         config = {
             'name': name,
+            'provider': provider,
+            'model_name': model_name_api,  # ✅ 添加 model_name 字段
             'base_url': base_url,
             'api_key': api_key,
             'timeout': int(timeout),
@@ -394,7 +375,7 @@ class LLMConfigManagementPage:
             ui.label(f'编辑配置: {row_data["name"]}').classes('text-xl font-bold mb-4')
             
             # 表单字段(预填充)
-            with ui.column().classes('w-full gap-4'):
+            with ui.column().classes('w-full gap-4 llm_edit_dialog-hide-scrollbar'):
                 # 基本信息
                 ui.label('基本信息').classes('text-lg font-semibold text-blue-600')
                 
@@ -406,13 +387,21 @@ class LLMConfigManagementPage:
                         ui.label(f'{provider_display} ({provider})').classes('text-base font-semibold')
                     
                     with ui.column().classes('w-full'):
-                        ui.label('模型标识').classes('text-sm text-gray-600')
+                        ui.label('配置唯一标识').classes('text-sm text-gray-600')
                         ui.label(model_key).classes('text-base font-semibold')
                 
-                model_name_input = ui.input(
-                    label='显示名称 *',
-                    value=config.get('name', '')
-                ).classes('w-full')
+                # ✅ 优化: 将 name 和 model_name 放在一起
+                with ui.grid(columns=2).classes('w-full gap-4'):
+                    model_name_input = ui.input(
+                        label='显示名称 *',
+                        value=config.get('name', '')
+                    ).classes('w-full')
+                    
+                    # ✅ 新增: model_name 字段
+                    model_name_api_input = ui.input(
+                        label='模型名称 *',
+                        value=config.get('model_name', model_key)  # 如果没有则使用 model_key
+                    ).classes('w-full')
                 
                 # API配置
                 ui.separator()
@@ -475,6 +464,7 @@ class LLMConfigManagementPage:
                         provider,
                         model_key,
                         model_name_input.value,
+                        model_name_api_input.value,  # ✅ 新增参数
                         base_url_input.value,
                         api_key_input.value,
                         timeout_input.value,
@@ -487,17 +477,19 @@ class LLMConfigManagementPage:
         
         dialog.open()
     
-    def save_edit_config(self, dialog, provider, model_key, name, base_url,
-                        api_key, timeout, max_retries, stream, enabled, description):
+    def save_edit_config(self, dialog, provider, model_key, name, model_name_api,
+                        base_url, api_key, timeout, max_retries, stream, enabled, description):
         """保存编辑后的配置"""
         # 验证必填字段
-        if not all([name, base_url, api_key]):
+        if not all([name, model_name_api, base_url, api_key]):
             ui.notify('请填写所有必填字段', type='negative')
             return
         
         # 构建配置对象
         config = {
             'name': name,
+            'provider': provider,
+            'model_name': model_name_api,  # ✅ 添加 model_name 字段
             'base_url': base_url,
             'api_key': api_key,
             'timeout': int(timeout),

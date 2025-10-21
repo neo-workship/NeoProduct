@@ -12,7 +12,7 @@ webproduct_ui_template/
 │   │   ├── register_page.py           # 注册页面
 │   │   ├── role_management_page.py    # 角色管理页面
 │   │   ├── llm_config_management_page.py      # 大模型配置管理页面
-│   │   ├── prompt_config_management_page.py  # 系统提示词配置管理页面
+│   │   ├── prompt_config_management_page.py   # 系统提示词配置管理页面
 │   │   └── user_management_page.py    # 用户管理页面
 │   ├── __init__.py                    # 包初始化和导出
 │   ├── auth_manager.py                # 认证管理器（全局auth_manager）
