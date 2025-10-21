@@ -159,7 +159,8 @@ class MultilayerLayoutManager:
                     ).props('flat color=white').classes('mr-2')
                 
                 if self.header_config_items:
-                    ui.separator().props('vertical').classes('h-8')
+                    # ui.separator().props('vertical').classes('h-8')
+                    ui.label("|")
                 
                 # 主题切换
                 self.dark_mode = ui.dark_mode(value=app.storage.user[self._theme_key])

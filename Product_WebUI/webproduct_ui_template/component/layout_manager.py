@@ -296,7 +296,8 @@ class LayoutManager:
                     elif item.label:
                         ui.button(item.label, on_click=lambda current_item=item: self.handle_header_config_item_click(current_item)).props('flat color=white').classes('mr-2')
                 if self.header_config_items:
-                    ui.separator().props('vertical').classes('h-10')
+                    # ui.separator().props('vertical').classes('h-10')
+                    ui.label("|")
 
                 # 主题切换
                 # self.dark_mode = ui.dark_mode()

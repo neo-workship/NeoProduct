@@ -295,7 +295,8 @@ class SimpleLayoutManager:
                 
                 # 主导航项和右侧配置项之间的分隔符 (根据图片，这里可能需要一个分隔符)
                 if self.nav_items and (self.header_config_items or self.dark_mode or True): # 假设后面的元素总是存在
-                    ui.separator().props('vertical').classes('h-8 mx-4') # 在主导航项和右侧功能区之间添加分隔符
+                    # ui.separator().props('vertical').classes('h-8 mx-4') # 在主导航项和右侧功能区之间添加分隔符
+                    ui.label("|")
 
                 # 头部配置项
                 for item in self.header_config_items:
@@ -306,11 +307,11 @@ class SimpleLayoutManager:
                     elif item.label:
                         ui.button(item.label, on_click=lambda current_item=item: self.handle_header_config_item_click(current_item)).props('flat color=white').classes('mr-2')
                 
-                if self.header_config_items:
-                    ui.separator().props('vertical').classes('h-8')
+                # if self.header_config_items:
+                #     ui.separator().props('vertical').classes('h-8')
+                #     ui.label("|")
 
                 # 主题切换
-                # self.dark_mode = ui.dark_mode()
                 # ui.switch('主题切换').bind_value(self.dark_mode).classes('mx-2')
                 self.dark_mode = ui.dark_mode(value=app.storage.user[self._theme_key])
                 ui.switch('主题切换') \

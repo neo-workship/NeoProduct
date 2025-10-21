@@ -328,7 +328,7 @@ class DatabaseInitializer:
     def init_business_default_data(self, models):
         """初始化业务默认数据"""
         try:
-            self._init_openai_default_data(models)
+            # self._init_openai_default_data(models)
             # 在这里添加其他业务模块的默认数据初始化
             # self._init_mongodb_default_data(models)
             # self._init_audit_default_data(models)
