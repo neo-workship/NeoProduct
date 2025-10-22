@@ -113,7 +113,6 @@ class MultilayerMenuItem:
             'children': [child.to_dict() for child in self.children]
         }
 
-
 class MultilayerMenuConfig:
     """多层菜单配置管理类"""
     
@@ -137,7 +136,7 @@ class MultilayerMenuConfig:
     
     def _build_maps_recursive(self, item: MultilayerMenuItem):
         """递归构建映射表"""
-        # 添加key映射
+        # 添加 key映射
         self._key_map[item.key] = item
         
         # 添加路由映射(只针对叶子节点)
@@ -182,6 +181,42 @@ class MultilayerMenuConfig:
             routes[route] = item.label
         return routes
     
+    # ✨ 新增方法: 获取第一个叶子节点
+    def get_first_leaf(self) -> Optional[MultilayerMenuItem]:
+        """
+        递归查找并返回第一个叶子节点
+        
+        Returns:
+            第一个叶子节点,如果没有则返回 None
+        """
+        for item in self.menu_items:
+            result = self._find_first_leaf_recursive(item)
+            if result:
+                return result
+        return None
+    
+    def _find_first_leaf_recursive(self, item: MultilayerMenuItem) -> Optional[MultilayerMenuItem]:
+        """
+        递归辅助方法:在给定节点的子树中查找第一个叶子节点
+        
+        Args:
+            item: 当前检查的节点
+            
+        Returns:
+            第一个找到的叶子节点,如果没有则返回 None
+        """
+        # 如果当前节点是叶子节点,直接返回
+        if item.is_leaf:
+            return item
+        
+        # 否则递归查找子节点中的第一个叶子节点
+        for child in item.children:
+            result = self._find_first_leaf_recursive(child)
+            if result:
+                return result
+        
+        return None
+    
     def validate(self) -> List[str]:
         """验证配置的有效性,返回错误信息列表"""
         errors = []
@@ -206,7 +241,6 @@ class MultilayerMenuConfig:
         
         for child in item.children:
             self._validate_keys_recursive(child, keys, errors)
-
 
 # 辅助函数:快速创建菜单项
 def create_menu_item(key: str, 
@@ -278,7 +312,6 @@ def create_demo_menu_config() -> MultilayerMenuConfig:
     config.add_menu_item(system_menu)
     
     return config
-
 
 if __name__ == '__main__':
     # 测试代码

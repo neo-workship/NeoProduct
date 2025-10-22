@@ -24,7 +24,7 @@ class ThinkContentParser:
             'think_complete': False,
             'think_updated': False
         }
-        print(f"----> 返回内容： {full_content}")
+    
         # 检测思考开始
         if '<think>' in full_content and not self.is_in_think:
             self.is_in_think = True

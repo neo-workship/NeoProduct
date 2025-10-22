@@ -140,7 +140,6 @@ class AuthManager:
             self.current_user = user_session
             
             logger.info(f"用户登录成功: {user.username}")
-            
             return {'success': True, 'message': '登录成功', 'user': user_session}
             
     def logout(self):
@@ -183,11 +182,11 @@ class AuthManager:
         """
         import time
         current_time = time.strftime("%H:%M:%S")
-        print(f"🔍 {current_time} 当前服务器内存用户: {self.current_user.username if self.current_user else 'None'}")
+        # print(f"🔍 {current_time} 当前服务器内存用户: {self.current_user.username if self.current_user else 'None'}")
         
         # 1. 获取浏览器存储的 session_token
         session_token = app.storage.user.get(self._session_key)
-        print(f"🔑 浏览器 session_token: {session_token[:12] + '...' if session_token else 'None'}")
+        # print(f"🔑 浏览器 session_token: {session_token[:12] + '...' if session_token else 'None'}")
         
         # 2. 如果浏览器没有 token，清除可能的服务器状态残留
         if not session_token:
@@ -237,7 +236,7 @@ class AuthManager:
         # 5. 检查 remember_me token（如果主 token 失效）
         remember_token = app.storage.user.get(self._remember_key)
         if remember_token and auth_config.allow_remember_me:
-            print(f"🔍 检查记住我 token: {remember_token[:12] + '...'}")
+            # print(f"🔍 检查记住我 token: {remember_token[:12] + '...'}")
             
             try:
                 with get_db() as db:

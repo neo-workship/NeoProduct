@@ -288,7 +288,6 @@ class ExceptionHandler:
             return wrapper
         return decorator
 
-
 # 全局单例实例
 _exception_handler = None
 _handler_lock = threading.Lock()
@@ -325,7 +324,6 @@ def safe(func: Callable, *args, return_value: Any = None,
     return handler.safe(func, *args, return_value=return_value, 
                        show_error=show_error, error_msg=error_msg, **kwargs)
 
-
 @contextmanager
 def db_safe(operation_name: str = "数据库操作"):
     """数据库操作安全上下文管理器"""
@@ -333,12 +331,10 @@ def db_safe(operation_name: str = "数据库操作"):
     with handler.db_safe(operation_name) as db:
         yield db
 
-
 def safe_protect(name: str = None, error_msg: str = None, return_on_error: Any = None):
     """页面/函数保护装饰器"""
     handler = get_exception_handler()
     return handler.safe_protect(name, error_msg, return_on_error)
-
 
 # =============================================================================
 # 日志查询和管理工具函数
@@ -362,7 +358,6 @@ def get_log_files(days: int = 7) -> list:
             })
     
     return log_files
-
 
 def get_today_errors(limit: int = 50) -> list:
     """获取今天的错误日志"""
@@ -392,7 +387,6 @@ def cleanup_logs(days_to_keep: int = 30):
     handler = get_exception_handler()
     handler.max_log_days = days_to_keep
     handler._cleanup_old_logs()
-
 
 # =============================================================================
 # 使用示例和测试

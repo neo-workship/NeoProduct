@@ -3115,9 +3115,14 @@ def change_password_page_content():
 - **webproduct_ui_template\auth\pages\llm_config_management_page.py**
 ```python
 """
-大模型配置管理页面
+大模型配置管理页面 - 优化版
 管理 config/yaml/llm_model_config.yaml 中的模型配置
 提供新建、修改、删除功能
+
+优化内容:
+1. 添加 model_name 字段配置 (API实际使用的模型名称)
+2. 在 "显示名称 (name)" 旁边添加 "模型名称 (model_name)" 输入框
+3. 更新保存逻辑,包含 model_name 字段
 """
 from nicegui import ui
 from typing import Optional, Dict, Any
@@ -3132,7 +3137,6 @@ from config.yaml_config_manager import LLMConfigFileManager
 from config.provider_manager import get_provider_manager, ProviderInfo
 from component.chat.config import get_llm_config_manager
 from common.exception_handler import safe_protect
-
 
 class LLMConfigManagementPage:
     """大模型配置管理页面类"""
@@ -3192,15 +3196,21 @@ class LLMConfigManagementPage:
             },
             {
                 'name': 'model_key', 
-                'label': '模型标识', 
+                'label': '配置唯一标识', 
                 'field': 'model_key', 
                 'align': 'left',
                 'sortable': True
             },
+            # {
+            #     'name': 'name', 
+            #     'label': '显示名称', 
+            #     'field': 'name', 
+            #     'align': 'left'
+            # },
             {
-                'name': 'name', 
-                'label': '显示名称', 
-                'field': 'name', 
+                'name': 'model_name', 
+                'label': '模型名称', 
+                'field': 'model_name', 
                 'align': 'left'
             },
             {
@@ -3221,96 +3231,67 @@ class LLMConfigManagementPage:
                 'label': '操作', 
                 'field': 'actions', 
                 'align': 'center'
-            },
+            }
         ]
         
-        # 准备表格数据
-        rows = []
-        for model in self.models_data:
-            config = model['config']
-            
-            # 获取 Provider 的显示名称
-            provider_display = self.provider_manager.get_provider_display_name(model['provider'])
-            
-            rows.append({
-                'provider': provider_display,
-                'provider_key': model['provider'],  # 保存原始 key
-                'model_key': model['model_key'],
-                'name': config.get('name', model['model_key']),
-                'base_url': config.get('base_url', 'N/A'),
-                'enabled': config.get('enabled', True),
-                'description': config.get('description', ''),
-                '_raw_config': config
-            })
-        
         # 创建表格
-        with ui.card().classes('w-full'):
-            ui.label(f'配置列表 (共 {len(rows)} 条)').classes('text-lg font-semibold mb-2')
-            
-            if not rows:
-                with ui.column().classes('w-full items-center py-8'):
-                    ui.icon('inventory_2').classes('text-6xl text-gray-400 mb-4')
-                    ui.label('暂无配置').classes('text-lg text-gray-500')
-                    ui.label('点击上方"新增配置"按钮添加第一个模型配置').classes('text-sm text-gray-400')
-            else:
-                self.table = ui.table(
-                    columns=columns, 
-                    rows=rows, 
-                    row_key='model_key',
-                    pagination=10
-                ).classes('w-full')
-                
-                # 自定义状态列
-                self.table.add_slot('body-cell-enabled', '''
-                    <q-td :props="props">
-                        <q-badge :color="props.row.enabled ? 'positive' : 'negative'">
-                            {{ props.row.enabled ? '启用' : '禁用' }}
-                        </q-badge>
-                    </q-td>
-                ''')
-                
-                # 自定义操作列
-                self.table.add_slot('body-cell-actions', '''
-                    <q-td :props="props">
-                        <q-btn 
-                            size="sm" 
-                            flat 
-                            dense
-                            round
-                            color="primary" 
-                            icon="edit"
-                            @click="$parent.$emit('edit', props.row)"
-                        >
-                            <q-tooltip>编辑</q-tooltip>
-                        </q-btn>
-                        <q-btn 
-                            size="sm" 
-                            flat 
-                            dense
-                            round
-                            color="negative" 
-                            icon="delete"
-                            @click="$parent.$emit('delete', props.row)"
-                        >
-                            <q-tooltip>删除</q-tooltip>
-                        </q-btn>
-                    </q-td>
-                ''')
-                
-                # 绑定事件
-                self.table.on('edit', lambda e: self.show_edit_dialog(e.args))
-                self.table.on('delete', lambda e: self.show_delete_confirm(e.args))
+        self.table = ui.table(
+            columns=columns,
+            rows=self.models_data,
+            row_key='model_key',
+            pagination={'rowsPerPage': 10, 'sortBy': 'provider'}
+        ).classes('w-full')
+        
+        # 添加操作按钮列的插槽
+        self.table.add_slot('body-cell-enabled', '''
+            <q-td key="enabled" :props="props">
+                <q-badge :color="props.row.enabled ? 'green' : 'red'">
+                    {{ props.row.enabled ? '已启用' : '已禁用' }}
+                </q-badge>
+            </q-td>
+        ''')
+        
+        self.table.add_slot('body-cell-actions', '''
+            <q-td key="actions" :props="props">
+                <q-btn flat dense icon="edit" color="blue" 
+                       @click="$parent.$emit('edit', props.row)" />
+                <q-btn flat dense icon="delete" color="red" 
+                       @click="$parent.$emit('delete', props.row)" />
+            </q-td>
+        ''')
+        
+        # 绑定操作事件
+        self.table.on('edit', lambda e: self.show_edit_dialog(e.args))
+        self.table.on('delete', lambda e: self.show_delete_confirm(e.args))
     
     def load_models_data(self):
-        """加载模型数据"""
-        self.models_data = self.file_manager.get_all_models_list()
+        """从配置文件加载模型数据"""
+        self.models_data = []
+        
+        providers_config = self.file_manager.get_provider_configs()
+        
+        for provider_key, models in providers_config.items():
+            provider_display = self.provider_manager.get_provider_display_name(provider_key)
+            
+            for model_key, config in models.items():
+                if isinstance(config, dict):
+                    self.models_data.append({
+                        'provider_key': provider_key,  # 原始 key
+                        'provider': provider_display,   # 显示名称
+                        'model_key': model_key,
+                        'name': config.get('name', model_key),
+                        'model_name': config.get('model_name', model_key),  # ✅ 添加 model_name
+                        'base_url': config.get('base_url', ''),
+                        'enabled': config.get('enabled', True),
+                        '_raw_config': config  # 保存完整配置用于编辑
+                    })
     
     def refresh_table(self):
-        """刷新表格"""
-        ui.notify('正在刷新...', type='info', position='top')
+        """刷新表格数据"""
         self.load_models_data()
-        ui.notify('刷新成功!', type='positive', position='top')
-        ui.navigate.reload()
+        if self.table:
+            self.table.update()
+        ui.notify('配置列表已刷新', type='positive')
     
     def show_provider_list_dialog(self):
         """显示 Provider 列表对话框"""
@@ -3350,44 +3331,43 @@ class LLMConfigManagementPage:
     
     def show_add_dialog(self):
         """显示新增配置对话框"""
+        # 获取所有 provider 选项
+        provider_options = {
+            p.key: p.display_name 
+            for p in self.provider_manager.get_all_providers()
+        }
+        
         with ui.dialog() as dialog, ui.card().classes('w-full max-w-2xl'):
-            ui.label('新增大模型配置').classes('text-xl font-bold mb-4')
+            ui.label('新增模型配置').classes('text-xl font-bold mb-4')
             
             # 表单字段
             with ui.column().classes('w-full gap-4 llm_edit_dialog-hide-scrollbar'):
                 # 基本信息
                 ui.label('基本信息').classes('text-lg font-semibold text-blue-600')
-                
-                # Provider 选择器
-                provider_options = self.provider_manager.get_provider_options_for_select()
-                
                 with ui.grid(columns=2).classes('w-full gap-4'):
-                    # Provider 选择器 - 带描述
-                    with ui.column().classes('w-full'):
-                        provider_select = ui.select(
-                            label='提供商 *',
-                            options={opt['value']: opt['label'] for opt in provider_options},
-                            value=provider_options[0]['value'] if provider_options else None
-                        ).classes('w-full')
-                        
-                        # 显示 Provider 描述
-                        provider_desc_label = ui.label('').classes('text-xs text-gray-500')
-                        
-                        # 初始化显示第一个 Provider 的描述
-                        if provider_options:
-                            first_provider = self.provider_manager.get_provider_info(provider_options[0]['value'])
-                            if first_provider:
-                                provider_desc_label.text = first_provider.description
+                    provider_select = ui.select(
+                        options=provider_options,
+                        label='选择 Provider *',
+                        with_input=True
+                    ).classes('w-full')
                     
                     model_key_input = ui.input(
-                        label='模型标识 (key) *',
-                        placeholder='例如: deepseek-chat'
+                        label='配置唯一标识*',
+                        placeholder='说明：可以是任意的唯一字符串'
                     ).classes('w-full')
                 
-                model_name_input = ui.input(
-                    label='显示名称 *',
-                    placeholder='例如: DeepSeek Chat'
-                ).classes('w-full')
+                # ✅ 优化: 将 name 和 model_name 放在一起
+                with ui.grid(columns=2).classes('w-full gap-4'):
+                    model_name_input = ui.input(
+                        label='显示名称 *',
+                        placeholder='说明: 任何有意义名称，便于用户检索区分'
+                    ).classes('w-full')
+                    
+                    # ✅ 新增: model_name 字段
+                    model_name_api_input = ui.input(
+                        label='模型名称 *',
+                        placeholder='大模型名称，如：deepseek-chat'
+                    ).classes('w-full')
                 
                 # API配置
                 ui.separator()
@@ -3395,24 +3375,8 @@ class LLMConfigManagementPage:
                 
                 base_url_input = ui.input(
                     label='API地址 *',
-                    placeholder='例如: https://api.deepseek.com'
+                    placeholder='如：https://api.example.com/v1'
                 ).classes('w-full')
-                
-                # 初始化默认 base_url
-                if provider_options:
-                    first_provider = self.provider_manager.get_provider_info(provider_options[0]['value'])
-                    if first_provider:
-                        base_url_input.value = first_provider.default_base_url
-                
-                # Provider 改变时更新描述和默认 URL
-                def update_provider_info(e):
-                    """更新 Provider 描述和默认 URL"""
-                    provider_info = self.provider_manager.get_provider_info(e.value)
-                    if provider_info:
-                        provider_desc_label.text = provider_info.description
-                        base_url_input.value = provider_info.default_base_url
-                
-                provider_select.on('update:model-value', update_provider_info)
                 
                 api_key_input = ui.input(
                     label='API Key *',
@@ -3466,6 +3430,7 @@ class LLMConfigManagementPage:
                         provider_select.value,
                         model_key_input.value,
                         model_name_input.value,
+                        model_name_api_input.value,  # ✅ 新增参数
                         base_url_input.value,
                         api_key_input.value,
                         timeout_input.value,
@@ -3478,17 +3443,19 @@ class LLMConfigManagementPage:
         
         dialog.open()
     
-    def save_new_config(self, dialog, provider, model_key, name, base_url, 
-                        api_key, timeout, max_retries, stream, enabled, description):
+    def save_new_config(self, dialog, provider, model_key, name, model_name_api,
+                        base_url, api_key, timeout, max_retries, stream, enabled, description):
         """保存新配置"""
         # 验证必填字段
-        if not all([provider, model_key, name, base_url, api_key]):
+        if not all([provider, model_key, name, model_name_api, base_url, api_key]):
             ui.notify('请填写所有必填字段', type='negative')
             return
         
         # 构建配置对象
         config = {
             'name': name,
+            'provider': provider,
+            'model_name': model_name_api,  # ✅ 添加 model_name 字段
             'base_url': base_url,
             'api_key': api_key,
             'timeout': int(timeout),
@@ -3536,13 +3503,21 @@ class LLMConfigManagementPage:
                         ui.label(f'{provider_display} ({provider})').classes('text-base font-semibold')
                     
                     with ui.column().classes('w-full'):
-                        ui.label('模型标识').classes('text-sm text-gray-600')
+                        ui.label('配置唯一标识').classes('text-sm text-gray-600')
                         ui.label(model_key).classes('text-base font-semibold')
                 
-                model_name_input = ui.input(
-                    label='显示名称 *',
-                    value=config.get('name', '')
-                ).classes('w-full')
+                # ✅ 优化: 将 name 和 model_name 放在一起
+                with ui.grid(columns=2).classes('w-full gap-4'):
+                    model_name_input = ui.input(
+                        label='显示名称 *',
+                        value=config.get('name', '')
+                    ).classes('w-full')
+                    
+                    # ✅ 新增: model_name 字段
+                    model_name_api_input = ui.input(
+                        label='模型名称 *',
+                        value=config.get('model_name', model_key)  # 如果没有则使用 model_key
+                    ).classes('w-full')
                 
                 # API配置
                 ui.separator()
@@ -3605,6 +3580,7 @@ class LLMConfigManagementPage:
                         provider,
                         model_key,
                         model_name_input.value,
+                        model_name_api_input.value,  # ✅ 新增参数
                         base_url_input.value,
                         api_key_input.value,
                         timeout_input.value,
@@ -3617,17 +3593,19 @@ class LLMConfigManagementPage:
         
         dialog.open()
     
-    def save_edit_config(self, dialog, provider, model_key, name, base_url,
-                        api_key, timeout, max_retries, stream, enabled, description):
+    def save_edit_config(self, dialog, provider, model_key, name, model_name_api,
+                        base_url, api_key, timeout, max_retries, stream, enabled, description):
         """保存编辑后的配置"""
         # 验证必填字段
-        if not all([name, base_url, api_key]):
+        if not all([name, model_name_api, base_url, api_key]):
             ui.notify('请填写所有必填字段', type='negative')
             return
         
         # 构建配置对象
         config = {
             'name': name,
+            'provider': provider,
+            'model_name': model_name_api,  # ✅ 添加 model_name 字段
             'base_url': base_url,
             'api_key': api_key,
             'timeout': int(timeout),
@@ -5628,7 +5606,7 @@ class PromptConfigManagementPage:
                 ui.button(
                     '编辑',
                     icon='edit',
-                    on_click=lambda: (dialog.close(), self.show_edit_dialog(template_key))
+                    on_click=lambda:  self.show_edit_dialog(template_key)
                 ).classes('bg-green-500 text-white')
         
         dialog.open()
@@ -9246,7 +9224,8 @@ class LayoutManager:
                     elif item.label:
                         ui.button(item.label, on_click=lambda current_item=item: self.handle_header_config_item_click(current_item)).props('flat color=white').classes('mr-2')
                 if self.header_config_items:
-                    ui.separator().props('vertical').classes('h-10')
+                    # ui.separator().props('vertical').classes('h-10')
+                    ui.label("|")
 
                 # 主题切换
                 # self.dark_mode = ui.dark_mode()
@@ -9329,7 +9308,6 @@ from typing import List, Dict, Callable, Optional, Set
 from .layout_config import LayoutConfig, HeaderConfigItem
 from .multilayer_menu_config import MultilayerMenuItem, MultilayerMenuConfig
 
-
 class MultilayerLayoutManager:
     """多层布局管理器 - 支持折叠菜单的完整布局管理"""
     
@@ -9397,14 +9375,18 @@ class MultilayerLayoutManager:
             /* 多层布局抽屉滚动条样式 - 参考chat_component的滚动条设置 */
             .multilayer-drawer {
                 overflow-y: auto;
+                overflow-x: hidden;   /* ✨ 关键修复1: 禁用水平滚动 */
+                border-right: 1px solid #e5e7eb;
             }
             
             /* 菜单内容区域滚动条 */
             .multilayer-menu-content {
                 overflow-y: auto;
+                overflow-x: hidden;  /* ✨ 关键修复2: 禁用水平滚动 */
                 max-height: calc(100vh - 100px);
+                border-right: 1px solid #e5e7eb;
             }
-            
+                         
             /* Webkit浏览器(Chrome, Safari, Edge)滚动条样式 */
             .multilayer-drawer::-webkit-scrollbar,
             .multilayer-menu-content::-webkit-scrollbar {
@@ -9477,7 +9459,8 @@ class MultilayerLayoutManager:
                     ).props('flat color=white').classes('mr-2')
                 
                 if self.header_config_items:
-                    ui.separator().props('vertical').classes('h-8')
+                    # ui.separator().props('vertical').classes('h-8')
+                    ui.label("|")
                 
                 # 主题切换
                 self.dark_mode = ui.dark_mode(value=app.storage.user[self._theme_key])
@@ -9517,7 +9500,7 @@ class MultilayerLayoutManager:
         self._add_drawer_scrollbar_styles()
         
         with ui.left_drawer(fixed=False).props('bordered').classes(
-            f'{self.config.drawer_width} {self.config.drawer_bg} multilayer-drawer'
+            f'{self.config.drawer_width} {self.config.drawer_bg}'
         ) as left_drawer:
             self.left_drawer = left_drawer
             
@@ -9814,7 +9797,6 @@ class MultilayerLayoutManager:
 """
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
-
 
 @dataclass
 class MultilayerMenuItem:
@@ -10800,7 +10782,8 @@ class SimpleLayoutManager:
                 
                 # 主导航项和右侧配置项之间的分隔符 (根据图片，这里可能需要一个分隔符)
                 if self.nav_items and (self.header_config_items or self.dark_mode or True): # 假设后面的元素总是存在
-                    ui.separator().props('vertical').classes('h-8 mx-4') # 在主导航项和右侧功能区之间添加分隔符
+                    # ui.separator().props('vertical').classes('h-8 mx-4') # 在主导航项和右侧功能区之间添加分隔符
+                    ui.label("|")
 
                 # 头部配置项
                 for item in self.header_config_items:
@@ -10811,11 +10794,11 @@ class SimpleLayoutManager:
                     elif item.label:
                         ui.button(item.label, on_click=lambda current_item=item: self.handle_header_config_item_click(current_item)).props('flat color=white').classes('mr-2')
                 
-                if self.header_config_items:
-                    ui.separator().props('vertical').classes('h-8')
+                # if self.header_config_items:
+                #     ui.separator().props('vertical').classes('h-8')
+                #     ui.label("|")
 
                 # 主题切换
-                # self.dark_mode = ui.dark_mode()
                 # ui.switch('主题切换').bind_value(self.dark_mode).classes('mx-2')
                 self.dark_mode = ui.dark_mode(value=app.storage.user[self._theme_key])
                 ui.switch('主题切换') \
@@ -14163,7 +14146,7 @@ class ProviderManager:
             key='zhipu',
             display_name='智谱AI',
             description='智谱 GLM 系列模型 - 国产大模型',
-            default_base_url='https://open.bigmodel.cn/api/paas/v4',
+            default_base_url='https://open.bigmodel.cn/api/paas/v4/',
             icon='lightbulb'
         ),
         ProviderInfo(
@@ -14810,385 +14793,6 @@ alibaba:
     enabled: true
     description: 阿里通义千问 Plus 中文对话模型
     tags:
-      - chinese
-      - general
-      - multimodal
-  qwen3-coder-plus:
-    name: 通义千问 Coder
-    provider: alibaba
-    model_name: qwen3-coder-plus
-    api_key: sk-282660fdc8cc4460943f2da2a86d3d01
-    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    max_tokens: 8192
-    temperature: 0.7
-    top_p: 0.8
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: 阿里通义千问 Coder 中文对话模型
-    tags:
-      - chinese
-      - code
-深度求索:
-  deepseek-chat:
-    name: DeepSeek Chat
-    provider: deepseek
-    model_name: deepseek-chat
-    api_key: sk-de5a1965cfa94ccea0eaad15d93251dc
-    base_url: https://api.deepseek.com/v1
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 1.0
-    frequency_penalty: 0.0
-    presence_penalty: 0.0
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: DeepSeek Chat 中文优化对话模型
-    tags:
-      - chinese
-      - chat
-      - reasoning
-moonshot:
-  moonshot-v1-8k:
-    name: moonshot-v1-8k
-    provider: moonshot
-    model_name: moonshot-v1-8k
-    api_key: sk-5IPFajDv6yy8hWKd3DScOHea2HE10r1FTN6SMgz038ljsSTf
-    base_url: https://api.moonshot.cn/v1
-    max_tokens: 8192
-    temperature: 0.7
-    top_p: 0.7
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: 月之暗面通用大模型
-    tags:
-      - chinese
-      - general
-Ollama:
-  qwen3:8b:
-    name: qwen3-8b
-    provider: ollama
-    model_name: qwen3:8b
-    api_key: sk-ollamakey123
-    base_url: http://localhost:11434/v1
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 0.9
-    timeout: 120
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: 本地部署的 qwen3 8B 模型
-    tags:
-      - local
-      - qwen
-      - opensource
-  deepseek-r1:8b:
-    name: deeseek-8b
-    provider: ollama
-    model_name: deepseek-r1:8b
-    api_key: sk-ollamakey123
-    base_url: http://localhost:11434/v1
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 0.9
-    timeout: 120
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: 本地部署的 deepseek 8B 模型
-    tags:
-      - local
-      - deepseek
-      - opensource
-  qwen2.5:latest:
-    name: qwen2.5-8b
-    provider: ollama
-    model_name: qwen2.5:latest
-    api_key: sk-ollamakey123
-    base_url: http://localhost:11434/v1
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 0.9
-    timeout: 120
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: 本地部署的 deepseek 8B 模型
-    tags:
-      - local
-      - deepseek
-      - opensource
-defaults:
-  timeout: 60
-  max_retries: 3
-  stream: true
-  temperature: 0.7
-  top_p: 1.0
-  max_tokens: 4096
-  enabled: true
-metadata:
-  version: 1.0.0
-  created_at: "2025-01-01"
-  description: LLM 模型统一配置文件
-  supported_providers:
-    - deepseek
-    - alibaba
-    - moonshot
-    - ollama
-doubao:
-  deepseek-v3-1-terminus:
-    name: 豆包DeepSeek
-    base_url: https://ark.cn-beijing.volces.com/api/v3
-    api_key: dac7e1c4-6883-4d14-98ba-29ab70e924cf
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: ""
-
-```
-
-- **webproduct_ui_template\config\yaml\system_prompt_config.yaml**
-````yaml
-metadata:
-  version: 1.0.0
-  description: 大模型系统提示词模板配置
-  author: AI Assistant
-  created_date: '2025-08-10'
-  updated_date: '2025-08-10'
-  schema_version: '1.0'
-prompt_templates:
-  默认:
-    name: 默认
-    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等
-    enabled: true
-    version: '1.0'
-    category: 文档编写
-    system_prompt: '# 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
-
-      '
-    examples: null
-  一企一档专家:
-    name: 一企一档
-    description: 基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句
-    enabled: true
-    version: '1.0'
-    category: 数据库操作
-    system_prompt: "# MongoDB查询语句生成专家\n\n## \U0001F3AF 角色定位\n你是一位MongoDB数据库专家，专门负责为企业档案系统生成高效、准确的MongoDB操作语句。\n\
-      你深度理解企业档案的层级结构和数据模型，能够快速生成符合业务需求的数据库操作语句。\n\n## \U0001F5C4️ 核心数据结构\n\n### 主要集合：一企一档\n\
-      企业信息以扁平化分级结构存储，每个字段信息对应企业文档中fields数组中的一个子档案，以下是字段的文档结构信息的样例。\n\n```javascript\n\
-      {\n  \"_id\": \"\",\n  \"enterprise_code\": \"\",         // 企业统一信用编码\n  \"\
-      enterprise_name\": \"\",         // 企业名称\n  \"fields\": [\n    {\n      \"enterprise_code\"\
-      : \"\",      // 企业统一信用编码\n      \"enterprise_name\": \"\",      // 企业名称\n\n\
-      \      // === 三级分类层级 ===\n      \"l1_code\": \"L19E5FFA\",      // 一级代码\n  \
-      \    \"l1_name\": \"基本信息\",       // 一级名称\n      \"l2_code\": \"L279A000\",\
-      \      // 二级代码\n      \"l2_name\": \"登记信息\",       // 二级名称\n      \"l3_code\"\
-      : \"L336E6A6\",      // 三级代码\n      \"l3_name\": \"企业基本信息\",   // 三级名称\n\n \
-      \     // === 路径信息 ===\n      \"path_code\": \"L19E5FFA.L279A000.L336E6A6\",\
-      \       // 三级结构完整代码\n      \"path_name\": \"基本信息.登记信息.企业基本信息\",     //  三级结构完整名称\n\
-      \      \"full_path_code\": \"L19E5FFA.L279A000.L336E6A6.F1BDA09\",   // 字段完整代码\n\
-      \      \"full_path_name\": \"基本信息.登记信息.企业基本信息.统一社会信用代码\",   // 字段完整名称\n\n  \
-      \    // === 字段信息 ===\n      \"field_code\": \"F1BDA09\",          // 字段代码\n\
-      \      \"field_name\": \"统一社会信用代码\",   // 字段名称\n      \"field_type\": \"\",\
-      \                 // 字段类型\n\n      // === 字段数据值 ===\n      \"value\": \"\",\
-      \                      // 字段值\n      \"value_text\": \"\",                 //\
-      \ 文本描述值\n      \"value_pic_url\": \"\",              // 字段关联图片\n      \"value_doc_url\"\
-      : \"\",              // 字段关联文档\n      \"value_video_url\": \"\",           \
-      \ // 字段关联视频\n\n      // === 元数据 ===\n      \"remark\": \"\",               \
-      \      // 字段说明\n      \"data_url\": \"\",                   // 字段数据源url\n  \
-      \    \"is_required\": false,             // 是否必填\n      \"data_source\": \"\"\
-      ,                // 数据来源\n      \"encoding\": \"\",                   // 编码格式\n\
-      \      \"format\": \"\",                     // 数据格式\n      \"license\": \"\"\
-      ,                    // 许可证\n      \"rights\": \"\",                     //\
-      \ 使用权限\n      \"update_frequency\": \"\",           // 更新频率\n      \"value_dict\"\
-      : \"\",                 // 字典值选项\n\n      // === 排序显示 ===\n      \"l1_order\"\
-      : ,                     // 一级分类排序\n      \"l2_order\": ,                   \
-      \  // 二级分类排序\n      \"l3_order\": ,                     // 三级分类排序\n      \"\
-      field_order\": ,                  // 字段排序\n\n      // === 时间戳 ===\n      \"\
-      create_time\": \"\",                // 创建时间\n      \"update_time\": \"\",  \
-      \              // 更新时间\n\n      // === 状态 ===\n      \"status\": \"\"      \
-      \                // 数据状态\n    },\n    ......\n  ]\n}\n```\n\n## \U0001F3AF 输出规范\n\
-      1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字\n2. **性能优化**: 优先考虑查询性能和索引使用\n\
-      3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行\n4. **控制操作**: 使用合适的操作，尽量使用aggregate，且不要自定义字段名。\n\
-      5. **重命名**: 尽量不用重命名，如果非要用重命名操作，请使用**中文**进行重命名。\n"
-    examples: {}
-global_settings:
-  default_language: zh-CN
-
-````
-
-#### webproduct_ui_template\config\yaml\backups
-
-- **webproduct_ui_template\config\yaml\backups\llm_model_config_backup_20251020_171751.yaml**
-```yaml
-# LLM 模型配置文件
-# 每个模型一个配置节点，包含连接和使用的常用配置
-
-# 阿里通义千问系列
-alibaba:
-  qwen-plus-2025-07-28:
-    name: "通义千问Plus"
-    provider: "alibaba"
-    model_name: "qwen-plus-2025-07-28"
-    api_key: "sk-282660fdc8cc4460943f2da2a86d3d01"
-    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    max_tokens: 8192
-    temperature: 0.7
-    top_p: 0.8
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: "阿里通义千问 Plus 中文对话模型"
-    tags: ["chinese", "general", "multimodal"]
-
-  qwen3-coder-plus:
-    name: "通义千问 Coder"
-    provider: "alibaba"
-    model_name: "qwen3-coder-plus"
-    api_key: "sk-282660fdc8cc4460943f2da2a86d3d01"
-    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    max_tokens: 8192
-    temperature: 0.7
-    top_p: 0.8
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: "阿里通义千问 Coder 中文对话模型"
-    tags: ["chinese", "code"]
-
-# DeepSeek 系列
-deepseek:
-  deepseek-chat:
-    name: "DeepSeek Chat"
-    provider: "deepseek"
-    model_name: "deepseek-chat"
-    api_key: "sk-de5a1965cfa94ccea0eaad15d93251dc"
-    base_url: "https://api.deepseek.com/v1"
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 1.0
-    frequency_penalty: 0.0
-    presence_penalty: 0.0
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: "DeepSeek Chat 中文优化对话模型"
-    tags: ["chinese", "chat", "reasoning"]
-
-# 月之暗面系列
-moonshot:
-  moonshot-v1-8k:
-    name: "moonshot-v1-8k"
-    provider: "moonshot"
-    model_name: "moonshot-v1-8k"
-    api_key: "sk-5IPFajDv6yy8hWKd3DScOHea2HE10r1FTN6SMgz038ljsSTf"
-    base_url: "https://api.moonshot.cn/v1"
-    max_tokens: 8192
-    temperature: 0.7
-    top_p: 0.7
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: "月之暗面通用大模型"
-    tags: ["chinese", "general"]
-
-# 本地模型配置示例
-local:
-  qwen3:8b:
-    name: "qwen3-8b"
-    provider: "ollama"
-    model_name: "qwen3:8b"
-    api_key: "sk-ollamakey123"
-    base_url: "http://localhost:11434/v1"
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 0.9
-    timeout: 120
-    max_retries: 3
-    stream: true
-    enabled: true # 默认禁用，需要手动启用
-    description: "本地部署的 qwen3 8B 模型"
-    tags: ["local", "qwen", "opensource"]
-
-  deepseek-r1:8b:
-    name: "deeseek-8b"
-    provider: "ollama"
-    model_name: "deepseek-r1:8b"
-    api_key: "sk-ollamakey123"
-    base_url: "http://localhost:11434/v1"
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 0.9
-    timeout: 120
-    max_retries: 3
-    stream: true
-    enabled: true # 默认禁用，需要手动启用
-    description: "本地部署的 deepseek 8B 模型"
-    tags: ["local", "deepseek", "opensource"]
-
-  qwen2.5:latest:
-    name: "qwen2.5-8b"
-    provider: "ollama"
-    model_name: "qwen2.5:latest"
-    api_key: "sk-ollamakey123"
-    base_url: "http://localhost:11434/v1"
-    max_tokens: 4096
-    temperature: 0.7
-    top_p: 0.9
-    timeout: 120
-    max_retries: 3
-    stream: true
-    enabled: true # 默认禁用，需要手动启用
-    description: "本地部署的 deepseek 8B 模型"
-    tags: ["local", "deepseek", "opensource"]
-
-# 全局默认配置
-defaults:
-  timeout: 60
-  max_retries: 3
-  stream: true
-  temperature: 0.7
-  top_p: 1.0
-  max_tokens: 4096
-  enabled: true
-
-# 配置文件元信息
-metadata:
-  version: "1.0.0"
-  created_at: "2025-01-01"
-  description: "LLM 模型统一配置文件"
-  supported_providers: ["deepseek", "alibaba", "moonshot", "ollama"]
-
-```
-
-- **webproduct_ui_template\config\yaml\backups\llm_model_config_backup_20251020_171801.yaml**
-```yaml
-alibaba:
-  qwen-plus-2025-07-28:
-    name: 通义千问Plus
-    provider: alibaba
-    model_name: qwen-plus-2025-07-28
-    api_key: sk-282660fdc8cc4460943f2da2a86d3d01
-    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    max_tokens: 8192
-    temperature: 0.7
-    top_p: 0.8
-    timeout: 60
-    max_retries: 3
-    stream: true
-    enabled: true
-    description: 阿里通义千问 Plus 中文对话模型
-    tags:
     - chinese
     - general
     - multimodal
@@ -15209,7 +14813,7 @@ alibaba:
     tags:
     - chinese
     - code
-deepseek:
+深度求索:
   deepseek-chat:
     name: DeepSeek Chat
     provider: deepseek
@@ -15248,7 +14852,7 @@ moonshot:
     tags:
     - chinese
     - general
-local:
+Ollama:
   qwen3:8b:
     name: qwen3-8b
     provider: ollama
@@ -15328,147 +14932,33 @@ doubao:
     timeout: 60
     max_retries: 3
     stream: true
-    enabled: false
+    enabled: true
+    description: ''
+zhipu:
+  glm-4.5-flash:
+    name: GLM-4.5-Flash
+    provider: zhipu
+    model_name: glm-4.5-flash
+    base_url: https://open.bigmodel.cn/api/paas/v4/
+    api_key: 8741dc327c45445d83c82aca7e636842.H1wbh0PglthU51cQ
+    timeout: 60
+    max_retries: 3
+    stream: true
+    enabled: true
+    description: ''
+  GLM-4.1V-Thinking-Flash:
+    name: GLM-4.1V-Thinking-Flash
+    base_url: https://open.bigmodel.cn/api/paas/v4/
+    api_key: 8741dc327c45445d83c82aca7e636842.H1wbh0PglthU51cQ
+    timeout: 60
+    max_retries: 3
+    stream: true
+    enabled: true
     description: ''
 
 ```
 
-- **webproduct_ui_template\config\yaml\backups\system_prompt_config_backup_20251020_171554.yaml**
-````yaml
-# 系统提示词配置文件
-
-# 元数据配置
-metadata:
-  version: "1.0.0"
-  description: "大模型系统提示词模板配置"
-  author: "AI Assistant"
-  created_date: "2025-08-10"
-  updated_date: "2025-08-10"
-  schema_version: "1.0"
-
-# 系统提示词模板集合
-prompt_templates:
-  默认:
-    name: "默认"
-    description: "专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等"
-    enabled: true
-    version: "1.0"
-    category: "文档编写"
-
-    # 系统提示词内容
-    system_prompt: |
-      # 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
-
-    # 示例交互
-    examples:
-
-  # MongoDB查询语句生成专家
-  一企一档专家:
-    name: "一企一档"
-    description: "基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句"
-    enabled: true
-    version: "1.0"
-    category: "数据库操作"
-
-    # 系统提示词内容
-    system_prompt: |
-      # MongoDB查询语句生成专家
-
-      ## 🎯 角色定位
-      你是一位MongoDB数据库专家，专门负责为企业档案系统生成高效、准确的MongoDB操作语句。
-      你深度理解企业档案的层级结构和数据模型，能够快速生成符合业务需求的数据库操作语句。
-
-      ## 🗄️ 核心数据结构
-
-      ### 主要集合：一企一档
-      企业信息以扁平化分级结构存储，每个字段信息对应企业文档中fields数组中的一个子档案，以下是字段的文档结构信息的样例。
-
-      ```javascript
-      {
-        "_id": "",
-        "enterprise_code": "",         // 企业统一信用编码
-        "enterprise_name": "",         // 企业名称
-        "fields": [
-          {
-            "enterprise_code": "",      // 企业统一信用编码
-            "enterprise_name": "",      // 企业名称
-
-            // === 三级分类层级 ===
-            "l1_code": "L19E5FFA",      // 一级代码
-            "l1_name": "基本信息",       // 一级名称
-            "l2_code": "L279A000",      // 二级代码
-            "l2_name": "登记信息",       // 二级名称
-            "l3_code": "L336E6A6",      // 三级代码
-            "l3_name": "企业基本信息",   // 三级名称
-
-            // === 路径信息 ===
-            "path_code": "L19E5FFA.L279A000.L336E6A6",       // 三级结构完整代码
-            "path_name": "基本信息.登记信息.企业基本信息",     //  三级结构完整名称
-            "full_path_code": "L19E5FFA.L279A000.L336E6A6.F1BDA09",   // 字段完整代码
-            "full_path_name": "基本信息.登记信息.企业基本信息.统一社会信用代码",   // 字段完整名称
-
-            // === 字段信息 ===
-            "field_code": "F1BDA09",          // 字段代码
-            "field_name": "统一社会信用代码",   // 字段名称
-            "field_type": "",                 // 字段类型
-
-            // === 字段数据值 ===
-            "value": "",                      // 字段值
-            "value_text": "",                 // 文本描述值
-            "value_pic_url": "",              // 字段关联图片
-            "value_doc_url": "",              // 字段关联文档
-            "value_video_url": "",            // 字段关联视频
-
-            // === 元数据 ===
-            "remark": "",                     // 字段说明
-            "data_url": "",                   // 字段数据源url
-            "is_required": false,             // 是否必填
-            "data_source": "",                // 数据来源
-            "encoding": "",                   // 编码格式
-            "format": "",                     // 数据格式
-            "license": "",                    // 许可证
-            "rights": "",                     // 使用权限
-            "update_frequency": "",           // 更新频率
-            "value_dict": "",                 // 字典值选项
-
-            // === 排序显示 ===
-            "l1_order": ,                     // 一级分类排序
-            "l2_order": ,                     // 二级分类排序
-            "l3_order": ,                     // 三级分类排序
-            "field_order": ,                  // 字段排序
-
-            // === 时间戳 ===
-            "create_time": "",                // 创建时间
-            "update_time": "",                // 更新时间
-
-            // === 状态 ===
-            "status": ""                      // 数据状态
-          },
-          ......
-        ]
-      }
-      ```
-
-      ## 🎯 输出规范
-      1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字
-      2. **性能优化**: 优先考虑查询性能和索引使用
-      3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行
-      4. **控制操作**: 使用合适的操作，尽量使用aggregate，且不要自定义字段名。
-      5. **重命名**: 尽量不用重命名，如果非要用重命名操作，请使用**中文**进行重命名。
-
-    # 示例交互
-    examples:
-      input_example: "查询注册资本大于100万的所有企业"
-      output_format: "可执行的MongoDB查询语句，包含注释说明"
-
-# 全局配置选项
-global_settings:
-  # 输出语言
-  default_language: "zh-CN"
-
-````
-
-- **webproduct_ui_template\config\yaml\backups\system_prompt_config_backup_20251020_171620.yaml**
+- **webproduct_ui_template\config\yaml\system_prompt_config.yaml**
 ````yaml
 metadata:
   version: 1.0.0
@@ -15480,173 +14970,14 @@ metadata:
 prompt_templates:
   默认:
     name: 默认
-    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等
+    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等。
     enabled: true
     version: '1.0'
     category: 文档编写
-    system_prompt: '# 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
+    system_prompt: '- 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
 
       '
-    examples: null
-  一企一档专家:
-    name: 一企一档
-    description: 基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句
-    enabled: true
-    version: '1.0'
-    category: 数据库操作
-    system_prompt: "# MongoDB查询语句生成专家\n\n## \U0001F3AF 角色定位\n你是一位MongoDB数据库专家，专门负责为企业档案系统生成高效、准确的MongoDB操作语句。\n\
-      你深度理解企业档案的层级结构和数据模型，能够快速生成符合业务需求的数据库操作语句。\n\n## \U0001F5C4️ 核心数据结构\n\n### 主要集合：一企一档\n\
-      企业信息以扁平化分级结构存储，每个字段信息对应企业文档中fields数组中的一个子档案，以下是字段的文档结构信息的样例。\n\n```javascript\n\
-      {\n  \"_id\": \"\",\n  \"enterprise_code\": \"\",         // 企业统一信用编码\n  \"\
-      enterprise_name\": \"\",         // 企业名称\n  \"fields\": [\n    {\n      \"enterprise_code\"\
-      : \"\",      // 企业统一信用编码\n      \"enterprise_name\": \"\",      // 企业名称\n\n\
-      \      // === 三级分类层级 ===\n      \"l1_code\": \"L19E5FFA\",      // 一级代码\n  \
-      \    \"l1_name\": \"基本信息\",       // 一级名称\n      \"l2_code\": \"L279A000\",\
-      \      // 二级代码\n      \"l2_name\": \"登记信息\",       // 二级名称\n      \"l3_code\"\
-      : \"L336E6A6\",      // 三级代码\n      \"l3_name\": \"企业基本信息\",   // 三级名称\n\n \
-      \     // === 路径信息 ===\n      \"path_code\": \"L19E5FFA.L279A000.L336E6A6\",\
-      \       // 三级结构完整代码\n      \"path_name\": \"基本信息.登记信息.企业基本信息\",     //  三级结构完整名称\n\
-      \      \"full_path_code\": \"L19E5FFA.L279A000.L336E6A6.F1BDA09\",   // 字段完整代码\n\
-      \      \"full_path_name\": \"基本信息.登记信息.企业基本信息.统一社会信用代码\",   // 字段完整名称\n\n  \
-      \    // === 字段信息 ===\n      \"field_code\": \"F1BDA09\",          // 字段代码\n\
-      \      \"field_name\": \"统一社会信用代码\",   // 字段名称\n      \"field_type\": \"\",\
-      \                 // 字段类型\n\n      // === 字段数据值 ===\n      \"value\": \"\",\
-      \                      // 字段值\n      \"value_text\": \"\",                 //\
-      \ 文本描述值\n      \"value_pic_url\": \"\",              // 字段关联图片\n      \"value_doc_url\"\
-      : \"\",              // 字段关联文档\n      \"value_video_url\": \"\",           \
-      \ // 字段关联视频\n\n      // === 元数据 ===\n      \"remark\": \"\",               \
-      \      // 字段说明\n      \"data_url\": \"\",                   // 字段数据源url\n  \
-      \    \"is_required\": false,             // 是否必填\n      \"data_source\": \"\"\
-      ,                // 数据来源\n      \"encoding\": \"\",                   // 编码格式\n\
-      \      \"format\": \"\",                     // 数据格式\n      \"license\": \"\"\
-      ,                    // 许可证\n      \"rights\": \"\",                     //\
-      \ 使用权限\n      \"update_frequency\": \"\",           // 更新频率\n      \"value_dict\"\
-      : \"\",                 // 字典值选项\n\n      // === 排序显示 ===\n      \"l1_order\"\
-      : ,                     // 一级分类排序\n      \"l2_order\": ,                   \
-      \  // 二级分类排序\n      \"l3_order\": ,                     // 三级分类排序\n      \"\
-      field_order\": ,                  // 字段排序\n\n      // === 时间戳 ===\n      \"\
-      create_time\": \"\",                // 创建时间\n      \"update_time\": \"\",  \
-      \              // 更新时间\n\n      // === 状态 ===\n      \"status\": \"\"      \
-      \                // 数据状态\n    },\n    ......\n  ]\n}\n```\n\n## \U0001F3AF 输出规范\n\
-      1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字\n2. **性能优化**: 优先考虑查询性能和索引使用\n\
-      3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行\n4. **控制操作**: 使用合适的操作，尽量使用aggregate，且不要自定义字段名。\n\
-      5. **重命名**: 尽量不用重命名，如果非要用重命名操作，请使用**中文**进行重命名。\n"
-    examples:
-      input_example: 查询注册资本大于100万的所有企业
-      output_format: 可执行的MongoDB查询语句，包含注释说明
-  test:
-    name: 测试
-    description: 测试
-    enabled: true
-    version: '1.0'
-    category: 业务助手
-    system_prompt: 'Page Layout
-
-      With ui.header, ui.footer, ui.left_drawer and ui.right_drawer you can add additional
-      layout elements to a page. The fixed argument controls whether the element should
-      scroll or stay fixed on the screen. The top_corner and bottom_corner arguments
-      indicate whether a drawer should expand to the top or bottom of the page. See
-      https://quasar.dev/layout/header-and-footer and https://quasar.dev/layout/drawer
-      for more information about possible props. With ui.page_sticky you can place
-      an element "sticky" on the screen. See https://quasar.dev/layout/page-sticky
-      for more information.'
     examples: {}
-global_settings:
-  default_language: zh-CN
-
-````
-
-- **webproduct_ui_template\config\yaml\backups\system_prompt_config_backup_20251021_142248.yaml**
-````yaml
-metadata:
-  version: 1.0.0
-  description: 大模型系统提示词模板配置
-  author: AI Assistant
-  created_date: '2025-08-10'
-  updated_date: '2025-08-10'
-  schema_version: '1.0'
-prompt_templates:
-  默认:
-    name: 默认
-    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等
-    enabled: true
-    version: '1.0'
-    category: 文档编写
-    system_prompt: '# 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
-
-      '
-    examples: null
-  一企一档专家:
-    name: 一企一档
-    description: 基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句
-    enabled: true
-    version: '1.0'
-    category: 数据库操作
-    system_prompt: "# MongoDB查询语句生成专家\n\n## \U0001F3AF 角色定位\n你是一位MongoDB数据库专家，专门负责为企业档案系统生成高效、准确的MongoDB操作语句。\n\
-      你深度理解企业档案的层级结构和数据模型，能够快速生成符合业务需求的数据库操作语句。\n\n## \U0001F5C4️ 核心数据结构\n\n### 主要集合：一企一档\n\
-      企业信息以扁平化分级结构存储，每个字段信息对应企业文档中fields数组中的一个子档案，以下是字段的文档结构信息的样例。\n\n```javascript\n\
-      {\n  \"_id\": \"\",\n  \"enterprise_code\": \"\",         // 企业统一信用编码\n  \"\
-      enterprise_name\": \"\",         // 企业名称\n  \"fields\": [\n    {\n      \"enterprise_code\"\
-      : \"\",      // 企业统一信用编码\n      \"enterprise_name\": \"\",      // 企业名称\n\n\
-      \      // === 三级分类层级 ===\n      \"l1_code\": \"L19E5FFA\",      // 一级代码\n  \
-      \    \"l1_name\": \"基本信息\",       // 一级名称\n      \"l2_code\": \"L279A000\",\
-      \      // 二级代码\n      \"l2_name\": \"登记信息\",       // 二级名称\n      \"l3_code\"\
-      : \"L336E6A6\",      // 三级代码\n      \"l3_name\": \"企业基本信息\",   // 三级名称\n\n \
-      \     // === 路径信息 ===\n      \"path_code\": \"L19E5FFA.L279A000.L336E6A6\",\
-      \       // 三级结构完整代码\n      \"path_name\": \"基本信息.登记信息.企业基本信息\",     //  三级结构完整名称\n\
-      \      \"full_path_code\": \"L19E5FFA.L279A000.L336E6A6.F1BDA09\",   // 字段完整代码\n\
-      \      \"full_path_name\": \"基本信息.登记信息.企业基本信息.统一社会信用代码\",   // 字段完整名称\n\n  \
-      \    // === 字段信息 ===\n      \"field_code\": \"F1BDA09\",          // 字段代码\n\
-      \      \"field_name\": \"统一社会信用代码\",   // 字段名称\n      \"field_type\": \"\",\
-      \                 // 字段类型\n\n      // === 字段数据值 ===\n      \"value\": \"\",\
-      \                      // 字段值\n      \"value_text\": \"\",                 //\
-      \ 文本描述值\n      \"value_pic_url\": \"\",              // 字段关联图片\n      \"value_doc_url\"\
-      : \"\",              // 字段关联文档\n      \"value_video_url\": \"\",           \
-      \ // 字段关联视频\n\n      // === 元数据 ===\n      \"remark\": \"\",               \
-      \      // 字段说明\n      \"data_url\": \"\",                   // 字段数据源url\n  \
-      \    \"is_required\": false,             // 是否必填\n      \"data_source\": \"\"\
-      ,                // 数据来源\n      \"encoding\": \"\",                   // 编码格式\n\
-      \      \"format\": \"\",                     // 数据格式\n      \"license\": \"\"\
-      ,                    // 许可证\n      \"rights\": \"\",                     //\
-      \ 使用权限\n      \"update_frequency\": \"\",           // 更新频率\n      \"value_dict\"\
-      : \"\",                 // 字典值选项\n\n      // === 排序显示 ===\n      \"l1_order\"\
-      : ,                     // 一级分类排序\n      \"l2_order\": ,                   \
-      \  // 二级分类排序\n      \"l3_order\": ,                     // 三级分类排序\n      \"\
-      field_order\": ,                  // 字段排序\n\n      // === 时间戳 ===\n      \"\
-      create_time\": \"\",                // 创建时间\n      \"update_time\": \"\",  \
-      \              // 更新时间\n\n      // === 状态 ===\n      \"status\": \"\"      \
-      \                // 数据状态\n    },\n    ......\n  ]\n}\n```\n\n## \U0001F3AF 输出规范\n\
-      1. **语法准确**: 只生成严格遵循MongoDB语法规范的执行语句，不要包含其他解释文字\n2. **性能优化**: 优先考虑查询性能和索引使用\n\
-      3. **可执行性**: 确保生成的语句可以直接在MongoDB中执行\n4. **控制操作**: 使用合适的操作，尽量使用aggregate，且不要自定义字段名。\n\
-      5. **重命名**: 尽量不用重命名，如果非要用重命名操作，请使用**中文**进行重命名。\n"
-    examples:
-      input_example: 查询注册资本大于100万的所有企业
-      output_format: 可执行的MongoDB查询语句，包含注释说明
-global_settings:
-  default_language: zh-CN
-
-````
-
-- **webproduct_ui_template\config\yaml\backups\system_prompt_config_backup_20251021_142251.yaml**
-````yaml
-metadata:
-  version: 1.0.0
-  description: 大模型系统提示词模板配置
-  author: AI Assistant
-  created_date: '2025-08-10'
-  updated_date: '2025-08-10'
-  schema_version: '1.0'
-prompt_templates:
-  默认:
-    name: 默认
-    description: 专门用于生成高质量、规范的Markdown文档，包括表格、Mermaid图表、LaTeX公式等
-    enabled: true
-    version: '1.0'
-    category: 文档编写
-    system_prompt: '# 你是一个AI助手，帮助用户处理各类问题,使用有条理的markdown文本格式回答,注意标题的使用从4级开始。
-
-      '
-    examples: null
   一企一档专家:
     name: 一企一档
     description: 基于企业档案数据结构，生成精确的MongoDB查询、聚合、更新语句
@@ -16726,7 +16057,7 @@ class DatabaseInitializer:
     def init_business_default_data(self, models):
         """初始化业务默认数据"""
         try:
-            self._init_openai_default_data(models)
+            # self._init_openai_default_data(models)
             # 在这里添加其他业务模块的默认数据初始化
             # self._init_mongodb_default_data(models)
             # self._init_audit_default_data(models)

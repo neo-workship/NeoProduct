@@ -212,7 +212,7 @@ class MultilayerLayoutManager:
             
             # ✨ 优化点1: 将 gap-1 改为 gap-3,增加菜单项之间的间距
             # ✨ 优化点2: 调整 padding 为 p-3,使整体更舒适
-            with ui.column().classes('w-full p-3 gap-3 multilayer-menu-content'):
+            with ui.column().classes('w-full p-3 gap-2 multilayer-menu-content'):
                 if self.menu_config.menu_items:
                     for item in self.menu_config.menu_items:
                         self._render_menu_item(item)
@@ -288,7 +288,7 @@ class MultilayerLayoutManager:
     
     def navigate_to_route(self, route: str, label: str, update_storage: bool = True):
         """导航到指定路由"""
-        print(f"🚀 导航到路由: {route} ({label})")
+        # print(f"🚀 导航到路由: {route} ({label})")
         
         self.current_route = route
         self.current_label = label
@@ -345,8 +345,7 @@ class MultilayerLayoutManager:
         if not item or not item.is_leaf:
             print(f"⚠️ 节点 {key} 不是有效的叶子节点")
             return
-        
-        print(f"🎯 选中叶子节点: {item.label} (key={key})")
+        # print(f"🎯 选中叶子节点: {item.label} (key={key})")
         
         # 清除之前的选中状态
         if self.selected_leaf_key and self.selected_leaf_key in self.leaf_refs:
@@ -384,7 +383,7 @@ class MultilayerLayoutManager:
         if update_storage:
             self._save_expanded_state()
         
-        print(f"📂 展开父节点: {key}")
+        # print(f"📂 展开父节点: {key}")
     
     def collapse_parent(self, key: str, update_storage: bool = True):
         """收起父节点"""
@@ -400,7 +399,7 @@ class MultilayerLayoutManager:
         if update_storage:
             self._save_expanded_state()
         
-        print(f"📁 收起父节点: {key}")
+        # print(f"📁 收起父节点: {key}")
     
     def _save_expanded_state(self):
         """保存展开状态到存储"""
