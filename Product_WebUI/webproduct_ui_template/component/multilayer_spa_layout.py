@@ -12,7 +12,6 @@ from .multilayer_menu_config import MultilayerMenuItem
 # 全局布局管理器实例
 current_multilayer_layout_manager: Optional[MultilayerLayoutManager] = None
 
-
 def with_multilayer_spa_layout(
     config: Optional[LayoutConfig] = None,
     menu_items: Optional[List[MultilayerMenuItem]] = None,

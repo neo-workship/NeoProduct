@@ -3,13 +3,22 @@
 增强版本：增加对用户-权限直接关联的支持
 """
 
-import logging
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 
 # 设置日志
-logger = logging.getLogger(__name__)
+# import logging
+# logger = logging.getLogger(__name__)
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
 @dataclass
 class DetachedUser:
@@ -39,8 +48,8 @@ class DetachedUser:
     updated_at: Optional[datetime] = None
     
     # 关联数据
-    roles: List[str] = field(default_factory=list)  # 角色名称列表
-    permissions: List[str] = field(default_factory=list)  # 权限名称列表（包括角色权限和直接权限）
+    roles: List[str] = field(default_factory=list)          # 角色名称列表
+    permissions: List[str] = field(default_factory=list)    # 权限名称列表（包括角色权限和直接权限）
     direct_permissions: List[str] = field(default_factory=list)  # 直接分配的权限名称列表
     role_permissions: List[str] = field(default_factory=list)  # 通过角色获得的权限名称列表
 
@@ -112,7 +121,8 @@ class DetachedUser:
                 role_permissions=list(set(role_permissions))
             )
         except Exception as e:
-            logger.error(f"创建DetachedUser失败: {e}")
+            # logger.error(f"创建DetachedUser失败: {e}")
+            log_error(f"创建DetachedUser失败: {e}")
             return cls(
                 id=user.id,
                 username=user.username,
@@ -168,7 +178,8 @@ class DetachedRole:
                 users=users
             )
         except Exception as e:
-            logger.error(f"创建DetachedRole失败: {e}")
+            # logger.error(f"创建DetachedRole失败: {e}")
+            log_error(f"创建DetachedRole失败: {e}")
             return cls(
                 id=role.id,
                 name=role.name,
@@ -233,7 +244,8 @@ class DetachedPermission:
                 direct_users_count=direct_users_count
             )
         except Exception as e:
-            logger.error(f"创建DetachedPermission失败: {e}")
+            # logger.error(f"创建DetachedPermission失败: {e}")
+            log_error(f"创建DetachedPermission失败: {e}")
             return cls(
                 id=permission.id,
                 name=permission.name,
@@ -264,7 +276,7 @@ class DetachedDataManager:
                 return None
 
         except Exception as e:
-            logger.error(f"获取用户数据失败 (ID: {user_id}): {e}")
+            log_error(f"获取用户数据失败 (ID: {user_id}): {e}")
             return None
 
     @staticmethod
@@ -296,7 +308,7 @@ class DetachedDataManager:
                 return [DetachedUser.from_user(user) for user in users]
 
         except Exception as e:
-            logger.error(f"获取用户列表失败: {e}")
+            log_error(f"获取用户列表失败: {e}")
             return []
 
     @staticmethod
@@ -317,7 +329,7 @@ class DetachedDataManager:
                 return None
 
         except Exception as e:
-            logger.error(f"获取权限数据失败 (ID: {permission_id}): {e}")
+            log_error(f"获取权限数据失败 (ID: {permission_id}): {e}")
             return None
 
     @staticmethod
@@ -353,7 +365,7 @@ class DetachedDataManager:
                 return [DetachedPermission.from_permission(perm) for perm in permissions]
 
         except Exception as e:
-            logger.error(f"获取权限列表失败: {e}")
+            log_error(f"获取权限列表失败: {e}")
             return []
 
     @staticmethod
@@ -374,7 +386,7 @@ class DetachedDataManager:
                 return None
 
         except Exception as e:
-            logger.error(f"获取角色数据失败 (ID: {role_id}): {e}")
+            log_error(f"获取角色数据失败 (ID: {role_id}): {e}")
             return None
 
     @staticmethod
@@ -393,7 +405,7 @@ class DetachedDataManager:
                 return [DetachedRole.from_role(role) for role in roles]
 
         except Exception as e:
-            logger.error(f"获取角色列表失败: {e}")
+            log_error(f"获取角色列表失败: {e}")
             return []
 
     @staticmethod
@@ -413,14 +425,14 @@ class DetachedDataManager:
                 for field in basic_fields:
                     if field in update_data:
                         setattr(user, field, update_data[field])
-                        logger.debug(f"更新用户字段 {field}: {update_data[field]}")
+                        log_info(f"更新用户字段 {field}: {update_data[field]}")
 
                 db.commit()
-                logger.info(f"用户更新成功: {user.username}")
+                log_info(f"用户更新成功: {user.username}")
                 return True
 
         except Exception as e:
-            logger.error(f"更新用户失败 (ID: {user_id}): {e}")
+            log_error(f"更新用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -437,11 +449,11 @@ class DetachedDataManager:
                 username = user.username
                 db.delete(user)
                 db.commit()
-                logger.info(f"用户删除成功: {username}")
+                log_warning(f"用户删除成功: {username}")
                 return True
 
         except Exception as e:
-            logger.error(f"删除用户失败 (ID: {user_id}): {e}")
+            log_error(f"删除用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -457,11 +469,11 @@ class DetachedDataManager:
 
                 user.locked_until = datetime.now() + timedelta(minutes=lock_duration_minutes)
                 db.commit()
-                logger.info(f"用户锁定成功: {user.username}, 锁定到: {user.locked_until}")
+                log_info(f"用户锁定成功: {user.username}, 锁定到: {user.locked_until}")
                 return True
 
         except Exception as e:
-            logger.error(f"锁定用户失败 (ID: {user_id}): {e}")
+            log_info(f"锁定用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -478,11 +490,11 @@ class DetachedDataManager:
                 user.locked_until = None
                 user.failed_login_count = 0  # 重置失败登录次数
                 db.commit()
-                logger.info(f"用户解锁成功: {user.username}")
+                log_info(f"用户解锁成功: {user.username}")
                 return True
 
         except Exception as e:
-            logger.error(f"解锁用户失败 (ID: {user_id}): {e}")
+            log_error(f"解锁用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -500,11 +512,11 @@ class DetachedDataManager:
                     user.failed_login_count = 0
 
                 db.commit()
-                logger.info(f"批量解锁用户成功，解锁数量: {count}")
+                log_info(f"批量解锁用户成功，解锁数量: {count}")
                 return count
 
         except Exception as e:
-            logger.error(f"批量解锁用户失败: {e}")
+            log_error(f"批量解锁用户失败: {e}")
             return 0
 
     @staticmethod
@@ -517,7 +529,7 @@ class DetachedDataManager:
                 # 检查角色名称是否已存在
                 existing = db.query(Role).filter(Role.name == name).first()
                 if existing:
-                    logger.warning(f"角色名称已存在: {name}")
+                    log_warning(f"角色名称已存在: {name}")
                     return None
 
                 role = Role(
@@ -530,11 +542,11 @@ class DetachedDataManager:
                 db.add(role)
                 db.commit()
                 
-                logger.info(f"角色创建成功: {name}")
+                log_info(f"角色创建成功: {name}")
                 return role.id
 
         except Exception as e:
-            logger.error(f"创建角色失败: {e}")
+            log_error(f"创建角色失败: {e}")
             return None
 
     @staticmethod
@@ -553,14 +565,14 @@ class DetachedDataManager:
                 for field in basic_fields:
                     if field in update_data:
                         setattr(role, field, update_data[field])
-                        logger.debug(f"更新角色字段 {field}: {update_data[field]}")
+                        log_info(f"更新角色字段 {field}: {update_data[field]}")
 
                 db.commit()
-                logger.info(f"角色更新成功: {role.name}")
+                log_success(f"角色更新成功: {role.name}")
                 return True
 
         except Exception as e:
-            logger.error(f"更新角色失败 (ID: {role_id}): {e}")
+            log_error(f"更新角色失败 (ID: {role_id}): {e}")
             return False
 
     @staticmethod
@@ -576,17 +588,17 @@ class DetachedDataManager:
 
                 # 检查是否有用户关联
                 if hasattr(role, 'users') and role.users:
-                    logger.warning(f"无法删除角色，存在用户关联: {role.name}")
+                    log_warning(f"无法删除角色，存在用户关联: {role.name}")
                     return False
 
                 role_name = role.name
                 db.delete(role)
                 db.commit()
-                logger.info(f"角色删除成功: {role_name}")
+                log_success(f"角色删除成功: {role_name}")
                 return True
 
         except Exception as e:
-            logger.error(f"删除角色失败 (ID: {role_id}): {e}")
+            log_error(f"删除角色失败 (ID: {role_id}): {e}")
             return False
 
     @staticmethod
@@ -599,7 +611,7 @@ class DetachedDataManager:
                 # 检查权限名称是否已存在
                 existing = db.query(Permission).filter(Permission.name == name).first()
                 if existing:
-                    logger.warning(f"权限名称已存在: {name}")
+                    log_warning(f"权限名称已存在: {name}")
                     return None
 
                 permission = Permission(
@@ -612,11 +624,11 @@ class DetachedDataManager:
                 db.add(permission)
                 db.commit()
                 
-                logger.info(f"权限创建成功: {name}")
+                log_success(f"权限创建成功: {name}")
                 return permission.id
 
         except Exception as e:
-            logger.error(f"创建权限失败: {e}")
+            log_error(f"创建权限失败: {e}")
             return None
 
     @staticmethod
@@ -635,14 +647,14 @@ class DetachedDataManager:
                 for field in basic_fields:
                     if field in update_data:
                         setattr(permission, field, update_data[field])
-                        logger.debug(f"更新权限字段 {field}: {update_data[field]}")
+                        log_info(f"更新权限字段 {field}: {update_data[field]}")
 
                 db.commit()
-                logger.info(f"权限更新成功: {permission.name}")
+                log_success(f"权限更新成功: {permission.name}")
                 return True
 
         except Exception as e:
-            logger.error(f"更新权限失败 (ID: {permission_id}): {e}")
+            log_error(f"更新权限失败 (ID: {permission_id}): {e}")
             return False
 
     @staticmethod
@@ -661,17 +673,17 @@ class DetachedDataManager:
                 has_user_associations = hasattr(permission, 'users') and permission.users
                 
                 if has_role_associations or has_user_associations:
-                    logger.warning(f"无法删除权限，存在关联关系: {permission.name}")
+                    log_warning(f"无法删除权限，存在关联关系: {permission.name}")
                     return False
 
                 permission_name = permission.name
                 db.delete(permission)
                 db.commit()
-                logger.info(f"权限删除成功: {permission_name}")
+                log_success(f"权限删除成功: {permission_name}")
                 return True
 
         except Exception as e:
-            logger.error(f"删除权限失败 (ID: {permission_id}): {e}")
+            log_error(f"删除权限失败 (ID: {permission_id}): {e}")
             return False
 
     # 新增：用户权限直接关联管理
@@ -691,14 +703,14 @@ class DetachedDataManager:
                 if permission not in user.permissions:
                     user.permissions.append(permission)
                     db.commit()
-                    logger.info(f"为用户 {user.username} 添加权限 {permission.name}")
+                    log_info(f"为用户 {user.username} 添加权限 {permission.name}")
                     return True
                 else:
-                    logger.info(f"用户 {user.username} 已拥有权限 {permission.name}")
+                    log_info(f"用户 {user.username} 已拥有权限 {permission.name}")
                     return True
 
         except Exception as e:
-            logger.error(f"为用户添加权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
+            log_error(f"为用户添加权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
             return False
 
     @staticmethod
@@ -717,14 +729,14 @@ class DetachedDataManager:
                 if permission in user.permissions:
                     user.permissions.remove(permission)
                     db.commit()
-                    logger.info(f"从用户 {user.username} 移除权限 {permission.name}")
+                    log_info(f"从用户 {user.username} 移除权限 {permission.name}")
                     return True
                 else:
-                    logger.info(f"用户 {user.username} 没有权限 {permission.name}")
+                    log_info(f"用户 {user.username} 没有权限 {permission.name}")
                     return True
 
         except Exception as e:
-            logger.error(f"从用户移除权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
+            log_error(f"从用户移除权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
             return False
 
     @staticmethod
@@ -744,7 +756,7 @@ class DetachedDataManager:
                 return []
 
         except Exception as e:
-            logger.error(f"获取用户直接权限失败 (用户ID: {user_id}): {e}")
+            log_error(f"获取用户直接权限失败 (用户ID: {user_id}): {e}")
             return []
 
     @staticmethod
@@ -773,7 +785,7 @@ class DetachedDataManager:
                 return []
 
         except Exception as e:
-            logger.error(f"获取权限直接关联用户失败 (权限ID: {permission_id}): {e}")
+            log_error(f"获取权限直接关联用户失败 (权限ID: {permission_id}): {e}")
             return []
 
     @staticmethod
@@ -810,7 +822,7 @@ class DetachedDataManager:
                 }
                 
         except Exception as e:
-            logger.error(f"获取用户统计失败: {e}")
+            log_error(f"获取用户统计失败: {e}")
             return {
                 'total_users': 0,
                 'active_users': 0,
@@ -841,7 +853,7 @@ class DetachedDataManager:
                 }
                 
         except Exception as e:
-            logger.error(f"获取角色统计失败: {e}")
+            log_error(f"获取角色统计失败: {e}")
             return {
                 'total_roles': 0,
                 'active_roles': 0,
@@ -869,7 +881,7 @@ class DetachedDataManager:
                 }
                 
         except Exception as e:
-            logger.error(f"获取权限统计失败: {e}")
+            log_error(f"获取权限统计失败: {e}")
             return {
                 'total_permissions': 0,
                 'system_permissions': 0,
@@ -882,7 +894,7 @@ class DetachedDataManager:
 try:
     from .models import User, Role, Permission
 except ImportError:
-    logger.warning("无法导入模型类，某些功能可能不可用")
+    log_error("无法导入模型类，某些功能可能不可用")
 
 # 全局实例
 detached_manager = DetachedDataManager()

@@ -407,7 +407,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         title=config.app_title,
         port=8080,
         show=True,
-        reload=True,
+        reload=True,   # 设置为True，控制台中会输出两次
         favicon='🚀',
         dark=False,
         prod_js=False,
@@ -491,9 +491,18 @@ from .utils import validate_password, validate_email
 from .session_manager import session_manager, UserSession
 from .navigation import navigate_to, redirect_to_login
 import secrets
-import logging
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
-logger = logging.getLogger(__name__)
+# 获取绑定模块名称的logger
+logger = get_logger(__name__)
 
 class AuthManager:
     """认证管理器"""
@@ -507,22 +516,27 @@ class AuthManager:
         """用户注册"""
         # 验证输入
         if not username or len(username) < 3:
+            log_warning(f"注册失败: 用户名不符合要求: {username}") 
             return {'success': False, 'message': '用户名至少需要3个字符'}
         
         if not validate_email(email):
+            log_warning(f"注册失败: 邮箱格式不正确: {email}")
             return {'success': False, 'message': '邮箱格式不正确'}
         
         password_result = validate_password(password)
         if not password_result['valid']:
+            log_warning(f"注册失败: 密码强度不足: {username}")
             return {'success': False, 'message': password_result['message']}
         
         with get_db() as db:
             # 检查用户名是否存在
             if db.query(User).filter(User.username == username).first():
+                log_warning(f"注册失败: 用户名已存在: {username}")
                 return {'success': False, 'message': '用户名已存在'}
             
             # 检查邮箱是否存在
             if db.query(User).filter(User.email == email).first():
+                log_warning(f"注册失败: 邮箱已被注册: {email}")
                 return {'success': False, 'message': '邮箱已被注册'}
             
             # 创建新用户
@@ -543,8 +557,7 @@ class AuthManager:
             
             db.add(user)
             db.commit()
-            
-            logger.info(f"新用户注册成功: {username}")
+            log_success(f"新用户注册成功: {username}")
             return {'success': True, 'message': '注册成功', 'user': user}
     
     def login(self, username: str, password: str, remember_me: bool = False) -> Dict[str, Any]:
@@ -560,11 +573,13 @@ class AuthManager:
             ).first()
             
             if not user:
+                log_warning(f"登录失败: 用户名或密码错误: {username}")
                 return {'success': False, 'message': '用户名或密码错误'}
             
             # 检查账户是否被锁定
             if user.locked_until and user.locked_until > datetime.now():
                 remaining = int((user.locked_until - datetime.now()).total_seconds() / 60)
+                log_warning(f"登录失败: 账户被锁定: {user.username}, 剩余时间: {remaining}分钟") # <-- **【修改】**
                 return {'success': False, 'message': f'账户已被锁定，请在{remaining}分钟后重试'}
             
             # 验证密码
@@ -617,9 +632,8 @@ class AuthManager:
             # 创建会话
             user_session = session_manager.create_session(session_token, user)
             self.current_user = user_session
-            
-            logger.info(f"用户登录成功: {user.username}")
-            
+    
+            log_success(f"用户登录成功: {user.username}")
             return {'success': True, 'message': '登录成功', 'user': user_session}
             
     def logout(self):
@@ -633,8 +647,7 @@ class AuthManager:
                     user.session_token = None
                     user.remember_token = None
                     db.commit()
-
-            logger.info(f"用户登出: {self.current_user.username}")
+            log_info(f"用户登出: {self.current_user.username}")
 
         # 清除会话缓存
         if session_token:
@@ -643,9 +656,9 @@ class AuthManager:
         # 清除所有用户存储数据
         try:
             app.storage.user.clear()  # 清除所有用户存储数据，包括路由
-            print("🗑️ 已清除所有用户存储数据")
+            log_success("🗑️ 已清除所有用户存储数据")
         except Exception as e:
-            print(f"⚠️ 清除用户存储失败: {e}")
+            log_error(f"⚠️ 清除用户存储失败: {e}")
             # 逐个清除关键数据
             for key in [self._session_key, self._remember_key, 'current_route']:
                 try:
@@ -662,24 +675,22 @@ class AuthManager:
         """
         import time
         current_time = time.strftime("%H:%M:%S")
-        print(f"🔍 {current_time} 当前服务器内存用户: {self.current_user.username if self.current_user else 'None'}")
-        
+        log_debug(f"🔍 {current_time} 当前服务器内存用户: {self.current_user.username if self.current_user else 'None'}") # <-- **【修改: 从 print 替换为 log_debug】**        
         # 1. 获取浏览器存储的 session_token
-        session_token = app.storage.user.get(self._session_key)
-        print(f"🔑 浏览器 session_token: {session_token[:12] + '...' if session_token else 'None'}")
-        
+        session_token = app.storage.user.get(self._session_key) 
         # 2. 如果浏览器没有 token，清除可能的服务器状态残留
         if not session_token:
-            print("❌ 浏览器无 session_token")
+            log_warning("❌ 浏览器无 session_token")
             if self.current_user:
-                print(f"⚠️ 发现服务器状态残留，清除用户: {self.current_user.username}")
+                log_warning(f"⚠️ 发现服务器状态残留，清除用户: {self.current_user.username}")
                 self.current_user = None
             return None
+        
         # 3. 浏览器有 token，检查内存缓存
-        print("✅ 浏览器有 session_token，开始验证...")
+        # log_info("✅ 浏览器有 session_token，开始验证...")
         user_session = session_manager.get_session(session_token)
         if user_session:
-            print(f"🎯 内存缓存命中: {user_session.username}")
+            log_info(f"🎯 内存缓存命中: {user_session.username}")
             self.current_user = user_session
             return user_session
         
@@ -696,28 +707,27 @@ class AuthManager:
                 ).first()
                 
                 if user:
-                    print(f"✅ 数据库验证成功: {user.username}")
+                    log_success(f"✅ 数据库验证成功: {user.username}")
                     # 重新创建内存会话
                     user_session = session_manager.create_session(session_token, user)
                     self.current_user = user_session
                     return user_session
                 else:
-                    print("❌ 数据库验证失败，token 已失效或用户不存在")                 
+                    log_warning("❌ 数据库验证失败，token 已失效或用户不存在")                 
                     # token 无效，清除浏览器存储
                     app.storage.user.pop(self._session_key, None)
                     app.storage.user.pop(self._remember_key, None)
                     self.current_user = None
                     
         except Exception as e:
-            print(f"❌ 数据库查询出错: {e}")
+            log_error(f"❌ 数据库查询出错: {e}")
             self.current_user = None
             return None
         
         # 5. 检查 remember_me token（如果主 token 失效）
         remember_token = app.storage.user.get(self._remember_key)
         if remember_token and auth_config.allow_remember_me:
-            print(f"🔍 检查记住我 token: {remember_token[:12] + '...'}")
-            
+            log_info(f"🔍 检查记住我 token: {remember_token[:12] + '...'}")
             try:
                 with get_db() as db:
                     from sqlalchemy.orm import joinedload
@@ -730,7 +740,7 @@ class AuthManager:
                     ).first()
                     
                     if user:
-                        print(f"✅ 记住我验证成功: {user.username}")
+                        log_success(f"✅ 记住我验证成功: {user.username}")
                         
                         # 生成新的 session token
                         new_session_token = user.generate_session_token()
@@ -741,17 +751,17 @@ class AuthManager:
                         user_session = session_manager.create_session(new_session_token, user)
                         self.current_user = user_session
                         
-                        print(f"🔄 通过记住我重新建立会话: {user_session.username}")
+                        log_info(f"🔄 通过记住我重新建立会话: {user_session.username}")
                         return user_session
                     else:
-                        print("❌ 记住我 token 验证失败")
+                        log_info("❌ 记住我 token 验证失败")
                         app.storage.user.pop(self._remember_key, None)
                         
             except Exception as e:
-                print(f"❌ 记住我验证出错: {e}")
+                log_error(f"❌ 记住我验证出错: {e}")
         
         # 6. 所有验证都失败
-        print("❌ 所有验证都失败，用户未登录")
+        log_error("❌ 所有验证都失败，用户未登录")
         self.current_user = None
         return None
 
@@ -761,15 +771,18 @@ class AuthManager:
             user = db.query(User).filter(User.id == user_id).first()
             
             if not user:
+                logger.warning(f"密码修改失败: 用户不存在: user_id={user_id}")
                 return {'success': False, 'message': '用户不存在'}
             
             # 验证旧密码
             if not user.check_password(old_password):
+                logger.warning(f"密码修改失败: 原密码错误: {user.username}")
                 return {'success': False, 'message': '原密码错误'}
             
             # 验证新密码
             password_result = validate_password(new_password)
             if not password_result['valid']:
+                logger.warning(f"密码修改失败: 新密码强度不足: {user.username}")
                 return {'success': False, 'message': password_result['message']}
             
             # 设置新密码
@@ -781,7 +794,7 @@ class AuthManager:
             
             db.commit()
             
-            logger.info(f"用户修改密码成功: {user.username}")
+            log_success(f"用户修改密码成功: {user.username}")
             return {'success': True, 'message': '密码修改成功，请重新登录'}
     
     def reset_password(self, email: str) -> Dict[str, Any]:
@@ -797,7 +810,7 @@ class AuthManager:
             # reset_token = secrets.token_urlsafe(32)
             # send_reset_email(user.email, reset_token)
             
-            logger.info(f"密码重置请求: {user.email}")
+            log_info(f"密码重置请求: {user.email}")
             return {'success': True, 'message': '如果该邮箱已注册，您将收到密码重置邮件'}
     
     def update_profile(self, user_id: int, **kwargs) -> Dict[str, Any]:
@@ -847,7 +860,7 @@ class AuthManager:
                     user_session = session_manager.create_session(session_token, user)
                     self.current_user = user_session
             
-            logger.info(f"用户资料更新成功: {user.username}")
+            log_success(f"用户资料更新成功: {user.username}")
             return {'success': True, 'message': '资料更新成功', 'user': self.current_user}
     
     def get_user_by_id(self, user_id: int) -> Optional[UserSession]:
@@ -1035,10 +1048,19 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from .config import auth_config
-import logging
 
 # 配置日志
-logger = logging.getLogger(__name__)
+# import logging
+# logger = logging.getLogger(__name__)
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
 # 创建基类
 Base = declarative_base()
@@ -1076,10 +1098,10 @@ def init_database():
             )
         )
         
-        logger.info(f"数据库连接初始化成功: {auth_config.database_type}")
+        log_success(f"数据库连接初始化成功: {auth_config.database_type}")
         
     except Exception as e:
-        logger.error(f"数据库连接初始化失败: {e}")
+        log_error(f"数据库连接初始化失败: {e}")
         raise
 
 def get_session():
@@ -1097,7 +1119,7 @@ def get_db():
         session.commit()
     except Exception as e:
         session.rollback()
-        logger.error(f"数据库操作失败: {e}")
+        log_error(f"数据库操作失败: {e}")
         raise
     finally:
         session.close()
@@ -1108,7 +1130,7 @@ def close_database():
     
     if SessionLocal:
         SessionLocal.remove()
-        logger.info("数据库连接已关闭")
+        log_info("数据库连接已关闭")
 
 def check_connection():
     """检查数据库连接状态"""
@@ -1117,7 +1139,7 @@ def check_connection():
             db.execute("SELECT 1")
         return True
     except Exception as e:
-        logger.error(f"数据库连接检查失败: {e}")
+        log_error(f"数据库连接检查失败: {e}")
         return False
 
 def get_engine():
@@ -1129,7 +1151,7 @@ def get_engine():
 # 兼容性函数（向后兼容旧代码）
 def reset_database():
     """重置数据库（已废弃，请使用 scripts/init_database.py --reset）"""
-    logger.warning("reset_database() 已废弃，请使用 'python scripts/init_database.py --reset'")
+    log_warning("reset_database() 已废弃，请使用 'python scripts/init_database.py --reset'")
     import subprocess
     import sys
     
@@ -1140,10 +1162,10 @@ def reset_database():
             '--reset', 
             '--test-data'
         ], check=True, capture_output=True, text=True)
-        logger.info("数据库重置完成")
+        log_info("数据库重置完成")
         return True
     except subprocess.CalledProcessError as e:
-        logger.error(f"数据库重置失败: {e}")
+        log_error(f"数据库重置失败: {e}")
         return False
 
 # 保留一些重要的初始化函数供快速初始化使用
@@ -1168,11 +1190,11 @@ def quick_init_for_testing():
         initializer.init_default_permissions()
         initializer.init_role_permissions()
         
-        logger.info("快速初始化完成")
+        log_success("快速初始化完成")
         return True
         
     except Exception as e:
-        logger.error(f"快速初始化失败: {e}")
+        log_error(f"快速初始化失败: {e}")
         return False
 ```
 
@@ -1186,14 +1208,22 @@ from functools import wraps
 from nicegui import ui
 from .auth_manager import auth_manager
 from .config import auth_config
-import logging
 
-logger = logging.getLogger(__name__)
+# import logging
+# logger = logging.getLogger(__name__)
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
 def require_login(redirect_to_login: bool = True):
     """
     要求用户登录的装饰器
-    
     Args:
         redirect_to_login: 未登录时是否重定向到登录页
     """
@@ -1204,7 +1234,7 @@ def require_login(redirect_to_login: bool = True):
             user = auth_manager.check_session()
             
             if not user:
-                logger.warning(f"未认证用户尝试访问受保护资源: {func.__name__}")
+                log_warning(f"未认证用户尝试访问受保护资源: {func.__name__}")
                 
                 if redirect_to_login:
                     ui.notify('请先登录', type='warning')
@@ -1243,7 +1273,7 @@ def require_role(*roles):
             # 检查角色
             user_roles = [role.name for role in user.roles]
             if not any(role in user_roles for role in roles):
-                logger.warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
+                log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
                 ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')
                 return
             
@@ -1275,7 +1305,7 @@ def require_permission(*permissions):
                     missing_permissions.append(permission)
             
             if missing_permissions:
-                logger.warning(f"用户 {user.username} 缺少权限: {missing_permissions}")
+                log_warning(f"用户 {user.username} 缺少权限: {missing_permissions}")
                 ui.notify(f'您缺少以下权限：{", ".join(missing_permissions)}', type='error')
                 return
             
@@ -1352,13 +1382,22 @@ def protect_page(roles=None, permissions=None, redirect_to_login=True):
 增强版本：增加对用户-权限直接关联的支持
 """
 
-import logging
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 
 # 设置日志
-logger = logging.getLogger(__name__)
+# import logging
+# logger = logging.getLogger(__name__)
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
 @dataclass
 class DetachedUser:
@@ -1388,8 +1427,8 @@ class DetachedUser:
     updated_at: Optional[datetime] = None
     
     # 关联数据
-    roles: List[str] = field(default_factory=list)  # 角色名称列表
-    permissions: List[str] = field(default_factory=list)  # 权限名称列表（包括角色权限和直接权限）
+    roles: List[str] = field(default_factory=list)          # 角色名称列表
+    permissions: List[str] = field(default_factory=list)    # 权限名称列表（包括角色权限和直接权限）
     direct_permissions: List[str] = field(default_factory=list)  # 直接分配的权限名称列表
     role_permissions: List[str] = field(default_factory=list)  # 通过角色获得的权限名称列表
 
@@ -1461,7 +1500,8 @@ class DetachedUser:
                 role_permissions=list(set(role_permissions))
             )
         except Exception as e:
-            logger.error(f"创建DetachedUser失败: {e}")
+            # logger.error(f"创建DetachedUser失败: {e}")
+            log_error(f"创建DetachedUser失败: {e}")
             return cls(
                 id=user.id,
                 username=user.username,
@@ -1517,7 +1557,8 @@ class DetachedRole:
                 users=users
             )
         except Exception as e:
-            logger.error(f"创建DetachedRole失败: {e}")
+            # logger.error(f"创建DetachedRole失败: {e}")
+            log_error(f"创建DetachedRole失败: {e}")
             return cls(
                 id=role.id,
                 name=role.name,
@@ -1582,7 +1623,8 @@ class DetachedPermission:
                 direct_users_count=direct_users_count
             )
         except Exception as e:
-            logger.error(f"创建DetachedPermission失败: {e}")
+            # logger.error(f"创建DetachedPermission失败: {e}")
+            log_error(f"创建DetachedPermission失败: {e}")
             return cls(
                 id=permission.id,
                 name=permission.name,
@@ -1613,7 +1655,7 @@ class DetachedDataManager:
                 return None
 
         except Exception as e:
-            logger.error(f"获取用户数据失败 (ID: {user_id}): {e}")
+            log_error(f"获取用户数据失败 (ID: {user_id}): {e}")
             return None
 
     @staticmethod
@@ -1645,7 +1687,7 @@ class DetachedDataManager:
                 return [DetachedUser.from_user(user) for user in users]
 
         except Exception as e:
-            logger.error(f"获取用户列表失败: {e}")
+            log_error(f"获取用户列表失败: {e}")
             return []
 
     @staticmethod
@@ -1666,7 +1708,7 @@ class DetachedDataManager:
                 return None
 
         except Exception as e:
-            logger.error(f"获取权限数据失败 (ID: {permission_id}): {e}")
+            log_error(f"获取权限数据失败 (ID: {permission_id}): {e}")
             return None
 
     @staticmethod
@@ -1702,7 +1744,7 @@ class DetachedDataManager:
                 return [DetachedPermission.from_permission(perm) for perm in permissions]
 
         except Exception as e:
-            logger.error(f"获取权限列表失败: {e}")
+            log_error(f"获取权限列表失败: {e}")
             return []
 
     @staticmethod
@@ -1723,7 +1765,7 @@ class DetachedDataManager:
                 return None
 
         except Exception as e:
-            logger.error(f"获取角色数据失败 (ID: {role_id}): {e}")
+            log_error(f"获取角色数据失败 (ID: {role_id}): {e}")
             return None
 
     @staticmethod
@@ -1742,7 +1784,7 @@ class DetachedDataManager:
                 return [DetachedRole.from_role(role) for role in roles]
 
         except Exception as e:
-            logger.error(f"获取角色列表失败: {e}")
+            log_error(f"获取角色列表失败: {e}")
             return []
 
     @staticmethod
@@ -1762,14 +1804,14 @@ class DetachedDataManager:
                 for field in basic_fields:
                     if field in update_data:
                         setattr(user, field, update_data[field])
-                        logger.debug(f"更新用户字段 {field}: {update_data[field]}")
+                        log_info(f"更新用户字段 {field}: {update_data[field]}")
 
                 db.commit()
-                logger.info(f"用户更新成功: {user.username}")
+                log_info(f"用户更新成功: {user.username}")
                 return True
 
         except Exception as e:
-            logger.error(f"更新用户失败 (ID: {user_id}): {e}")
+            log_error(f"更新用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -1786,11 +1828,11 @@ class DetachedDataManager:
                 username = user.username
                 db.delete(user)
                 db.commit()
-                logger.info(f"用户删除成功: {username}")
+                log_warning(f"用户删除成功: {username}")
                 return True
 
         except Exception as e:
-            logger.error(f"删除用户失败 (ID: {user_id}): {e}")
+            log_error(f"删除用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -1806,11 +1848,11 @@ class DetachedDataManager:
 
                 user.locked_until = datetime.now() + timedelta(minutes=lock_duration_minutes)
                 db.commit()
-                logger.info(f"用户锁定成功: {user.username}, 锁定到: {user.locked_until}")
+                log_info(f"用户锁定成功: {user.username}, 锁定到: {user.locked_until}")
                 return True
 
         except Exception as e:
-            logger.error(f"锁定用户失败 (ID: {user_id}): {e}")
+            log_info(f"锁定用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -1827,11 +1869,11 @@ class DetachedDataManager:
                 user.locked_until = None
                 user.failed_login_count = 0  # 重置失败登录次数
                 db.commit()
-                logger.info(f"用户解锁成功: {user.username}")
+                log_info(f"用户解锁成功: {user.username}")
                 return True
 
         except Exception as e:
-            logger.error(f"解锁用户失败 (ID: {user_id}): {e}")
+            log_error(f"解锁用户失败 (ID: {user_id}): {e}")
             return False
 
     @staticmethod
@@ -1849,11 +1891,11 @@ class DetachedDataManager:
                     user.failed_login_count = 0
 
                 db.commit()
-                logger.info(f"批量解锁用户成功，解锁数量: {count}")
+                log_info(f"批量解锁用户成功，解锁数量: {count}")
                 return count
 
         except Exception as e:
-            logger.error(f"批量解锁用户失败: {e}")
+            log_error(f"批量解锁用户失败: {e}")
             return 0
 
     @staticmethod
@@ -1866,7 +1908,7 @@ class DetachedDataManager:
                 # 检查角色名称是否已存在
                 existing = db.query(Role).filter(Role.name == name).first()
                 if existing:
-                    logger.warning(f"角色名称已存在: {name}")
+                    log_warning(f"角色名称已存在: {name}")
                     return None
 
                 role = Role(
@@ -1879,11 +1921,11 @@ class DetachedDataManager:
                 db.add(role)
                 db.commit()
                 
-                logger.info(f"角色创建成功: {name}")
+                log_info(f"角色创建成功: {name}")
                 return role.id
 
         except Exception as e:
-            logger.error(f"创建角色失败: {e}")
+            log_error(f"创建角色失败: {e}")
             return None
 
     @staticmethod
@@ -1902,14 +1944,14 @@ class DetachedDataManager:
                 for field in basic_fields:
                     if field in update_data:
                         setattr(role, field, update_data[field])
-                        logger.debug(f"更新角色字段 {field}: {update_data[field]}")
+                        log_info(f"更新角色字段 {field}: {update_data[field]}")
 
                 db.commit()
-                logger.info(f"角色更新成功: {role.name}")
+                log_success(f"角色更新成功: {role.name}")
                 return True
 
         except Exception as e:
-            logger.error(f"更新角色失败 (ID: {role_id}): {e}")
+            log_error(f"更新角色失败 (ID: {role_id}): {e}")
             return False
 
     @staticmethod
@@ -1925,17 +1967,17 @@ class DetachedDataManager:
 
                 # 检查是否有用户关联
                 if hasattr(role, 'users') and role.users:
-                    logger.warning(f"无法删除角色，存在用户关联: {role.name}")
+                    log_warning(f"无法删除角色，存在用户关联: {role.name}")
                     return False
 
                 role_name = role.name
                 db.delete(role)
                 db.commit()
-                logger.info(f"角色删除成功: {role_name}")
+                log_success(f"角色删除成功: {role_name}")
                 return True
 
         except Exception as e:
-            logger.error(f"删除角色失败 (ID: {role_id}): {e}")
+            log_error(f"删除角色失败 (ID: {role_id}): {e}")
             return False
 
     @staticmethod
@@ -1948,7 +1990,7 @@ class DetachedDataManager:
                 # 检查权限名称是否已存在
                 existing = db.query(Permission).filter(Permission.name == name).first()
                 if existing:
-                    logger.warning(f"权限名称已存在: {name}")
+                    log_warning(f"权限名称已存在: {name}")
                     return None
 
                 permission = Permission(
@@ -1961,11 +2003,11 @@ class DetachedDataManager:
                 db.add(permission)
                 db.commit()
                 
-                logger.info(f"权限创建成功: {name}")
+                log_success(f"权限创建成功: {name}")
                 return permission.id
 
         except Exception as e:
-            logger.error(f"创建权限失败: {e}")
+            log_error(f"创建权限失败: {e}")
             return None
 
     @staticmethod
@@ -1984,14 +2026,14 @@ class DetachedDataManager:
                 for field in basic_fields:
                     if field in update_data:
                         setattr(permission, field, update_data[field])
-                        logger.debug(f"更新权限字段 {field}: {update_data[field]}")
+                        log_info(f"更新权限字段 {field}: {update_data[field]}")
 
                 db.commit()
-                logger.info(f"权限更新成功: {permission.name}")
+                log_success(f"权限更新成功: {permission.name}")
                 return True
 
         except Exception as e:
-            logger.error(f"更新权限失败 (ID: {permission_id}): {e}")
+            log_error(f"更新权限失败 (ID: {permission_id}): {e}")
             return False
 
     @staticmethod
@@ -2010,17 +2052,17 @@ class DetachedDataManager:
                 has_user_associations = hasattr(permission, 'users') and permission.users
                 
                 if has_role_associations or has_user_associations:
-                    logger.warning(f"无法删除权限，存在关联关系: {permission.name}")
+                    log_warning(f"无法删除权限，存在关联关系: {permission.name}")
                     return False
 
                 permission_name = permission.name
                 db.delete(permission)
                 db.commit()
-                logger.info(f"权限删除成功: {permission_name}")
+                log_success(f"权限删除成功: {permission_name}")
                 return True
 
         except Exception as e:
-            logger.error(f"删除权限失败 (ID: {permission_id}): {e}")
+            log_error(f"删除权限失败 (ID: {permission_id}): {e}")
             return False
 
     # 新增：用户权限直接关联管理
@@ -2040,14 +2082,14 @@ class DetachedDataManager:
                 if permission not in user.permissions:
                     user.permissions.append(permission)
                     db.commit()
-                    logger.info(f"为用户 {user.username} 添加权限 {permission.name}")
+                    log_info(f"为用户 {user.username} 添加权限 {permission.name}")
                     return True
                 else:
-                    logger.info(f"用户 {user.username} 已拥有权限 {permission.name}")
+                    log_info(f"用户 {user.username} 已拥有权限 {permission.name}")
                     return True
 
         except Exception as e:
-            logger.error(f"为用户添加权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
+            log_error(f"为用户添加权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
             return False
 
     @staticmethod
@@ -2066,14 +2108,14 @@ class DetachedDataManager:
                 if permission in user.permissions:
                     user.permissions.remove(permission)
                     db.commit()
-                    logger.info(f"从用户 {user.username} 移除权限 {permission.name}")
+                    log_info(f"从用户 {user.username} 移除权限 {permission.name}")
                     return True
                 else:
-                    logger.info(f"用户 {user.username} 没有权限 {permission.name}")
+                    log_info(f"用户 {user.username} 没有权限 {permission.name}")
                     return True
 
         except Exception as e:
-            logger.error(f"从用户移除权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
+            log_error(f"从用户移除权限失败 (用户ID: {user_id}, 权限ID: {permission_id}): {e}")
             return False
 
     @staticmethod
@@ -2093,7 +2135,7 @@ class DetachedDataManager:
                 return []
 
         except Exception as e:
-            logger.error(f"获取用户直接权限失败 (用户ID: {user_id}): {e}")
+            log_error(f"获取用户直接权限失败 (用户ID: {user_id}): {e}")
             return []
 
     @staticmethod
@@ -2122,7 +2164,7 @@ class DetachedDataManager:
                 return []
 
         except Exception as e:
-            logger.error(f"获取权限直接关联用户失败 (权限ID: {permission_id}): {e}")
+            log_error(f"获取权限直接关联用户失败 (权限ID: {permission_id}): {e}")
             return []
 
     @staticmethod
@@ -2159,7 +2201,7 @@ class DetachedDataManager:
                 }
                 
         except Exception as e:
-            logger.error(f"获取用户统计失败: {e}")
+            log_error(f"获取用户统计失败: {e}")
             return {
                 'total_users': 0,
                 'active_users': 0,
@@ -2190,7 +2232,7 @@ class DetachedDataManager:
                 }
                 
         except Exception as e:
-            logger.error(f"获取角色统计失败: {e}")
+            log_error(f"获取角色统计失败: {e}")
             return {
                 'total_roles': 0,
                 'active_roles': 0,
@@ -2218,7 +2260,7 @@ class DetachedDataManager:
                 }
                 
         except Exception as e:
-            logger.error(f"获取权限统计失败: {e}")
+            log_error(f"获取权限统计失败: {e}")
             return {
                 'total_permissions': 0,
                 'system_permissions': 0,
@@ -2231,7 +2273,7 @@ class DetachedDataManager:
 try:
     from .models import User, Role, Permission
 except ImportError:
-    logger.warning("无法导入模型类，某些功能可能不可用")
+    log_error("无法导入模型类，某些功能可能不可用")
 
 # 全局实例
 detached_manager = DetachedDataManager()
@@ -7923,11 +7965,9 @@ class ExceptionHandler:
             return wrapper
         return decorator
 
-
 # 全局单例实例
 _exception_handler = None
 _handler_lock = threading.Lock()
-
 
 def get_exception_handler() -> ExceptionHandler:
     """获取异常处理器单例（线程安全）"""
@@ -7938,20 +7978,17 @@ def get_exception_handler() -> ExceptionHandler:
                 _exception_handler = ExceptionHandler()
     return _exception_handler
 
-
 # 对外暴露的5个核心函数
 def log_info(message: str, extra_data: Optional[str] = None):
     """记录信息日志"""
     handler = get_exception_handler()
     handler.log_info(message, extra_data)
 
-
 def log_error(message: str, exception: Optional[Exception] = None, 
               extra_data: Optional[str] = None):
     """记录错误日志"""
     handler = get_exception_handler()
     handler.log_error(message, exception, extra_data)
-
 
 def safe(func: Callable, *args, return_value: Any = None, 
          show_error: bool = True, error_msg: str = None, **kwargs) -> Any:
@@ -7960,7 +7997,6 @@ def safe(func: Callable, *args, return_value: Any = None,
     return handler.safe(func, *args, return_value=return_value, 
                        show_error=show_error, error_msg=error_msg, **kwargs)
 
-
 @contextmanager
 def db_safe(operation_name: str = "数据库操作"):
     """数据库操作安全上下文管理器"""
@@ -7968,12 +8004,10 @@ def db_safe(operation_name: str = "数据库操作"):
     with handler.db_safe(operation_name) as db:
         yield db
 
-
 def safe_protect(name: str = None, error_msg: str = None, return_on_error: Any = None):
     """页面/函数保护装饰器"""
     handler = get_exception_handler()
     return handler.safe_protect(name, error_msg, return_on_error)
-
 
 # =============================================================================
 # 日志查询和管理工具函数
@@ -7997,7 +8031,6 @@ def get_log_files(days: int = 7) -> list:
             })
     
     return log_files
-
 
 def get_today_errors(limit: int = 50) -> list:
     """获取今天的错误日志"""
@@ -8027,7 +8060,6 @@ def cleanup_logs(days_to_keep: int = 30):
     handler = get_exception_handler()
     handler.max_log_days = days_to_keep
     handler._cleanup_old_logs()
-
 
 # =============================================================================
 # 使用示例和测试
@@ -8070,6 +8102,876 @@ if __name__ == "__main__":
     print(f"今天的错误数量: {len(today_errors)}")
     
     print("✅ 异常处理模块测试完成")
+```
+
+- **webproduct_ui_template\common\log_handler.py**
+```python
+"""
+增强的异常处理和日志模块 - 基于 Loguru 的混合架构(优化版 v2.2 - 修复调用栈问题)
+保留现有 API,增强底层实现,按日期文件夹组织日志
+文件路径: webproduct_ui_template/common/log_handler.py
+
+关键修复(v2.2):
+1. 修复 module/function/line_number 总是显示 log_handler.py 的问题
+2. 使用 logger.opt(depth=N) 正确追踪调用栈
+3. 改进用户上下文获取逻辑,减少 anonymous 出现
+
+特性:
+1. 完全兼容现有 API (log_info, log_error, safe, db_safe, safe_protect)
+2. 使用 Loguru 作为底层引擎,性能提升 20-30%
+3. 支持 7 种日志级别 (TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL)
+4. 智能日志轮转 (按天/自动压缩)
+5. 异步日志写入,不阻塞主线程
+6. 保留 CSV 格式兼容(用于查询工具)
+7. 自动捕获用户上下文
+8. 集成 NiceGUI UI 通知
+9. 按日期文件夹组织: logs/2025-10-23/{app.log, error.log, app_logs.csv}
+"""
+import csv
+import json
+import asyncio
+import threading
+import functools
+import inspect
+import sys
+from typing import Callable, Any, Optional, Dict, List
+from datetime import datetime, timedelta
+from pathlib import Path
+from contextlib import contextmanager
+from loguru import logger
+from nicegui import ui
+
+# =============================================================================
+# 配置和初始化
+# =============================================================================
+
+class LoguruExceptionHandler:
+    """基于 Loguru 的增强异常处理器 - 单例模式(线程安全)"""
+    
+    _instance = None
+    _lock = threading.Lock()
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
+        
+        # 配置参数
+        self.log_base_dir = Path('logs')  # 日志根目录
+        self.log_base_dir.mkdir(exist_ok=True)
+        self.max_log_days = 30  # 普通日志保留30天
+        self.error_log_days = 90  # 错误日志保留90天
+        self.csv_enabled = True  # CSV 兼容模式
+        
+        # 当前日志目录(每天一个文件夹)
+        self.current_log_dir = self._get_today_log_dir()
+        
+        # 初始化 Loguru
+        self._setup_loguru()
+        
+        # CSV 支持(兼容现有查询工具)
+        if self.csv_enabled:
+            self._setup_csv_logging()
+        
+        # 启动定时清理任务
+        self._start_cleanup_task()
+        
+        LoguruExceptionHandler._initialized = True
+    
+    def _get_today_log_dir(self) -> Path:
+        """获取今天的日志目录"""
+        today = datetime.now().strftime('%Y-%m-%d')
+        log_dir = self.log_base_dir / today
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir
+    
+    def _check_and_update_log_dir(self):
+        """检查日期是否变化,如果跨天则更新日志目录"""
+        today_log_dir = self._get_today_log_dir()
+        
+        if today_log_dir != self.current_log_dir:
+            self.current_log_dir = today_log_dir
+            
+            # 重新配置 Loguru
+            logger.remove()
+            self._setup_loguru()
+            if self.csv_enabled:
+                self._setup_csv_logging()
+    
+    def _setup_loguru(self):
+        """配置 Loguru 日志系统 - 按日期文件夹组织"""
+        # 移除默认处理器
+        logger.remove()
+        
+        # 1️⃣ 控制台输出 - 开发环境(彩色格式化)
+        logger.add(
+            sys.stderr,
+            format=(
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                "<level>{level: <8}</level> | "
+                "<cyan>{extra[user_id]}</cyan>@<cyan>{extra[username]}</cyan> | "
+                "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+                "<level>{message}</level>"
+            ),
+            level="DEBUG",   # ✅ 控制台输出 DEBUG,不写入日志文件
+            colorize=True,
+            backtrace=True,
+            diagnose=True,
+            enqueue=False  # 控制台同步输出,方便调试
+        )
+        
+        # 2️⃣ 普通日志文件 - 存储在当天日期文件夹下
+        logger.add(
+            self.current_log_dir / "app.log",
+            rotation="500 MB",
+            retention=f"{self.max_log_days} days",
+            compression="zip",
+            encoding="utf-8",
+            format=(
+                "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
+                "{level: <8} | "
+                "{extra[user_id]}@{extra[username]} | "
+                "{name}:{function}:{line} | "
+                "{message}"
+            ),
+            level="INFO",
+            enqueue=True,
+            backtrace=True,
+            diagnose=True
+        )
+        
+        # 3️⃣ 错误日志文件 - 存储在当天日期文件夹下
+        logger.add(
+            self.current_log_dir / "error.log",
+            rotation="100 MB",
+            retention=f"{self.error_log_days} days",
+            compression="zip",
+            encoding="utf-8",
+            format=(
+                "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
+                "{level: <8} | "
+                "{extra[user_id]}@{extra[username]} | "
+                "{name}:{function}:{line} | "
+                "{message}\n"
+                "{exception}"
+            ),
+            level="ERROR",
+            enqueue=True,
+            backtrace=True,
+            diagnose=True
+        )
+        
+        # 配置默认上下文
+        logger.configure(
+            extra={"user_id": None, "username": "system"}
+        )
+    
+    def _setup_csv_logging(self):
+        """设置 CSV 格式日志(兼容现有查询工具) - 存储在当天日期文件夹下"""
+        def csv_sink(message):
+            """CSV 格式 sink - 线程安全"""
+            try:
+                # 检查是否跨天
+                self._check_and_update_log_dir()
+                
+                record = message.record
+                csv_file = self.current_log_dir / "app_logs.csv"
+                
+                # 初始化 CSV 文件(如果不存在)
+                file_exists = csv_file.exists()
+                
+                if not file_exists:
+                    with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([
+                            'timestamp', 'level', 'user_id', 'username',
+                            'module', 'function', 'line_number', 'message',
+                            'exception_type', 'stack_trace', 'extra_data'
+                        ])
+                
+                # 写入日志记录
+                with open(csv_file, 'a', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    
+                    # 处理异常信息
+                    exception_type = ''
+                    stack_trace = ''
+                    if record['exception']:
+                        exception_type = record['exception'].type.__name__
+                        # 格式化堆栈信息(移除过长的堆栈)
+                        stack_lines = str(record['exception']).split('\n')
+                        stack_trace = '\n'.join(stack_lines[:20])
+                    
+                    writer.writerow([
+                        record['time'].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+                        record['level'].name,
+                        record['extra'].get('user_id', ''),
+                        record['extra'].get('username', ''),
+                        record['name'],
+                        record['function'],
+                        record['line'],
+                        record['message'],
+                        exception_type,
+                        stack_trace,
+                        json.dumps(record['extra'].get('extra_data', {}), ensure_ascii=False)
+                    ])
+            except Exception as e:
+                # 备用日志记录(避免日志系统本身出错)
+                print(f"CSV 日志写入失败: {e}")
+        
+        # 添加 CSV sink
+        logger.add(
+            csv_sink,
+            level="INFO",
+            enqueue=True  # 异步写入
+        )
+    
+    def _start_cleanup_task(self):
+        """启动定时清理任务(清理过期的日志文件夹)"""
+        def cleanup_worker():
+            """后台清理线程"""
+            while True:
+                try:
+                    # 每天凌晨2点执行清理
+                    now = datetime.now()
+                    next_run = now.replace(hour=2, minute=0, second=0, microsecond=0)
+                    if next_run <= now:
+                        next_run += timedelta(days=1)
+                    
+                    sleep_seconds = (next_run - now).total_seconds()
+                    threading.Event().wait(sleep_seconds)
+                    
+                    # 执行清理
+                    self._cleanup_old_log_folders()
+                    
+                except Exception as e:
+                    logger.error(f"日志清理任务异常: {e}")
+                    # 出错后等待1小时再重试
+                    threading.Event().wait(3600)
+        
+        # 启动后台线程
+        cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True, name="LogCleanup")
+        cleanup_thread.start()
+        logger.debug("🧹 日志清理后台任务已启动")
+    
+    def _cleanup_old_log_folders(self):
+        """清理过期的日志文件夹"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=self.max_log_days)
+            deleted_count = 0
+            
+            # 遍历所有日期文件夹
+            for log_folder in self.log_base_dir.iterdir():
+                if not log_folder.is_dir():
+                    continue
+                
+                try:
+                    # 解析文件夹名(格式: YYYY-MM-DD)
+                    folder_date = datetime.strptime(log_folder.name, '%Y-%m-%d')
+                    
+                    # 检查是否过期
+                    if folder_date < cutoff_date:
+                        # 删除整个文件夹
+                        import shutil
+                        shutil.rmtree(log_folder)
+                        deleted_count += 1
+                        logger.info(f"🗑️ 已删除过期日志文件夹: {log_folder.name}")
+                
+                except (ValueError, OSError) as e:
+                    logger.warning(f"跳过无效的日志文件夹: {log_folder.name} - {e}")
+                    continue
+            
+            if deleted_count > 0:
+                logger.success(f"✅ 日志清理完成,共删除 {deleted_count} 个过期文件夹")
+            else:
+                logger.debug("✅ 日志清理完成,无过期文件夹")
+        
+        except Exception as e:
+            logger.error(f"清理日志文件夹失败: {e}")
+    
+    def _get_user_context(self) -> Dict[str, Any]:
+        """
+        获取当前用户上下文 - 改进版
+        
+        修复说明:
+        - 增加了更详细的调试信息
+        - 区分不同的未登录状态: guest(未登录) vs anonymous(获取失败)
+        """
+        try:
+            from auth.auth_manager import auth_manager
+            user = auth_manager.current_user
+            
+            if user:
+                return {
+                    'user_id': user.id,
+                    'username': user.username
+                }
+            else:
+                # 未登录状态,返回 guest
+                return {'user_id': None, 'username': 'system'}
+                
+        except ImportError:
+            # auth 模块未加载
+            return {'user_id': None, 'username': 'system'}
+        except Exception as e:
+            # 其他异常,记录错误原因
+            print(f"⚠️ 获取用户上下文失败: {e}")
+            return {'user_id': None, 'username': 'anonymous'}
+    
+    def _bind_context(self, extra_data: Optional[Dict] = None, depth: int = 0):
+        """
+        绑定用户上下文到日志 - 修复版
+        
+        关键修复:
+        使用 opt(depth=depth) 让 Loguru 正确追踪调用栈位置
+        
+        Args:
+            extra_data: 额外数据
+            depth: 调用栈深度
+                   - 0: 当前函数 (_bind_context)
+                   - 1: 调用者 (如 log_info)
+                   - 2: 调用者的调用者 (全局函数 -> 类方法)
+        
+        Returns:
+            绑定了上下文的 logger 实例
+        """
+        context = self._get_user_context()
+        if extra_data:
+            context['extra_data'] = extra_data
+        
+        # 🔧 关键修复: 使用 opt(depth=depth) 正确追踪调用栈
+        return logger.opt(depth=depth).bind(**context)
+    
+    # =========================================================================
+    # 核心日志方法 - 修复版 (depth=1)
+    # =========================================================================
+    
+    def log_trace(self, message: str, extra_data: Optional[str] = None):
+        """记录追踪日志 (最详细)"""
+        extra = json.loads(extra_data) if extra_data else {}
+        # depth=1: 跳过当前函数,记录调用者位置
+        self._bind_context(extra, depth=1).trace(message)
+    
+    def log_debug(self, message: str, extra_data: Optional[str] = None):
+        """记录调试日志"""
+        extra = json.loads(extra_data) if extra_data else {}
+        self._bind_context(extra, depth=1).debug(message)
+    
+    def log_info(self, message: str, extra_data: Optional[str] = None):
+        """记录信息日志 (兼容现有 API)"""
+        extra = json.loads(extra_data) if extra_data else {}
+        self._bind_context(extra, depth=1).info(message)
+    
+    def log_success(self, message: str, extra_data: Optional[str] = None):
+        """记录成功日志"""
+        extra = json.loads(extra_data) if extra_data else {}
+        self._bind_context(extra, depth=1).success(message)
+    
+    def log_warning(self, message: str, extra_data: Optional[str] = None):
+        """记录警告日志"""
+        extra = json.loads(extra_data) if extra_data else {}
+        self._bind_context(extra, depth=1).warning(message)
+    
+    def log_error(self, message: str, exception: Optional[Exception] = None, 
+                  extra_data: Optional[str] = None):
+        """记录错误日志 (兼容现有 API)"""
+        extra = json.loads(extra_data) if extra_data else {}
+        log_func = self._bind_context(extra, depth=1)
+        
+        if exception:
+            log_func.opt(exception=exception).error(message)
+        else:
+            log_func.error(message)
+    
+    def log_critical(self, message: str, exception: Optional[Exception] = None,
+                     extra_data: Optional[str] = None):
+        """记录严重错误日志"""
+        extra = json.loads(extra_data) if extra_data else {}
+        log_func = self._bind_context(extra, depth=1)
+        
+        if exception:
+            log_func.opt(exception=exception).critical(message)
+        else:
+            log_func.critical(message)
+    
+    # =========================================================================
+    # 安全执行方法 - 兼容现有 API
+    # =========================================================================
+    
+    def safe(self, func: Callable, *args, return_value: Any = None,
+             show_error: bool = True, error_msg: str = None, **kwargs) -> Any:
+        """万能安全执行函数 (兼容现有 API)"""
+        try:
+            self.log_info(f"开始执行函数: {func.__name__}")
+            result = func(*args, **kwargs)
+            self.log_info(f"函数执行成功: {func.__name__}")
+            return result
+            
+        except Exception as e:
+            error_message = error_msg or f"函数 {func.__name__} 执行失败: {str(e)}"
+            self.log_error(error_message, exception=e)
+            
+            if show_error:
+                try:
+                    ui.notify(error_message, type='negative', timeout=5000)
+                except Exception:
+                    print(f"错误提示显示失败: {error_message}")
+            
+            return return_value
+    
+    @contextmanager
+    def db_safe(self, operation_name: str = "数据库操作"):
+        """数据库操作安全上下文管理器 (兼容现有 API)"""
+        from auth.database import get_db
+        
+        self.log_info(f"开始数据库操作: {operation_name}")
+        try:
+            with get_db() as db:
+                yield db
+                self.log_info(f"数据库操作完成: {operation_name}")
+                
+        except Exception as e:
+            self.log_error(f"数据库操作失败: {operation_name}", exception=e)
+            try:
+                ui.notify(f"数据库操作失败: {operation_name}", type='negative')
+            except:
+                pass
+            raise
+    
+    def safe_protect(self, name: str = None, error_msg: str = None, 
+                     return_on_error: Any = None):
+        """页面/函数保护装饰器 (兼容现有 API)"""
+        def decorator(func: Callable) -> Callable:
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                func_name = name or func.__name__
+                
+                try:
+                    self.log_info(f"开始执行: {func_name}")
+                    result = func(*args, **kwargs)
+                    self.log_info(f"执行完成: {func_name}")
+                    return result
+                
+                except Exception as e:
+                    error_message = error_msg or f"页面 {func_name} 加载失败"
+                    self.log_error(f"{func_name}执行失败", exception=e)
+                    
+                    try:
+                        # 显示友好的错误页面
+                        with ui.column().classes('p-6 text-center w-full min-h-96'):
+                            ui.icon('error_outline', size='4rem').classes('text-red-500 mb-4')
+                            ui.label(f'{func_name} 执行失败').classes('text-2xl font-bold text-red-600 mb-2')
+                            ui.label(error_message).classes('text-gray-600 mb-4')
+                            
+                            with ui.row().classes('gap-2 mt-6'):
+                                ui.button('刷新页面', icon='refresh',
+                                         on_click=lambda: ui.navigate.reload()).classes('bg-blue-500 text-white')
+                                ui.button('返回首页', icon='home',
+                                         on_click=lambda: ui.navigate.to('/workbench')).classes('bg-gray-500 text-white')
+                    except Exception:
+                        print(f"错误页面显示失败: {error_message}")
+                    
+                    return return_on_error
+            
+            return wrapper
+        return decorator
+    
+    # =========================================================================
+    # Loguru 特色功能 - 新增方法
+    # =========================================================================
+    
+    def catch(self, func: Callable = None, *, message: str = None, 
+              show_ui_error: bool = True):
+        """Loguru 异常捕获装饰器"""
+        def decorator(f: Callable) -> Callable:
+            @functools.wraps(f)
+            @logger.catch(message=message or f"Error in {f.__name__}")
+            def wrapper(*args, **kwargs):
+                try:
+                    return f(*args, **kwargs)
+                except Exception as e:
+                    if show_ui_error:
+                        try:
+                            ui.notify(f"{f.__name__} 执行失败", type='negative')
+                        except:
+                            pass
+                    raise
+            return wrapper
+        
+        # 支持 @catch 和 @catch() 两种用法
+        if func is None:
+            return decorator
+        else:
+            return decorator(func)
+    
+    def get_logger(self, name: str = None):
+        """
+        获取绑定用户上下文的 logger 实例
+        
+        使用方法:
+            log = handler.get_logger("my_module")
+            log.info("This is a message")
+        """
+        context = self._get_user_context()
+        bound_logger = logger.bind(**context)
+        
+        if name:
+            bound_logger = bound_logger.bind(module_name=name)
+        
+        return bound_logger
+
+# =============================================================================
+# 全局单例实例
+# =============================================================================
+
+_exception_handler = None
+_handler_lock = threading.Lock()
+
+def get_exception_handler() -> LoguruExceptionHandler:
+    """获取异常处理器单例(线程安全)"""
+    global _exception_handler
+    if _exception_handler is None:
+        with _handler_lock:
+            if _exception_handler is None:
+                _exception_handler = LoguruExceptionHandler()
+    return _exception_handler
+
+# =============================================================================
+# 对外暴露的核心函数 - 完全兼容现有 API (修复版 depth=2)
+# =============================================================================
+
+def log_trace(message: str, extra_data: Optional[str] = None):
+    """记录追踪日志"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    # 🔧 depth=2: 跳过当前函数 + _bind_context,记录真实调用者
+    handler._bind_context(extra, depth=2).trace(message)
+
+def log_debug(message: str, extra_data: Optional[str] = None):
+    """记录调试日志"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    handler._bind_context(extra, depth=2).debug(message)
+
+def log_info(message: str, extra_data: Optional[str] = None):
+    """记录信息日志 (兼容现有 API)"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    handler._bind_context(extra, depth=2).info(message)
+
+def log_success(message: str, extra_data: Optional[str] = None):
+    """记录成功日志"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    handler._bind_context(extra, depth=2).success(message)
+
+def log_warning(message: str, extra_data: Optional[str] = None):
+    """记录警告日志"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    handler._bind_context(extra, depth=2).warning(message)
+
+def log_error(message: str, exception: Optional[Exception] = None,
+              extra_data: Optional[str] = None):
+    """记录错误日志 (兼容现有 API)"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    log_func = handler._bind_context(extra, depth=2)
+    
+    if exception:
+        log_func.opt(exception=exception).error(message)
+    else:
+        log_func.error(message)
+
+def log_critical(message: str, exception: Optional[Exception] = None,
+                 extra_data: Optional[str] = None):
+    """记录严重错误日志"""
+    handler = get_exception_handler()
+    extra = json.loads(extra_data) if extra_data else {}
+    log_func = handler._bind_context(extra, depth=2)
+    
+    if exception:
+        log_func.opt(exception=exception).critical(message)
+    else:
+        log_func.critical(message)
+
+def safe(func: Callable, *args, return_value: Any = None,
+         show_error: bool = True, error_msg: str = None, **kwargs) -> Any:
+    """万能安全执行函数 (兼容现有 API)"""
+    handler = get_exception_handler()
+    return handler.safe(func, *args, return_value=return_value,
+                       show_error=show_error, error_msg=error_msg, **kwargs)
+
+@contextmanager
+def db_safe(operation_name: str = "数据库操作"):
+    """数据库操作安全上下文管理器 (兼容现有 API)"""
+    handler = get_exception_handler()
+    with handler.db_safe(operation_name) as db:
+        yield db
+
+def safe_protect(name: str = None, error_msg: str = None, return_on_error: Any = None):
+    """页面/函数保护装饰器 (兼容现有 API)"""
+    handler = get_exception_handler()
+    return handler.safe_protect(name, error_msg, return_on_error)
+
+def catch(func: Callable = None, *, message: str = None, show_ui_error: bool = True):
+    """Loguru 异常捕获装饰器"""
+    handler = get_exception_handler()
+    return handler.catch(func, message=message, show_ui_error=show_ui_error)
+
+def get_logger(name: str = None):
+    """获取绑定用户上下文的 logger 实例"""
+    handler = get_exception_handler()
+    return handler.get_logger(name)
+
+# =============================================================================
+# 日志查询和管理工具函数 - 兼容现有 API (适配日期文件夹结构)
+# =============================================================================
+
+def get_log_files(days: int = 7) -> List[Dict]:
+    """获取最近几天的日志文件列表 (兼容现有 API)"""
+    handler = get_exception_handler()
+    log_files = []
+    
+    for i in range(days):
+        date = datetime.now() - timedelta(days=i)
+        date_str = date.strftime('%Y-%m-%d')
+        date_folder = handler.log_base_dir / date_str
+        
+        if not date_folder.exists():
+            continue
+        
+        # CSV 格式日志文件
+        csv_file = date_folder / 'app_logs.csv'
+        if csv_file.exists():
+            log_files.append({
+                'date': date_str,
+                'file_path': csv_file,
+                'size': csv_file.stat().st_size,
+                'type': 'csv'
+            })
+        
+        # 普通日志文件
+        log_file = date_folder / 'app.log'
+        if log_file.exists():
+            log_files.append({
+                'date': date_str,
+                'file_path': log_file,
+                'size': log_file.stat().st_size,
+                'type': 'log'
+            })
+        
+        # 错误日志文件
+        error_file = date_folder / 'error.log'
+        if error_file.exists():
+            log_files.append({
+                'date': date_str,
+                'file_path': error_file,
+                'size': error_file.stat().st_size,
+                'type': 'error'
+            })
+    
+    return log_files
+
+def get_today_errors(limit: int = 50) -> List[Dict]:
+    """获取今天的错误日志 (兼容现有 API)"""
+    handler = get_exception_handler()
+    today_folder = handler.current_log_dir
+    csv_file = today_folder / "app_logs.csv"
+    
+    if not csv_file.exists():
+        return []
+    
+    try:
+        errors = []
+        with open(csv_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['level'] in ['ERROR', 'CRITICAL']:
+                    errors.append(row)
+        
+        return errors[-limit:] if len(errors) > limit else errors
+    
+    except Exception as e:
+        print(f"读取错误日志失败: {e}")
+        return []
+
+def get_today_logs_by_level(level: str = "INFO", limit: int = 100) -> List[Dict]:
+    """根据日志级别获取今天的日志"""
+    handler = get_exception_handler()
+    today_folder = handler.current_log_dir
+    csv_file = today_folder / "app_logs.csv"
+    
+    if not csv_file.exists():
+        return []
+    
+    try:
+        logs = []
+        with open(csv_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['level'] == level.upper():
+                    logs.append(row)
+        
+        return logs[-limit:] if len(logs) > limit else logs
+    
+    except Exception as e:
+        print(f"读取日志失败: {e}")
+        return []
+
+def cleanup_logs(days_to_keep: int = 30):
+    """手动清理旧日志文件夹 (兼容现有 API)"""
+    handler = get_exception_handler()
+    handler.max_log_days = days_to_keep
+    handler._cleanup_old_log_folders()
+    log_info(f"日志清理完成: 保留 {days_to_keep} 天")
+
+def get_log_statistics(days: int = 7) -> Dict[str, Any]:
+    """获取日志统计信息"""
+    handler = get_exception_handler()
+    stats = {
+        'total_logs': 0,
+        'error_count': 0,
+        'warning_count': 0,
+        'info_count': 0,
+        'by_date': {},
+        'by_level': {},
+        'by_user': {}
+    }
+    
+    for i in range(days):
+        date = datetime.now() - timedelta(days=i)
+        date_str = date.strftime('%Y-%m-%d')
+        date_folder = handler.log_base_dir / date_str
+        csv_file = date_folder / 'app_logs.csv'
+        
+        if csv_file.exists():
+            try:
+                with open(csv_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        stats['total_logs'] += 1
+                        
+                        level = row['level']
+                        stats['by_level'][level] = stats['by_level'].get(level, 0) + 1
+                        
+                        if level == 'ERROR':
+                            stats['error_count'] += 1
+                        elif level == 'WARNING':
+                            stats['warning_count'] += 1
+                        elif level == 'INFO':
+                            stats['info_count'] += 1
+                        
+                        stats['by_date'][date_str] = stats['by_date'].get(date_str, 0) + 1
+                        
+                        username = row.get('username', 'unknown')
+                        stats['by_user'][username] = stats['by_user'].get(username, 0) + 1
+            
+            except Exception as e:
+                print(f"读取 {csv_file} 失败: {e}")
+    
+    return stats
+
+def get_log_folder_info() -> Dict[str, Any]:
+    """获取日志文件夹信息"""
+    handler = get_exception_handler()
+    
+    folder_info = {
+        'base_dir': str(handler.log_base_dir),
+        'current_dir': str(handler.current_log_dir),
+        'folder_count': 0,
+        'total_size': 0,
+        'folders': []
+    }
+    
+    try:
+        for log_folder in sorted(handler.log_base_dir.iterdir(), reverse=True):
+            if not log_folder.is_dir():
+                continue
+            
+            try:
+                folder_size = sum(f.stat().st_size for f in log_folder.rglob('*') if f.is_file())
+                
+                folder_info['folders'].append({
+                    'name': log_folder.name,
+                    'path': str(log_folder),
+                    'size': folder_size,
+                    'file_count': len(list(log_folder.iterdir()))
+                })
+                
+                folder_info['folder_count'] += 1
+                folder_info['total_size'] += folder_size
+            
+            except Exception as e:
+                print(f"读取文件夹 {log_folder} 失败: {e}")
+    
+    except Exception as e:
+        print(f"读取日志文件夹信息失败: {e}")
+    
+    return folder_info
+
+# =============================================================================
+# 使用示例和测试
+# =============================================================================
+
+if __name__ == "__main__":
+    print("=" * 70)
+    print("🚀 基于 Loguru 的增强异常处理器 - 测试 (v2.2 修复版)")
+    print("=" * 70)
+    
+    # 1. 基础日志记录
+    print("\n📝 测试 1: 基础日志记录")
+    log_trace("这是追踪日志")
+    log_debug("这是调试日志")
+    log_info("应用启动", extra_data='{"version": "2.2.0", "env": "production"}')
+    log_success("初始化成功")
+    log_warning("这是警告日志")
+    log_error("这是错误日志")
+    log_critical("这是严重错误日志")
+    
+    # 2. 模拟业务代码调用
+    print("\n🎯 测试 2: 模拟业务代码调用(验证 module/function/line 是否正确)")
+    
+    def business_function():
+        """模拟业务函数"""
+        log_info("业务函数中的信息日志")
+        log_warning("业务函数中的警告日志")
+        
+        try:
+            raise ValueError("测试异常")
+        except Exception as e:
+            log_error("业务函数中出现错误", exception=e)
+    
+    # 调用业务函数
+    business_function()
+    
+    # 3. 查看日志文件
+    print("\n📂 测试 3: 查看日志文件")
+    log_files = get_log_files(1)
+    print(f"今天的日志文件: {len(log_files)} 个")
+    for file in log_files:
+        print(f"  - {file['date']} ({file['type']}): {file['size']} bytes")
+    
+    # 4. 日志统计
+    print("\n📈 测试 4: 日志统计")
+    stats = get_log_statistics(days=1)
+    print(f"总日志数: {stats['total_logs']}")
+    print(f"错误数: {stats['error_count']}")
+    print(f"按级别统计: {stats['by_level']}")
+    
+    print("\n" + "=" * 70)
+    print("✅ 测试完成! 请检查 logs/YYYY-MM-DD/app_logs.csv 文件")
+    print("✅ 验证: module 应该显示 '__main__'")
+    print("✅ 验证: function 应该显示 'business_function'")
+    print("✅ 验证: line_number 应该显示 business_function 中的实际行号")
+    print("=" * 70)
 ```
 
 - **webproduct_ui_template\common\safe_openai_client_pool.py**
@@ -9512,7 +10414,7 @@ class MultilayerLayoutManager:
             
             # ✨ 优化点1: 将 gap-1 改为 gap-3,增加菜单项之间的间距
             # ✨ 优化点2: 调整 padding 为 p-3,使整体更舒适
-            with ui.column().classes('w-full p-3 gap-3 multilayer-menu-content'):
+            with ui.column().classes('w-full p-3 gap-2 multilayer-menu-content'):
                 if self.menu_config.menu_items:
                     for item in self.menu_config.menu_items:
                         self._render_menu_item(item)
@@ -9588,7 +10490,7 @@ class MultilayerLayoutManager:
     
     def navigate_to_route(self, route: str, label: str, update_storage: bool = True):
         """导航到指定路由"""
-        print(f"🚀 导航到路由: {route} ({label})")
+        # print(f"🚀 导航到路由: {route} ({label})")
         
         self.current_route = route
         self.current_label = label
@@ -9645,8 +10547,7 @@ class MultilayerLayoutManager:
         if not item or not item.is_leaf:
             print(f"⚠️ 节点 {key} 不是有效的叶子节点")
             return
-        
-        print(f"🎯 选中叶子节点: {item.label} (key={key})")
+        # print(f"🎯 选中叶子节点: {item.label} (key={key})")
         
         # 清除之前的选中状态
         if self.selected_leaf_key and self.selected_leaf_key in self.leaf_refs:
@@ -9684,7 +10585,7 @@ class MultilayerLayoutManager:
         if update_storage:
             self._save_expanded_state()
         
-        print(f"📂 展开父节点: {key}")
+        # print(f"📂 展开父节点: {key}")
     
     def collapse_parent(self, key: str, update_storage: bool = True):
         """收起父节点"""
@@ -9700,7 +10601,7 @@ class MultilayerLayoutManager:
         if update_storage:
             self._save_expanded_state()
         
-        print(f"📁 收起父节点: {key}")
+        # print(f"📁 收起父节点: {key}")
     
     def _save_expanded_state(self):
         """保存展开状态到存储"""
@@ -9906,7 +10807,6 @@ class MultilayerMenuItem:
             'children': [child.to_dict() for child in self.children]
         }
 
-
 class MultilayerMenuConfig:
     """多层菜单配置管理类"""
     
@@ -9930,7 +10830,7 @@ class MultilayerMenuConfig:
     
     def _build_maps_recursive(self, item: MultilayerMenuItem):
         """递归构建映射表"""
-        # 添加key映射
+        # 添加 key映射
         self._key_map[item.key] = item
         
         # 添加路由映射(只针对叶子节点)
@@ -9975,6 +10875,42 @@ class MultilayerMenuConfig:
             routes[route] = item.label
         return routes
     
+    # ✨ 新增方法: 获取第一个叶子节点
+    def get_first_leaf(self) -> Optional[MultilayerMenuItem]:
+        """
+        递归查找并返回第一个叶子节点
+        
+        Returns:
+            第一个叶子节点,如果没有则返回 None
+        """
+        for item in self.menu_items:
+            result = self._find_first_leaf_recursive(item)
+            if result:
+                return result
+        return None
+    
+    def _find_first_leaf_recursive(self, item: MultilayerMenuItem) -> Optional[MultilayerMenuItem]:
+        """
+        递归辅助方法:在给定节点的子树中查找第一个叶子节点
+        
+        Args:
+            item: 当前检查的节点
+            
+        Returns:
+            第一个找到的叶子节点,如果没有则返回 None
+        """
+        # 如果当前节点是叶子节点,直接返回
+        if item.is_leaf:
+            return item
+        
+        # 否则递归查找子节点中的第一个叶子节点
+        for child in item.children:
+            result = self._find_first_leaf_recursive(child)
+            if result:
+                return result
+        
+        return None
+    
     def validate(self) -> List[str]:
         """验证配置的有效性,返回错误信息列表"""
         errors = []
@@ -9999,7 +10935,6 @@ class MultilayerMenuConfig:
         
         for child in item.children:
             self._validate_keys_recursive(child, keys, errors)
-
 
 # 辅助函数:快速创建菜单项
 def create_menu_item(key: str, 
@@ -10072,7 +11007,6 @@ def create_demo_menu_config() -> MultilayerMenuConfig:
     
     return config
 
-
 if __name__ == '__main__':
     # 测试代码
     print("🧪 测试多层菜单配置模块\n")
@@ -10121,7 +11055,6 @@ from .multilayer_menu_config import MultilayerMenuItem
 
 # 全局布局管理器实例
 current_multilayer_layout_manager: Optional[MultilayerLayoutManager] = None
-
 
 def with_multilayer_spa_layout(
     config: Optional[LayoutConfig] = None,
@@ -11304,7 +12237,7 @@ class ThinkContentParser:
             'think_complete': False,
             'think_updated': False
         }
-        print(f"----> 返回内容： {full_content}")
+    
         # 检测思考开始
         if '<think>' in full_content and not self.is_in_think:
             self.is_in_think = True
@@ -15657,7 +16590,6 @@ __all__ = [
 """
 from common.exception_handler import safe_protect
 from component.chat import ChatComponent
-
 
 @safe_protect(name="一企一档", error_msg="一企一档页面加载失败")
 def chat_page_content():

@@ -292,7 +292,6 @@ class ExceptionHandler:
 _exception_handler = None
 _handler_lock = threading.Lock()
 
-
 def get_exception_handler() -> ExceptionHandler:
     """获取异常处理器单例（线程安全）"""
     global _exception_handler
@@ -302,20 +301,17 @@ def get_exception_handler() -> ExceptionHandler:
                 _exception_handler = ExceptionHandler()
     return _exception_handler
 
-
 # 对外暴露的5个核心函数
 def log_info(message: str, extra_data: Optional[str] = None):
     """记录信息日志"""
     handler = get_exception_handler()
     handler.log_info(message, extra_data)
 
-
 def log_error(message: str, exception: Optional[Exception] = None, 
               extra_data: Optional[str] = None):
     """记录错误日志"""
     handler = get_exception_handler()
     handler.log_error(message, exception, extra_data)
-
 
 def safe(func: Callable, *args, return_value: Any = None, 
          show_error: bool = True, error_msg: str = None, **kwargs) -> Any:

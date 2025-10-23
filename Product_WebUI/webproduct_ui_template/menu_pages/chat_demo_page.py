@@ -5,7 +5,6 @@
 from common.exception_handler import safe_protect
 from component.chat import ChatComponent
 
-
 @safe_protect(name="一企一档", error_msg="一企一档页面加载失败")
 def chat_page_content():
     """

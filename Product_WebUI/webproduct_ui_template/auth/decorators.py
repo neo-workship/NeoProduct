@@ -6,14 +6,22 @@ from functools import wraps
 from nicegui import ui
 from .auth_manager import auth_manager
 from .config import auth_config
-import logging
 
-logger = logging.getLogger(__name__)
+# import logging
+# logger = logging.getLogger(__name__)
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
 def require_login(redirect_to_login: bool = True):
     """
     要求用户登录的装饰器
-    
     Args:
         redirect_to_login: 未登录时是否重定向到登录页
     """
@@ -24,7 +32,7 @@ def require_login(redirect_to_login: bool = True):
             user = auth_manager.check_session()
             
             if not user:
-                logger.warning(f"未认证用户尝试访问受保护资源: {func.__name__}")
+                log_warning(f"未认证用户尝试访问受保护资源: {func.__name__}")
                 
                 if redirect_to_login:
                     ui.notify('请先登录', type='warning')
@@ -63,7 +71,7 @@ def require_role(*roles):
             # 检查角色
             user_roles = [role.name for role in user.roles]
             if not any(role in user_roles for role in roles):
-                logger.warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
+                log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
                 ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')
                 return
             
@@ -95,7 +103,7 @@ def require_permission(*permissions):
                     missing_permissions.append(permission)
             
             if missing_permissions:
-                logger.warning(f"用户 {user.username} 缺少权限: {missing_permissions}")
+                log_warning(f"用户 {user.username} 缺少权限: {missing_permissions}")
                 ui.notify(f'您缺少以下权限：{", ".join(missing_permissions)}', type='error')
                 return
             

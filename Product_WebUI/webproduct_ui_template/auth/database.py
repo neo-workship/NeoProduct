@@ -7,10 +7,19 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 from .config import auth_config
-import logging
 
 # 配置日志
-logger = logging.getLogger(__name__)
+# import logging
+# logger = logging.getLogger(__name__)
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
 
 # 创建基类
 Base = declarative_base()
@@ -48,10 +57,10 @@ def init_database():
             )
         )
         
-        logger.info(f"数据库连接初始化成功: {auth_config.database_type}")
+        log_success(f"数据库连接初始化成功: {auth_config.database_type}")
         
     except Exception as e:
-        logger.error(f"数据库连接初始化失败: {e}")
+        log_error(f"数据库连接初始化失败: {e}")
         raise
 
 def get_session():
@@ -69,7 +78,7 @@ def get_db():
         session.commit()
     except Exception as e:
         session.rollback()
-        logger.error(f"数据库操作失败: {e}")
+        log_error(f"数据库操作失败: {e}")
         raise
     finally:
         session.close()
@@ -80,7 +89,7 @@ def close_database():
     
     if SessionLocal:
         SessionLocal.remove()
-        logger.info("数据库连接已关闭")
+        log_info("数据库连接已关闭")
 
 def check_connection():
     """检查数据库连接状态"""
@@ -89,7 +98,7 @@ def check_connection():
             db.execute("SELECT 1")
         return True
     except Exception as e:
-        logger.error(f"数据库连接检查失败: {e}")
+        log_error(f"数据库连接检查失败: {e}")
         return False
 
 def get_engine():
@@ -101,7 +110,7 @@ def get_engine():
 # 兼容性函数（向后兼容旧代码）
 def reset_database():
     """重置数据库（已废弃，请使用 scripts/init_database.py --reset）"""
-    logger.warning("reset_database() 已废弃，请使用 'python scripts/init_database.py --reset'")
+    log_warning("reset_database() 已废弃，请使用 'python scripts/init_database.py --reset'")
     import subprocess
     import sys
     
@@ -112,10 +121,10 @@ def reset_database():
             '--reset', 
             '--test-data'
         ], check=True, capture_output=True, text=True)
-        logger.info("数据库重置完成")
+        log_info("数据库重置完成")
         return True
     except subprocess.CalledProcessError as e:
-        logger.error(f"数据库重置失败: {e}")
+        log_error(f"数据库重置失败: {e}")
         return False
 
 # 保留一些重要的初始化函数供快速初始化使用
@@ -140,9 +149,9 @@ def quick_init_for_testing():
         initializer.init_default_permissions()
         initializer.init_role_permissions()
         
-        logger.info("快速初始化完成")
+        log_success("快速初始化完成")
         return True
         
     except Exception as e:
-        logger.error(f"快速初始化失败: {e}")
+        log_error(f"快速初始化失败: {e}")
         return False
