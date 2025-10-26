@@ -9,6 +9,7 @@
 3. 更新保存逻辑,包含 model_name 字段
 """
 from nicegui import ui
+from ..decorators import require_role
 from typing import Optional, Dict, Any
 import sys
 from pathlib import Path
@@ -566,6 +567,7 @@ class LLMConfigManagementPage:
         else:
             ui.notify('删除失败', type='negative')
 
+@require_role('admin')
 @safe_protect(name=f"大模型配置管理页面/{__name__}", error_msg=f"大模型配置管理页面加载失败")
 def llm_config_management_page_content():
     """大模型配置管理页面入口函数"""

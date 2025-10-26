@@ -31,8 +31,11 @@ def no_permission_page_content():
                 # 选择不同的layout这里要做响应的切换
                 # simple_spa_layout->simple_navigate_to / spa_layout->navigate_to
                 def go_home():
-                    from component.simple_spa_layout import simple_navigate_to
-                    simple_navigate_to('home', '首页')
+                    from component import universal_navigate_to
+                    try:
+                        universal_navigate_to('home', '首页')
+                    except RuntimeError as e:
+                        ui.notify('导航失败: 布局未初始化', type='warning')
                 
                 ui.button('返回首页', icon='home', on_click=go_home).classes('bg-blue-500 text-white')
                 ui.button('联系管理员', icon='contact_support', 

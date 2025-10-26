@@ -146,8 +146,6 @@ class MultilayerLayoutManager:
             </style>
         ''')
     
-    
-
     def create_header(self):
         """创建头部"""
         with ui.header(elevated=True).classes(f'items-center justify-between px-4 {self.config.header_bg}'):
@@ -476,13 +474,22 @@ class MultilayerLayoutManager:
     def register_system_routes(self):
         """注册系统路由"""
         system_routes = {
+            # 设置菜单路由
             'user_management': '用户管理',
-            'role_management': '角色管理',
+            'role_management': '角色管理', 
             'permission_management': '权限管理',
+            # ✅ 新增: 配置管理路由
             'llm_config_management': '大模型配置',
-            'prompt_config_management': '提示词配置',
+            'prompt_config_management': '提示词配置',  # ✅ 新增
+
+            # 用户菜单路由（排除logout）
             'user_profile': '个人资料',
-            'change_password': '修改密码'
+            'change_password': '修改密码',
+            
+            # 其他系统路由
+            'no_permission': '权限不足',
+            'login': '登录',
+            'register': '注册'
         }
         
         for route, label in system_routes.items():

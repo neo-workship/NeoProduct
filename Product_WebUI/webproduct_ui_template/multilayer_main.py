@@ -29,7 +29,6 @@ from auth import (
     get_auth_page_handlers
 )
 
-
 def create_demo_menu_structure() -> list[MultilayerMenuItem]:
     """
     创建演示用的多层菜单结构

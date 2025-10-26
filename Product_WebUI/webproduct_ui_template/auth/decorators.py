@@ -50,7 +50,6 @@ def require_login(redirect_to_login: bool = True):
 def require_role(*roles):
     """
     要求用户具有指定角色的装饰器
-    
     Args:
         *roles: 允许的角色列表
     """
@@ -68,7 +67,7 @@ def require_role(*roles):
             if user.is_superuser:
                 return func(*args, **kwargs)
             
-            # # 检查角色
+            # 检查角色
             # user_roles = [role.name for role in user.roles]
             # if not any(role in user_roles for role in roles):
             #     log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
@@ -81,6 +80,14 @@ def require_role(*roles):
             if not any(role in user_roles for role in roles):
                 log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
                 ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')
+
+                from component import universal_navigate_to
+                try:
+                    universal_navigate_to('no_permission', '权限不足')
+                except RuntimeError:
+                    # 如果布局管理器未初始化,直接渲染权限不足页面
+                    from .pages import no_permission_page_content
+                    no_permission_page_content()
                 return
             
             return func(*args, **kwargs)
@@ -113,6 +120,12 @@ def require_permission(*permissions):
             if missing_permissions:
                 log_warning(f"用户 {user.username} 缺少权限: {missing_permissions}")
                 ui.notify(f'您缺少以下权限：{", ".join(missing_permissions)}', type='error')
+                from component import universal_navigate_to
+                try:
+                    universal_navigate_to('no_permission', '权限不足')
+                except RuntimeError:
+                    from .pages import no_permission_page_content
+                    no_permission_page_content()
                 return
             
             return func(*args, **kwargs)

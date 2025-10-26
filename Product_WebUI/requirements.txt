@@ -5,3 +5,6 @@ conda install conda-forge::yaml     ×
 conda install conda-forge::pyyaml   ✓
 
 conda install conda-forge::openai   ✓
+
+conda install conda-forge::loguru   ✓
+
