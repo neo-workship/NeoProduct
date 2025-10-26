@@ -193,7 +193,6 @@ def print_usage_guide():
     """打印使用指南"""
     print(USAGE_GUIDE)
 
-
 # 如果直接运行此模块,显示使用指南
 if __name__ == '__main__':
     print_usage_guide()

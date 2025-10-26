@@ -17,8 +17,12 @@ from common.log_handler import (
     log_debug,
     log_success,
     log_trace,
-    get_logger
+    get_logger,
+    safe, 
+    db_safe,
 )
+# 获取绑定模块名称的logger
+logger = get_logger(__file__)
 
 @dataclass
 class DetachedUser:
@@ -178,7 +182,6 @@ class DetachedRole:
                 users=users
             )
         except Exception as e:
-            # logger.error(f"创建DetachedRole失败: {e}")
             log_error(f"创建DetachedRole失败: {e}")
             return cls(
                 id=role.id,
@@ -244,7 +247,6 @@ class DetachedPermission:
                 direct_users_count=direct_users_count
             )
         except Exception as e:
-            # logger.error(f"创建DetachedPermission失败: {e}")
             log_error(f"创建DetachedPermission失败: {e}")
             return cls(
                 id=permission.id,
@@ -265,7 +267,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取用户数据") as db:
                 user = db.query(User).options(
                     joinedload(User.roles).joinedload(Role.permissions),
                     joinedload(User.permissions)  # 加载直接权限
@@ -286,7 +289,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取用户列表") as db:
                 query = db.query(User).options(
                     joinedload(User.roles).joinedload(Role.permissions),
                     joinedload(User.permissions)  # 加载直接权限
@@ -318,7 +322,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取权限数据") as db:
                 permission = db.query(Permission).options(
                     joinedload(Permission.roles).joinedload(Role.users),
                     joinedload(Permission.users)  # 加载直接关联的用户
@@ -339,7 +344,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取权限列表") as db:
                 query = db.query(Permission).options(
                     joinedload(Permission.roles).joinedload(Role.users),
                     joinedload(Permission.users)  # 加载直接关联的用户
@@ -375,7 +381,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取角色数据") as db:
                 role = db.query(Role).options(
                     joinedload(Role.permissions),
                     joinedload(Role.users)
@@ -396,7 +403,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取角色列表") as db:
                 roles = db.query(Role).options(
                     joinedload(Role.permissions),
                     joinedload(Role.users)
@@ -414,7 +422,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全更新用户数据") as db:
                 user = db.query(User).filter(User.id == user_id).first()
                 if not user:
                     return False
@@ -441,7 +450,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全删除用户") as db:
                 user = db.query(User).filter(User.id == user_id).first()
                 if not user:
                     return False
@@ -462,7 +472,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全锁定用户") as db:
                 user = db.query(User).filter(User.id == user_id).first()
                 if not user:
                     return False
@@ -482,7 +493,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全解锁用户") as db:
                 user = db.query(User).filter(User.id == user_id).first()
                 if not user:
                     return False
@@ -503,7 +515,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("批量解锁所有已锁定的用户") as db:
                 locked_users = db.query(User).filter(User.locked_until.isnot(None)).all()
                 count = len(locked_users)
 
@@ -525,7 +538,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全创建角色") as db:
                 # 检查角色名称是否已存在
                 existing = db.query(Role).filter(Role.name == name).first()
                 if existing:
@@ -554,8 +568,8 @@ class DetachedDataManager:
         """安全更新角色数据"""
         try:
             from .database import get_db
-
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全创建角色") as db:
                 role = db.query(Role).filter(Role.id == role_id).first()
                 if not role:
                     return False
@@ -581,7 +595,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全删除角色") as db:
                 role = db.query(Role).filter(Role.id == role_id).first()
                 if not role:
                     return False
@@ -607,7 +622,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全创建权限") as db:
                 # 检查权限名称是否已存在
                 existing = db.query(Permission).filter(Permission.name == name).first()
                 if existing:
@@ -637,7 +653,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全更新权限数据") as db:
                 permission = db.query(Permission).filter(Permission.id == permission_id).first()
                 if not permission:
                     return False
@@ -663,7 +680,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全删除权限") as db:
                 permission = db.query(Permission).filter(Permission.id == permission_id).first()
                 if not permission:
                     return False
@@ -693,7 +711,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全为用户添加直接权限") as db:
                 user = db.query(User).filter(User.id == user_id).first()
                 permission = db.query(Permission).filter(Permission.id == permission_id).first()
                 
@@ -719,7 +738,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全从用户移除直接权限") as db:
                 user = db.query(User).filter(User.id == user_id).first()
                 permission = db.query(Permission).filter(Permission.id == permission_id).first()
                 
@@ -746,7 +766,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取用户直接权限列表") as db:
                 user = db.query(User).options(
                     joinedload(User.permissions)
                 ).filter(User.id == user_id).first()
@@ -766,7 +787,8 @@ class DetachedDataManager:
             from .database import get_db
             from sqlalchemy.orm import joinedload
 
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("安全获取权限直接关联的用户列表") as db:
                 permission = db.query(Permission).options(
                     joinedload(Permission.users)
                 ).filter(Permission.id == permission_id).first()
@@ -794,7 +816,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
             
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe("获取用户统计数据") as db:
                 total_users = db.query(User).count()
                 active_users = db.query(User).filter(User.is_active == True).count()
                 verified_users = db.query(User).filter(User.is_verified == True).count()
@@ -839,7 +862,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
             
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe(f"获取角色统计数据") as db:
                 total_roles = db.query(Role).count()
                 active_roles = db.query(Role).filter(Role.is_active == True).count()
                 system_roles = db.query(Role).filter(Role.is_system == True).count()
@@ -868,7 +892,8 @@ class DetachedDataManager:
         try:
             from .database import get_db
             
-            with get_db() as db:
+            # with get_db() as db:
+            with db_safe(f"获取权限统计数据") as db:
                 total_permissions = db.query(Permission).count()
                 system_permissions = db.query(Permission).filter(Permission.category == '系统').count()
                 content_permissions = db.query(Permission).filter(Permission.category == '内容').count()
@@ -888,7 +913,6 @@ class DetachedDataManager:
                 'content_permissions': 0,
                 'other_permissions': 0
             }
-
 
 # 需要导入模型类
 try:

@@ -3,8 +3,21 @@ from ..auth_manager import auth_manager
 from ..decorators import require_login
 from ..utils import validate_password
 import re
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 @require_login()
+@safe_protect(name="修改密码页面", error_msg="修改密码页面发生错误", return_on_error=None)
 def change_password_page_content():
     """修改密码页面内容"""
     user = auth_manager.current_user

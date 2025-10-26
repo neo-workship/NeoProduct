@@ -21,14 +21,24 @@ import io
 import csv
 
 # 导入异常处理模块
-from common.exception_handler import log_info, log_error, safe, db_safe, safe_protect
+# from common.exception_handler import log_info, log_error, safe, db_safe, safe_protect
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 @require_role('admin')
 @safe_protect(name="角色管理页面", error_msg="角色管理页面加载失败，请稍后重试")
 def role_management_page_content():
-    """角色管理页面内容 - 仅管理员可访问"""
-    log_info("角色管理页面开始加载")
-    
+    """角色管理页面内容 - 仅管理员可访问"""    
     # 页面标题
     with ui.column().classes('w-full mb-6'):
         ui.label('角色管理').classes('text-4xl font-bold text-purple-800 dark:text-purple-200 mb-2')
@@ -37,7 +47,6 @@ def role_management_page_content():
     # 角色统计卡片
     def load_role_statistics():
         """加载角色统计数据"""
-        log_info("开始加载角色统计数据")
         role_stats = detached_manager.get_role_statistics()
         user_stats = detached_manager.get_user_statistics()
         
@@ -133,16 +142,11 @@ def role_management_page_content():
         roles_container = ui.column().classes('w-full gap-4')
 
     def load_roles():
-        """加载角色列表"""
-        log_info("开始加载角色列表")
-        
+        """加载角色列表"""        
         # 清空现有内容
         roles_container.clear()
-        
         # 获取搜索关键词
-        search_term = search_input.value.strip() if hasattr(search_input, 'value') else ''
-        log_info(f"角色搜索条件: {search_term}")
-        
+        search_term = search_input.value.strip() if hasattr(search_input, 'value') else ''        
         # 获取角色数据
         all_roles = get_roles_safe()
         
@@ -156,9 +160,7 @@ def role_management_page_content():
             ]
         else:
             filtered_roles = all_roles
-        
-        log_info(f"角色加载完成，共找到 {len(filtered_roles)} 个角色")
-        
+                
         with roles_container:
             if not filtered_roles:
                 # 无数据提示
@@ -910,3 +912,4 @@ developer@team.com''').classes('w-full text-sm')
 
     # 初始加载角色列表
     safe(load_roles)
+    log_success("===角色管理页面加载完成===")

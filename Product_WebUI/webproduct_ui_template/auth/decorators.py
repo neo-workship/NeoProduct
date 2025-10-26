@@ -68,8 +68,16 @@ def require_role(*roles):
             if user.is_superuser:
                 return func(*args, **kwargs)
             
+            # # 检查角色
+            # user_roles = [role.name for role in user.roles]
+            # if not any(role in user_roles for role in roles):
+            #     log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
+            #     ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')
+            #     return
+            #------------------------------------------------------
+            # ✅ 修复：user.roles 已经是字符串列表，不需要提取 .name
             # 检查角色
-            user_roles = [role.name for role in user.roles]
+            user_roles = user.roles  # 直接使用，因为 DetachedUser.roles 就是 List[str]
             if not any(role in user_roles for role in roles):
                 log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
                 ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')

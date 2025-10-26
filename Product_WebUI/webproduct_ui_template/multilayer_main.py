@@ -119,7 +119,6 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
     
     return menu_items
 
-
 def create_protected_handlers():
     """为需要认证的页面添加装饰器"""
     menu_handlers = get_menu_page_handlers()
@@ -127,7 +126,6 @@ def create_protected_handlers():
     system_handlers = get_auth_page_handlers()
     
     return {**menu_handlers, **header_handlers, **system_handlers}
-
 
 if __name__ in {"__main__", "__mp_main__"}:
     
@@ -160,10 +158,7 @@ if __name__ in {"__main__", "__mp_main__"}:
         user = auth_manager.check_session()
         if not user:
             ui.navigate.to('/login')
-            return
-        
-        print(f"✅ 用户 {user.username} 已登录,创建多层布局")
-        
+            return        
         # 创建多层菜单结构
         menu_items = create_demo_menu_structure()
         
@@ -188,17 +183,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     def index():
         ui.navigate.to('/workbench')
     
-    # 打印菜单结构信息
-    print("\n📋 多层菜单结构:")
-    menu_items = create_demo_menu_structure()
-    for item in menu_items:
-        if item.is_leaf:
-            print(f"  📄 {item.label} (route: {item.route})")
-        else:
-            print(f"  📁 {item.label} (展开: {item.expanded})")
-            for child in item.children:
-                print(f"     └─ {child.label} (route: {child.route})")
-    
     print("\n" + "=" * 70)
     print("✨ 多层布局特性:")
     print("  - 🎯 支持多层级折叠菜单(无限层级)")
@@ -207,6 +191,9 @@ if __name__ in {"__main__", "__mp_main__"}:
     print("  - 💾 刷新页面保持状态(路由+展开状态)")
     print("  - 🎨 高亮选中的叶子节点")
     print("  - 🔐 集成完整的认证和权限管理")
+    print("📝 测试账号：")
+    print("   管理员 - 用户名: admin, 密码: admin123")
+    print("   普通用户 - 用户名: user, 密码: user123")
     print("=" * 70)
     print(f"🌐 应用启动在: http://localhost:8080")
     print("=" * 70 + "\n")

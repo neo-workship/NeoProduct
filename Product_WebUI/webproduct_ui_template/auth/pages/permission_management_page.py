@@ -24,14 +24,24 @@ from ..database import get_db
 from datetime import datetime
 
 # 导入异常处理模块
-from common.exception_handler import log_info, log_error, safe, db_safe, safe_protect
+# from common.exception_handler import log_info, log_error, safe, db_safe, safe_protect
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 @require_role('admin')
 @safe_protect(name="权限管理页面", error_msg="权限管理页面加载失败，请稍后重试")
 def permission_management_page_content():
-    """权限管理页面内容 - 仅管理员可访问"""
-    log_info("权限管理页面开始加载")
-    
+    """权限管理页面内容 - 仅管理员可访问"""    
     # 页面标题
     with ui.column().classes('w-full mb-6'):
         ui.label('权限管理').classes('text-4xl font-bold text-green-800 dark:text-green-200 mb-2')
@@ -40,7 +50,6 @@ def permission_management_page_content():
     # 权限统计卡片
     def load_permission_statistics():
         """加载权限统计数据"""
-        log_info("开始加载权限统计数据")
         permission_stats = detached_manager.get_permission_statistics()
         role_stats = detached_manager.get_role_statistics()
         user_stats = detached_manager.get_user_statistics()
@@ -1078,6 +1087,6 @@ def permission_management_page_content():
     # 初始加载权限显示
     load_permissions()
 
-    log_info("权限管理页面加载完成")
+    log_info("===权限管理页面加载完成===")
 
 

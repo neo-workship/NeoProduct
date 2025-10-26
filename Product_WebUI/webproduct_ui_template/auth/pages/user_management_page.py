@@ -19,14 +19,25 @@ import string
 from datetime import datetime, timedelta
 
 # 导入异常处理模块
-from common.exception_handler import log_info, log_error, safe, db_safe, safe_protect
+# from common.exception_handler import log_info, log_error, safe, db_safe, safe_protect
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+# 获取绑定模块名称的logger
+logger = get_logger(__file__)
 
 @require_role('admin')
 @safe_protect(name="用户管理页面", error_msg="用户管理页面加载失败，请稍后重试")
 def user_management_page_content():
     """用户管理页面内容 - 仅管理员可访问"""
-    log_info("用户管理页面开始加载")
-    
     # 页面标题
     with ui.column().classes('w-full mb-6'):
         ui.label('用户管理').classes('text-4xl font-bold text-indigo-800 dark:text-indigo-200 mb-2')
@@ -35,11 +46,8 @@ def user_management_page_content():
     # 用户统计卡片 - 添加锁定用户统计
     def load_user_statistics():
         """加载用户统计数据 - 增加锁定用户统计"""
-        log_info("开始加载用户统计数据")
-        
         # 获取基础统计
         base_stats = detached_manager.get_user_statistics()
-        
         # 计算锁定用户数量
         try:
             with db_safe("统计锁定用户") as db:
@@ -47,17 +55,12 @@ def user_management_page_content():
                 locked_users_count = db.query(User).filter(
                     User.locked_until != None,
                     User.locked_until > current_time
-                ).count()
-                
-                base_stats['locked_users'] = locked_users_count
-                log_info(f"锁定用户数量: {locked_users_count}")
-                
+                ).count()  
+                base_stats['locked_users'] = locked_users_count    
         except Exception as e:
             log_error("获取锁定用户统计失败", exception=e)
             base_stats['locked_users'] = 0
-            
         return base_stats
-
     # 安全执行统计数据加载
     stats = safe(
         load_user_statistics,
@@ -146,19 +149,15 @@ def user_management_page_content():
         # 用户表格容器
         users_container = ui.column().classes('w-full gap-3')
 
-        @safe_protect(name="用户列表加载", error_msg="用户列表加载失败")
         def load_users():
             """加载用户数据 - 使用网格布局，最多显示2个用户，鼓励搜索"""
-            log_info("开始加载用户列表数据")
             users_container.clear()
 
             # 获取搜索条件
             search_term = search_input.value.strip() if hasattr(search_input, 'value') and search_input.value else None
-            log_info(f"搜索条件: '{search_term}'")
             
             # 使用安全的数据获取方法，传入搜索条件
             all_users = get_users_safe(search_term=search_term)
-            log_info(f"成功获取{len(all_users)}个用户数据")
 
             # 限制显示的用户数量
             MAX_DISPLAY_USERS = 2
@@ -357,7 +356,6 @@ def user_management_page_content():
                                 ui.button('当前用户', icon='person',
                                         on_click=lambda: ui.notify('这是您当前登录的账户', type='info')).classes('flex-1 bg-gray-400 text-white py-1 text-xs').disable()
 
-        @safe_protect(name="切换用户锁定状态")
         def toggle_user_lock(user_id: int, lock: bool):
             """切换用户锁定状态"""
             user_data = get_user_safe(user_id)
@@ -365,9 +363,7 @@ def user_management_page_content():
                 ui.notify('用户不存在', type='error')
                 return
             
-            action = "锁定" if lock else "解锁"
-            log_info(f"开始{action}用户: {user_data.username}")
-            
+            action = "锁定" if lock else "解锁"            
             try:
                 with db_safe(f"{action}用户") as db:
                     user = db.query(User).filter(User.id == user_id).first()
@@ -393,7 +389,6 @@ def user_management_page_content():
                 log_error(f"{action}用户失败: {user_data.username}", exception=e)
                 ui.notify(f'{action}失败，请稍后重试', type='negative')
 
-        @safe_protect(name="批量解锁用户")
         def batch_unlock_users():
             """批量解锁所有锁定的用户"""
             log_info("开始批量解锁用户")
@@ -424,10 +419,8 @@ def user_management_page_content():
                 log_error("批量解锁用户失败", exception=e)
                 ui.notify('批量解锁失败，请稍后重试', type='negative')
 
-        @safe_protect(name="编辑用户对话框")
         def edit_user_dialog(user_id):
             """编辑用户对话框 - 增加锁定状态控制"""
-            log_info(f"打开编辑用户对话框: 用户ID {user_id}")
             
             with ui.dialog() as dialog, ui.card().classes('w-96'):
                 dialog.open()
@@ -479,7 +472,6 @@ def user_management_page_content():
 
                 def save_user():
                     """保存用户修改 - 包含锁定状态处理"""
-                    log_info(f"开始保存用户修改: 用户ID {user_id}")
                     
                     # 验证输入
                     if not username_input.value.strip():
@@ -537,7 +529,6 @@ def user_management_page_content():
                     ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white')
                     ui.button('保存', on_click=lambda: safe(save_user)).classes('bg-blue-500 text-white')
 
-        @safe_protect(name="添加用户对话框")
         def add_user_dialog():
             """添加用户对话框"""
             log_info("打开添加用户对话框")
@@ -633,7 +624,6 @@ def user_management_page_content():
                     ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white')
                     ui.button('创建用户', on_click=lambda: safe(save_new_user)).classes('bg-blue-500 text-white')
 
-        @safe_protect(name="重置密码对话框")
         def reset_password_dialog(user_id):
             """重置密码对话框"""
             log_info(f"打开重置密码对话框: 用户ID {user_id}")
@@ -701,7 +691,6 @@ def user_management_page_content():
                     ui.button('取消', on_click=dialog.close).classes('bg-gray-500 text-white')
                     ui.button('重置密码', on_click=lambda: safe(perform_reset)).classes('bg-orange-500 text-white')
 
-        @safe_protect(name="删除用户对话框")
         def delete_user_dialog(user_id):
             """删除用户对话框"""
             log_info(f"打开删除用户对话框: 用户ID {user_id}")
@@ -758,11 +747,8 @@ def user_management_page_content():
         # 绑定搜索事件 - 确保事件正确绑定和触发
         search_input.on('input', handle_input_search)  # 实时输入搜索（延迟）
         search_input.on('keydown.enter', handle_search)  # 回车键立即搜索
-        
-        # 添加调试信息
-        log_info("用户搜索事件已绑定")
 
         # 初始加载
         safe(load_users, error_msg="初始化用户列表失败")
 
-    log_info("用户管理页面加载完成")
+    log_success("===用户管理页面加载完成===")

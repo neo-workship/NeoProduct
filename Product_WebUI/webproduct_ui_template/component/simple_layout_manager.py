@@ -1,6 +1,16 @@
 from nicegui import ui, app
 from typing import List, Dict, Callable, Optional
 from .layout_config import LayoutConfig, MenuItem, HeaderConfigItem
+from common.log_handler import (
+    log_info, 
+    log_error, 
+    log_warning,
+    log_debug,
+    log_success,
+    log_trace,
+    get_logger
+)
+logger = get_logger(__file__)
 
 class SimpleLayoutManager:
     """简单布局管理器 - 只包含顶部导航栏的布局"""
@@ -39,7 +49,6 @@ class SimpleLayoutManager:
     def set_route_handler(self, route: str, handler: Callable):
         """设置路由处理器"""
         self.route_handlers[route] = handler
-        print(f"🔗 注册路由处理器: {route}")
         
         # 如果路由映射中没有这个路由，添加一个默认标签
         if route not in self.all_routes:
@@ -69,8 +78,9 @@ class SimpleLayoutManager:
         for route, label in system_routes.items():
             self.all_routes[route] = label
             
-        print(f"🔧 已注册系统路由: {list(system_routes.keys())}")
-        print(f"⚠️  注意：logout 路由未注册到持久化路由中（一次性操作）")
+        logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
+        logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
+        logger.debug(f"⚠️  注意：logout 路由未注册到持久化路由中（一次性操作）")
 
     def select_nav_item(self, key: str, button_element=None, update_storage: bool = True):
         """选择导航项"""
@@ -111,7 +121,6 @@ class SimpleLayoutManager:
         if self.current_route == route:
             return
         
-        print(f"🧭 导航到路由: {route} ({label})")
         self.current_route = route
         
         # 如果不是导航路由，清除导航选中状态
@@ -123,25 +132,23 @@ class SimpleLayoutManager:
         if update_storage and self._should_persist_route(route):
             try:
                 app.storage.user['current_route'] = route
-                print(f"💾 保存路由状态: {route}")
             except Exception as e:
-                print(f"⚠️ 保存路由状态失败: {e}")
+                logger.error(f"⚠️ 保存路由状态失败: {e}")
         elif not self._should_persist_route(route):
-            print(f"🚫 跳过路由持久化: {route} (一次性操作)")
+            logger.debug(f"🚫 跳过路由持久化: {route} (一次性操作)")
         
         if self.content_container:
             self.content_container.clear()
 
         if route in self.route_handlers:
-            print(f"✅ 执行路由处理器: {route}")
             with self.content_container:
                 try:
                     self.route_handlers[route]()
                 except Exception as e:
-                    print(f"❌ 路由处理器执行失败 {route}: {e}")
+                    logger.error(f"❌ 路由处理器执行失败 {route}: {e}")
                     ui.label(f'页面加载失败: {str(e)}').classes('text-red-500 text-xl')
         else:
-            print(f"❌ 未找到路由处理器: {route}")
+            logger.error(f"❌ 未找到路由处理器: {route}")
             with self.content_container:
                 ui.label(f'页面未找到: {label}').classes('text-2xl font-bold text-red-600')
                 ui.label(f'路由 "{route}" 没有对应的处理器').classes('text-gray-600 dark:text-gray-400 mt-4')
@@ -161,9 +168,9 @@ class SimpleLayoutManager:
         try:
             if 'current_route' in app.storage.user:
                 del app.storage.user['current_route']
-                print("🗑️ 已清除路由存储")
+                logger.debug("🗑️ 已清除路由存储")
         except Exception as e:
-            print(f"⚠️ 清除路由存储失败: {e}")
+            logger.warning(f"⚠️ 清除路由存储失败: {e}")
 
     def restore_route_from_storage(self):
         """从存储恢复路由状态"""
@@ -179,51 +186,49 @@ class SimpleLayoutManager:
                     self.select_nav_item(first_item.key, update_storage=True)
                 else:
                     # 如果没有导航项，不做任何操作
-                    print("🔄 没有保存的路由，且未定义导航项，保持空白状态")
+                    logger.warning("🔄 没有保存的路由，且未定义导航项，保持空白状态")
                 return
             
-            print(f"🔄 恢复保存的路由: {saved_route}")
-            # print(f"📋 可用路由映射: {list(self.all_routes.keys())}")
+            logger.debug(f"🔄 恢复保存的路由: {saved_route}")
             
             # 检查路由是否在已知路由中
             if saved_route in self.all_routes:
                 route_label = self.all_routes[saved_route]
-                print(f"✅ 找到路由映射: {saved_route} -> {route_label}")
+                logger.debug(f"✅ 找到路由映射: {saved_route} -> {route_label}")
                 
                 # 检查是否是导航项路由
                 nav_item = next((item for item in self.nav_items if item.route == saved_route), None)
                 if nav_item:
-                    print(f"✅ 这是导航路由，恢复导航选中状态")
                     # 恢复导航选中状态
                     self.select_nav_item(nav_item.key, update_storage=False)
                 else:
-                    print(f"✅ 这是非导航路由，直接导航")
+                    logger.debug(f"✅ 这是非导航路由，直接导航")
                     # 直接导航到路由（不更新存储避免循环）
                     self.navigate_to_route(saved_route, route_label, update_storage=False)
                 return
             
             # 兜底检查：是否在路由处理器中注册
             if saved_route in self.route_handlers:
-                print(f"✅ 在路由处理器中找到路由: {saved_route}")
+                logger.debug(f"✅ 在路由处理器中找到路由: {saved_route}")
                 label = saved_route.replace('_', ' ').title()
                 self.navigate_to_route(saved_route, label, update_storage=False)
                 return
             
             # 如果都没找到，且有导航项，选择第一个导航项
-            print(f"⚠️ 未找到保存的路由 {saved_route}，使用默认路由")
+            logger.debug(f"⚠️ 未找到保存的路由 {saved_route}，使用默认路由")
             if self.nav_items:
                 first_item = self.nav_items[0]
                 self.select_nav_item(first_item.key, update_storage=True)
             else:
-                print("⚠️ 没有可用的导航项，保持空白状态")
+                logger.debug("⚠️ 没有可用的导航项，保持空白状态")
                 
         except Exception as e:
-            print(f"⚠️ 恢复路由状态失败: {e}")
+            logger.debug(f"⚠️ 恢复路由状态失败: {e}")
             if self.nav_items:
                 first_item = self.nav_items[0]
                 self.select_nav_item(first_item.key, update_storage=True)
             else:
-                print("⚠️ 没有可用的导航项，保持空白状态")
+                logger.debug("⚠️ 没有可用的导航项，保持空白状态")
 
     def handle_header_config_item_click(self, item: HeaderConfigItem):
         """处理头部配置项点击事件"""
@@ -236,9 +241,7 @@ class SimpleLayoutManager:
             self.navigate_to_route(item.route, item.label or item.key)
 
     def handle_settings_menu_item_click(self, route: str, label: str):
-        """处理设置菜单项点击事件"""
-        print(f"⚙️ 点击设置菜单项: {label} -> {route}")
-        
+        """处理设置菜单项点击事件"""        
         from auth.auth_manager import auth_manager
 
         if not auth_manager.is_authenticated():
@@ -256,12 +259,11 @@ class SimpleLayoutManager:
 
     def handle_user_menu_item_click(self, route: str, label: str):
         """处理用户菜单项点击事件"""
-        print(f"👤 点击用户菜单项: {label} -> {route}")
         ui.notify(f'点击了用户菜单项: {label}')
         
         # 特殊处理注销：清除路由存储
         if route == 'logout':
-            print("🚪 执行用户注销，清除路由存储")
+            logger.debug("🚪 执行用户注销，清除路由存储")
             self.clear_route_storage()
         
         self.navigate_to_route(route, label)
@@ -279,9 +281,7 @@ class SimpleLayoutManager:
             # 右侧区域：主导航项 + 头部配置项 + 主题切换 + 设置菜单 + 用户菜单
             # 将所有这些元素放在一个单独的 ui.row 中，它们会作为一个整体靠右对齐
             with ui.row().classes('items-center gap-2'): # 使用 gap-2 可以在内部元素之间增加一些间距
-                # 分隔符 (可以放在主导航项之前，如果需要的话)
                 # ui.separator().props('vertical').classes('h-8 mx-4') # 如果希望主导航项和logo之间有分隔符，可以保留，但根据图片，可能不需要
-
                 # 主导航项
                 for nav_item in self.nav_items:
                     nav_btn = ui.button(
@@ -289,7 +289,6 @@ class SimpleLayoutManager:
                         icon=nav_item.icon,
                         on_click=lambda key=nav_item.key: self.select_nav_item(key)
                     ).props('flat color=white').classes('mx-1')
-                    
                     # 保存按钮引用用于状态控制
                     self.nav_buttons[nav_item.key] = nav_btn
                 
@@ -306,10 +305,6 @@ class SimpleLayoutManager:
                         ui.button(icon=item.icon, on_click=lambda current_item=item: self.handle_header_config_item_click(current_item)).props('flat color=white round').classes('w-10 h-10')
                     elif item.label:
                         ui.button(item.label, on_click=lambda current_item=item: self.handle_header_config_item_click(current_item)).props('flat color=white').classes('mr-2')
-                
-                # if self.header_config_items:
-                #     ui.separator().props('vertical').classes('h-8')
-                #     ui.label("|")
 
                 # 主题切换
                 # ui.switch('主题切换').bind_value(self.dark_mode).classes('mx-2')

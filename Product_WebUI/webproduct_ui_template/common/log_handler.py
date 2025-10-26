@@ -401,9 +401,9 @@ class LoguruExceptionHandler:
              show_error: bool = True, error_msg: str = None, **kwargs) -> Any:
         """万能安全执行函数 (兼容现有 API)"""
         try:
-            self.log_info(f"开始执行函数: {func.__name__}")
+            self.log_info(f"    │   ├──safe开始安全执行函数: {func.__name__}")
             result = func(*args, **kwargs)
-            self.log_info(f"函数执行成功: {func.__name__}")
+            self.log_info(f"    │   ├──safe安全函数执行成功: {func.__name__}")
             return result
             
         except Exception as e:
@@ -423,11 +423,9 @@ class LoguruExceptionHandler:
         """数据库操作安全上下文管理器 (兼容现有 API)"""
         from auth.database import get_db
         
-        self.log_info(f"开始数据库操作: {operation_name}")
         try:
             with get_db() as db:
                 yield db
-                self.log_info(f"数据库操作完成: {operation_name}")
                 
         except Exception as e:
             self.log_error(f"数据库操作失败: {operation_name}", exception=e)
@@ -446,9 +444,9 @@ class LoguruExceptionHandler:
                 func_name = name or func.__name__
                 
                 try:
-                    self.log_info(f"开始执行: {func_name}")
+                    self.log_info(f"├──开始页面保护执行：{func_name} ")
                     result = func(*args, **kwargs)
-                    self.log_info(f"执行完成: {func_name}")
+                    self.log_info(f"├──完成页面保护执行: {func_name} ")
                     return result
                 
                 except Exception as e:
@@ -456,17 +454,22 @@ class LoguruExceptionHandler:
                     self.log_error(f"{func_name}执行失败", exception=e)
                     
                     try:
-                        # 显示友好的错误页面
-                        with ui.column().classes('p-6 text-center w-full min-h-96'):
-                            ui.icon('error_outline', size='4rem').classes('text-red-500 mb-4')
-                            ui.label(f'{func_name} 执行失败').classes('text-2xl font-bold text-red-600 mb-2')
-                            ui.label(error_message).classes('text-gray-600 mb-4')
-                            
-                            with ui.row().classes('gap-2 mt-6'):
-                                ui.button('刷新页面', icon='refresh',
-                                         on_click=lambda: ui.navigate.reload()).classes('bg-blue-500 text-white')
-                                ui.button('返回首页', icon='home',
-                                         on_click=lambda: ui.navigate.to('/workbench')).classes('bg-gray-500 text-white')
+                        with ui.row().classes('fit items-center justify-center'):
+                            # 显示友好的错误页面
+                            # 移除 'w-full' 和 'min-h-96'，让内容区域根据内部元素大小自适应
+                            with ui.column().classes('p-6 text-center'): # 只需要 text-center 来对 column 内部的文本和行元素进行水平居中
+                                ui.icon('error_outline', size='4rem').classes('text-red-500 mb-4')
+                                ui.label(f'{func_name} 执行失败').classes('text-2xl font-bold text-red-600 mb-2')
+                                ui.label(error_message).classes('text-gray-600 mb-4')
+
+                                # 按钮行，需要让它在 column 中保持居中
+                                # 'mx-auto' 是使块级元素（如 ui.row）水平居中的 Tailwind 类
+                                with ui.row().classes('gap-2 mt-6 mx-auto'):
+                                    ui.button('刷新页面', icon='refresh',
+                                                on_click=lambda: ui.navigate.reload()).classes('bg-blue-500 text-white')
+                                    ui.button('返回首页', icon='home',
+                                                on_click=lambda: ui.navigate.to('/workbench')).classes('bg-gray-500 text-white')
+                        
                     except Exception:
                         print(f"错误页面显示失败: {error_message}")
                     
@@ -506,7 +509,6 @@ class LoguruExceptionHandler:
     def get_logger(self, name: str = None):
         """
         获取绑定用户上下文的 logger 实例
-        
         使用方法:
             log = handler.get_logger("my_module")
             log.info("This is a message")

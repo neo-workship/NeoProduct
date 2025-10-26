@@ -8,23 +8,17 @@ from datetime import datetime
 # 导入 log_handler 所有功能
 from common.log_handler import (
     # 日志记录函数
-    log_trace, log_debug, log_info, log_success, 
-    log_warning, log_error, log_critical,
-    
+    log_trace, log_debug, log_info, log_success, log_warning, log_error, log_critical,
     # 安全执行
     safe, db_safe,
-    
     # 装饰器
     safe_protect, catch,
-    
     # Logger 实例
     get_logger,
-    
     # 日志查询
     get_log_files, get_today_errors, get_today_logs_by_level,
     get_log_statistics, cleanup_logs
 )
-
 
 def other_page_content():
     """log_handler 测试页面内容"""
@@ -119,6 +113,8 @@ def other_page_content():
                         show_error=True,
                         error_msg="函数执行失败,已返回默认值"
                     )
+                    # error_function()
+                    # result = "默认值"
                     ui.label(f'✅ 错误已捕获,返回默认值: "{result}"').classes('text-orange-600 text-lg')
                     ui.label('📝 错误已记录到日志,UI已显示通知').classes('text-sm text-gray-500')
             
@@ -168,7 +164,7 @@ def other_page_content():
                     # 测试成功场景
                     result = protected_function(should_fail=False)
                     ui.label(f'✅ 正常执行: {result}').classes('text-green-600')
-                    
+                    ui.seperator()
                     # 测试失败场景
                     result = protected_function(should_fail=True)
                     ui.label(f'✅ 错误已被装饰器捕获,返回: {result}').classes('text-orange-600')
@@ -216,7 +212,7 @@ def other_page_content():
                     ui.label('🧪 测试 get_logger()...').classes('text-lg font-semibold mb-2')
                     
                     # 创建自定义 logger
-                    log = get_logger("test_module")
+                    log = get_logger(__file__)
                     
                     log.info("使用自定义 logger 记录 INFO")
                     ui.label('✅ INFO: 已记录').classes('text-blue-600')

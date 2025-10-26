@@ -299,10 +299,9 @@ class SystemPromptConfigManager:
                 'examples': examples,
                 'config': template_config
             }
-            
             self._prompt_options.append(prompt_option)
         
-        print(f"已加载 {len(self._prompt_options)} 个系统提示词模板")
+        # print(f"已加载 {len(self._prompt_options)} 个系统提示词模板")
 
     def get_prompt_options_for_select(self, include_disabled: bool = False) -> List[str]:
         """

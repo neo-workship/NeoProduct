@@ -6,8 +6,21 @@ from ..auth_manager import auth_manager
 from ..config import auth_config
 from ..decorators import public_route
 from ..utils import validate_email, validate_username
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 @public_route
+@safe_protect(name="注册页面内容", error_msg="注册页面内容加载失败")
 def register_page_content():
     """注册页面内容"""
     # 检查是否允许注册

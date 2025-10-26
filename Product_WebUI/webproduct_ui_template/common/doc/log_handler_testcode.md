@@ -18,7 +18,7 @@ from common.log_handler import (
     safe, db_safe,
 
     # 装饰器
-    safe_protect, catch,
+    page_protect, catch,
 
     # Logger 实例
     get_logger,
@@ -27,7 +27,6 @@ from common.log_handler import (
     get_log_files, get_today_errors, get_today_logs_by_level,
     get_log_statistics, cleanup_logs
 )
-
 
 def other_page_content():
     """log_handler 测试页面内容"""
@@ -122,6 +121,8 @@ def other_page_content():
                         show_error=True,
                         error_msg="函数执行失败,已返回默认值"
                     )
+                    # error_function()
+                    # result = "默认值"
                     ui.label(f'✅ 错误已捕获,返回默认值: "{result}"').classes('text-orange-600 text-lg')
                     ui.label('📝 错误已记录到日志,UI已显示通知').classes('text-sm text-gray-500')
 
@@ -155,13 +156,13 @@ def other_page_content():
         ui.label('3️⃣ 装饰器测试').classes('text-2xl font-bold mb-4')
 
         with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_safe_protect_decorator():
-                """测试 @safe_protect 装饰器"""
+            def test_page_protect_decorator():
+                """测试 @page_protect 装饰器"""
                 result_container.clear()
                 with result_container:
-                    ui.label('🧪 测试 @safe_protect 装饰器...').classes('text-lg font-semibold mb-2')
+                    ui.label('🧪 测试 @page_protect 装饰器...').classes('text-lg font-semibold mb-2')
 
-                    @safe_protect(name="测试函数", error_msg="函数执行失败,已被保护")
+                    @page_protect(name="测试函数", error_msg="函数执行失败,已被保护")
                     def protected_function(should_fail=False):
                         log_info("进入被保护的函数")
                         if should_fail:
@@ -171,11 +172,11 @@ def other_page_content():
                     # 测试成功场景
                     result = protected_function(should_fail=False)
                     ui.label(f'✅ 正常执行: {result}').classes('text-green-600')
-
+                    ui.separator()
                     # 测试失败场景
                     result = protected_function(should_fail=True)
                     ui.label(f'✅ 错误已被装饰器捕获,返回: {result}').classes('text-orange-600')
-                    ui.notify('safe_protect 装饰器测试完成!', type='positive')
+                    ui.notify('page_protect 装饰器测试完成!', type='positive')
 
             def test_catch_decorator():
                 """测试 @catch 装饰器"""
@@ -204,7 +205,7 @@ def other_page_content():
                         ui.label(f'✅ 异常已被捕获: {type(e).__name__}').classes('text-orange-600')
                         ui.label('📝 详细堆栈已记录到日志').classes('text-sm text-gray-500')
 
-            ui.button('测试 @safe_protect', on_click=test_safe_protect_decorator, icon='shield').classes('bg-indigo-500')
+            ui.button('测试 @safe_protect', on_click=test_page_protect_decorator, icon='shield').classes('bg-indigo-500')
             ui.button('测试 @catch', on_click=test_catch_decorator, icon='security').classes('bg-cyan-500')
 
     # ======================== 第四部分: Logger 实例测试 ========================
@@ -481,11 +482,11 @@ def other_page_content():
 ```
 模块3: 装饰器测试
 测试内容:
-    @safe_protect - 页面/函数保护
+    @page_protect - 页面/函数保护
     @catch - 异常捕获
 
 操作步骤:
-    点击 "测试 @safe_protect" - 观察装饰器如何保护函数
+    点击 "测试 @page_protect" - 观察装饰器如何保护函数
     点击 "测试 @catch" - 观察异常捕获机制
 
 预期结果:

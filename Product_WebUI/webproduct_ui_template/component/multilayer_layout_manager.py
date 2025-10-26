@@ -7,6 +7,18 @@ from nicegui import ui, app
 from typing import List, Dict, Callable, Optional, Set
 from .layout_config import LayoutConfig, HeaderConfigItem
 from .multilayer_menu_config import MultilayerMenuItem, MultilayerMenuConfig
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 class MultilayerLayoutManager:
     """多层布局管理器 - 支持折叠菜单的完整布局管理"""
@@ -134,6 +146,8 @@ class MultilayerLayoutManager:
             </style>
         ''')
     
+    
+
     def create_header(self):
         """创建头部"""
         with ui.header(elevated=True).classes(f'items-center justify-between px-4 {self.config.header_bg}'):
@@ -343,7 +357,7 @@ class MultilayerLayoutManager:
         """选中叶子节点"""
         item = self.menu_config.find_by_key(key)
         if not item or not item.is_leaf:
-            print(f"⚠️ 节点 {key} 不是有效的叶子节点")
+            log_warning(f"⚠️ 节点 {key} 不是有效的叶子节点")
             return
         # print(f"🎯 选中叶子节点: {item.label} (key={key})")
         
@@ -382,8 +396,6 @@ class MultilayerLayoutManager:
         
         if update_storage:
             self._save_expanded_state()
-        
-        # print(f"📂 展开父节点: {key}")
     
     def collapse_parent(self, key: str, update_storage: bool = True):
         """收起父节点"""
@@ -398,9 +410,7 @@ class MultilayerLayoutManager:
         
         if update_storage:
             self._save_expanded_state()
-        
-        # print(f"📁 收起父节点: {key}")
-    
+            
     def _save_expanded_state(self):
         """保存展开状态到存储"""
         app.storage.user[self._expanded_keys_key] = list(self.expanded_keys)
@@ -409,7 +419,6 @@ class MultilayerLayoutManager:
         """从存储加载展开状态"""
         stored_keys = app.storage.user.get(self._expanded_keys_key, [])
         self.expanded_keys = set(stored_keys)
-        print(f"📚 加载展开状态: {self.expanded_keys}")
     
     def handle_header_config_item_click(self, item: HeaderConfigItem):
         """处理头部配置项点击"""
@@ -425,6 +434,7 @@ class MultilayerLayoutManager:
     def handle_user_menu_item_click(self, route: str, label: str):
         """处理用户菜单项点击"""
         if route == 'logout':
+            logger.debug("🚪 执行用户注销，清除路由存储")
             self.clear_route_storage()
             ui.navigate.to('/login')
         else:
@@ -448,7 +458,7 @@ class MultilayerLayoutManager:
         self._load_expanded_state()
         
         if stored_route and stored_route in self.all_routes:
-            print(f"🔄 恢复路由: {stored_route} ({stored_label})")
+            # print(f"🔄 恢复路由: {stored_route} ({stored_label})")
             
             # 查找对应的菜单项
             menu_item = self.menu_config.find_by_route(stored_route)
@@ -478,6 +488,10 @@ class MultilayerLayoutManager:
         for route, label in system_routes.items():
             if route not in self.all_routes:
                 self.all_routes[route] = label
+        
+        logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
+        logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
+        logger.debug(f"⚠️ 注意：logout 路由未注册到持久化路由中（一次性操作）")
     
     def initialize_layout(self):
         """初始化布局"""

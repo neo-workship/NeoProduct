@@ -20,10 +20,11 @@ from common.log_handler import (
     log_trace,
     get_logger
 )
+# 获取绑定模块名称的logger
+logger = get_logger(__file__)
 
 # 创建基类
 Base = declarative_base()
-
 # 全局变量
 engine = None
 SessionLocal = None
@@ -57,10 +58,8 @@ def init_database():
             )
         )
         
-        log_success(f"数据库连接初始化成功: {auth_config.database_type}")
-        
     except Exception as e:
-        log_error(f"数据库连接初始化失败: {e}")
+        log_error(f"数据库连接初始化失败,类型{auth_config.database_type}: {e}")
         raise
 
 def get_session():

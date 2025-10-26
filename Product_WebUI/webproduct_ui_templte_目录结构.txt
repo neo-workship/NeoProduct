@@ -25,8 +25,7 @@ webproduct_ui_template/
 │   ├── session_manager.py             # 会话管理器（内存缓存UserSession）
 │   └── utils.py                       # 工具函数
 ├── common/                            # 公共功能包
-│   ├── exception_handler.py           # 日志记录了与异常处理
-│   ├── log_handler.py                 # 新日志记录模块，目的是替换exception_handler.py
+│   ├── log_handler.py                 # 新日志记录模块
 │   └── safe_openai_client_pool.py     # 线程安全的OpenAI客户端连接池
 ├── component/                         # 公共UI框架和组件包
 │   ├── __init__.py                    # 包初始化和导出

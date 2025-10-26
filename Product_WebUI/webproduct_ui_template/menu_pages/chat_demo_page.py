@@ -2,10 +2,23 @@
 企业档案页面入口
 使用 component/chat 可复用聊天组件（自由文本输入）
 """
-from common.exception_handler import safe_protect
+# from common.exception_handler import safe_protect
+import inspect
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__name__)
 from component.chat import ChatComponent
 
-@safe_protect(name="一企一档", error_msg="一企一档页面加载失败")
+@safe_protect(name=f"聊天框测试页面/{__name__}", error_msg=f"聊天框测试页面加载失败")
 def chat_page_content():
     """
     企业档案页面内容

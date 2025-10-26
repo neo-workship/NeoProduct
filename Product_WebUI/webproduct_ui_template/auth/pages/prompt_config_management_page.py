@@ -14,8 +14,19 @@ sys.path.insert(0, str(project_root))
 
 from config.yaml_config_manager import SystemPromptConfigFileManager
 from component.chat.config import get_system_prompt_manager
-from common.exception_handler import safe_protect
-
+# from common.exception_handler import safe_protect
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 class PromptConfigManagementPage:
     """系统提示词配置管理页面类"""
@@ -558,7 +569,7 @@ class PromptConfigManagementPage:
             ui.notify('删除失败', type='negative')
 
 
-@safe_protect(name="系统提示词配置管理", error_msg="系统提示词配置管理页面加载失败")
+@safe_protect(name=f"系统提示词配置管理页面/{__name__}", error_msg=f"系统提示词配置管理页面类加载失败")
 def prompt_config_management_page_content():
     """系统提示词配置管理页面入口函数"""
     page = PromptConfigManagementPage()

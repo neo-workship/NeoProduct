@@ -6,7 +6,19 @@ from component.static_resources import static_manager
 from component.spa_layout import navigate_to
 
 # 导入异常处理模块
-from common.exception_handler import log_info, log_error, safe, safe_protect
+# from common.exception_handler import log_info, log_error, safe, safe_protect
+from common.log_handler import (
+    # 日志记录函数
+    log_trace, log_debug, log_info, log_success, 
+    log_warning, log_error, log_critical,
+    # 安全执行
+    safe, db_safe,
+    # 装饰器
+    safe_protect, catch,
+    # Logger 实例
+    get_logger
+)
+logger = get_logger(__file__)
 
 @require_login()
 @safe_protect(name="个人资料页面", error_msg="个人资料页面加载失败，请稍后重试")
@@ -75,7 +87,7 @@ def profile_page_content():
 
     log_info("个人资料页面加载完成")
 
-
+@safe_protect(name="创建用户基本信息卡片", error_msg="创建用户基本信息卡片页面加载失败")
 def create_user_info_card(user):
     """创建用户基本信息卡片 - 完全适配暗黑模式"""
     # 确定用户状态主题
@@ -156,7 +168,7 @@ def create_user_info_card(user):
                         ui.label('最后登录').classes('text-xs text-gray-600 dark:text-gray-400')
                         ui.label(format_datetime(user.last_login)[:10] if user.last_login else '从未登录').classes('text-xs font-medium text-gray-800 dark:text-white')
 
-
+@safe_protect(name="创建个人信息编辑卡片", error_msg="创建个人信息编辑卡片页面加载失败")
 def create_profile_edit_card(user):
     """创建个人信息编辑卡片 - 完全适配暗黑模式"""
     with ui.card().classes('w-full p-4 mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700'):
@@ -215,7 +227,7 @@ def create_profile_edit_card(user):
                 on_click=lambda: safe(save_profile)
             ).classes('mt-auto bg-green-600 hover:bg-green-700 text-white w-full py-2 font-semibold rounded-lg transition-colors duration-200')
 
-
+@safe_protect(name="创建角色权限卡片", error_msg="创建角色权限卡片页面加载失败")
 def create_roles_permissions_card(user):
     """创建角色权限卡片 - 完全适配暗黑模式"""
     with ui.card().classes('w-full p-4 mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700'):
@@ -255,7 +267,7 @@ def create_roles_permissions_card(user):
                             ui.label(title).classes('text-xs font-medium text-gray-800 dark:text-white')
                             ui.label(desc).classes('text-xs text-gray-600 dark:text-gray-400 leading-tight')
 
-
+@safe_protect(name="创建安全设置卡片", error_msg="创建安全设置卡片页面加载失败")
 def create_security_settings_card(user):
     """创建安全设置卡片 - 完全适配暗黑模式"""
     with ui.card().classes('w-full p-4 mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700'):
