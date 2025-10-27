@@ -68,52 +68,52 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
         
         
         # 系统管理 - 第2个分组(演示更多子项)
-        MultilayerMenuItem(
-            key='system',
-            label='系统管理',
-            icon='admin_panel_settings',
-            children=[
-                MultilayerMenuItem(
-                    key='users',
-                    label='用户管理',
-                    icon='group',
-                    route='user_management'
-                ),
-                MultilayerMenuItem(
-                    key='roles',
-                    label='角色管理',
-                    icon='badge',
-                    route='role_management'
-                ),
-                MultilayerMenuItem(
-                    key='permissions',
-                    label='权限管理',
-                    icon='lock',
-                    route='permission_management'
-                ),
-            ]
-        ),
+        # MultilayerMenuItem(
+        #     key='system',
+        #     label='系统管理',
+        #     icon='admin_panel_settings',
+        #     children=[
+        #         MultilayerMenuItem(
+        #             key='users',
+        #             label='用户管理',
+        #             icon='group',
+        #             route='user_management'
+        #         ),
+        #         MultilayerMenuItem(
+        #             key='roles',
+        #             label='角色管理',
+        #             icon='badge',
+        #             route='role_management'
+        #         ),
+        #         MultilayerMenuItem(
+        #             key='permissions',
+        #             label='权限管理',
+        #             icon='lock',
+        #             route='permission_management'
+        #         ),
+        #     ]
+        # ),
         
-        # 配置中心 - 第3个分组
-        MultilayerMenuItem(
-            key='config',
-            label='配置中心',
-            icon='tune',
-            children=[
-                MultilayerMenuItem(
-                    key='llm',
-                    label='大模型配置',
-                    icon='psychology',
-                    route='llm_config_management'
-                ),
-                MultilayerMenuItem(
-                    key='prompt',
-                    label='提示词配置',
-                    icon='article',
-                    route='prompt_config_management'
-                ),
-            ]
-        ),
+        # # 配置中心 - 第3个分组
+        # MultilayerMenuItem(
+        #     key='config',
+        #     label='配置中心',
+        #     icon='tune',
+        #     children=[
+        #         MultilayerMenuItem(
+        #             key='llm',
+        #             label='大模型配置',
+        #             icon='psychology',
+        #             route='llm_config_management'
+        #         ),
+        #         MultilayerMenuItem(
+        #             key='prompt',
+        #             label='提示词配置',
+        #             icon='article',
+        #             route='prompt_config_management'
+        #         ),
+        #     ]
+        # ),
     ]
     
     return menu_items
@@ -129,8 +129,7 @@ def create_protected_handlers():
 if __name__ in {"__main__", "__mp_main__"}:
     
     print("=" * 70)
-    print("🚀 启动多层布局演示应用")
-    print("=" * 70)
+    print("🚀 启动多层布局应用")
     
     # 获取受保护的页面处理器
     protected_handlers = create_protected_handlers()

@@ -9,8 +9,7 @@ from .layout_config import LayoutConfig, HeaderConfigItem
 from .multilayer_menu_config import MultilayerMenuItem, MultilayerMenuConfig
 from common.log_handler import (
     # 日志记录函数
-    log_trace, log_debug, log_info, log_success, 
-    log_warning, log_error, log_critical,
+    log_trace, log_debug, log_info, log_success, log_warning, log_error, log_critical,
     # 安全执行
     safe, db_safe,
     # 装饰器
@@ -39,12 +38,12 @@ class MultilayerLayoutManager:
         self.current_label = None
         
         # 展开状态管理
-        self.expanded_keys: Set[str] = set()  # 当前展开的父节点keys
+        self.expanded_keys: Set[str] = set()          # 当前展开的父节点keys
         self.selected_leaf_key: Optional[str] = None  # 当前选中的叶子节点key
         
         # UI元素引用映射
         self.expansion_refs: Dict[str, any] = {}  # key -> ui.expansion对象
-        self.leaf_refs: Dict[str, any] = {}  # key -> 叶子节点ui.row对象
+        self.leaf_refs: Dict[str, any] = {}       # key -> 叶子节点ui.row对象
         
         # 存储键
         self._route_key = 'multilayer_current_route'
@@ -356,14 +355,11 @@ class MultilayerLayoutManager:
         item = self.menu_config.find_by_key(key)
         if not item or not item.is_leaf:
             log_warning(f"⚠️ 节点 {key} 不是有效的叶子节点")
-            return
-        # print(f"🎯 选中叶子节点: {item.label} (key={key})")
-        
+            return        
         # 清除之前的选中状态
         if self.selected_leaf_key and self.selected_leaf_key in self.leaf_refs:
             old_row = self.leaf_refs[self.selected_leaf_key]
             old_row.classes(remove='bg-blue-200 dark:bg-blue-700')
-        
         # 设置新的选中状态
         if key in self.leaf_refs:
             new_row = self.leaf_refs[key]
@@ -385,13 +381,10 @@ class MultilayerLayoutManager:
         """展开父节点"""
         if key in self.expanded_keys:
             return
-        
         self.expanded_keys.add(key)
-        
         if key in self.expansion_refs:
             expansion = self.expansion_refs[key]
             expansion.open()
-        
         if update_storage:
             self._save_expanded_state()
     
@@ -399,13 +392,10 @@ class MultilayerLayoutManager:
         """收起父节点"""
         if key not in self.expanded_keys:
             return
-        
         self.expanded_keys.remove(key)
-        
         if key in self.expansion_refs:
             expansion = self.expansion_refs[key]
             expansion.close()
-        
         if update_storage:
             self._save_expanded_state()
             
@@ -434,9 +424,7 @@ class MultilayerLayoutManager:
         if route == 'logout':
             logger.debug("🚪 执行用户注销，清除路由存储")
             self.clear_route_storage()
-            ui.navigate.to('/login')
-        else:
-            self.navigate_to_route(route, label)
+        self.navigate_to_route(route, label)
     
     def clear_route_storage(self):
         """清除路由存储"""
@@ -455,9 +443,7 @@ class MultilayerLayoutManager:
         # 加载展开状态
         self._load_expanded_state()
         
-        if stored_route and stored_route in self.all_routes:
-            # print(f"🔄 恢复路由: {stored_route} ({stored_label})")
-            
+        if stored_route and stored_route in self.all_routes:            
             # 查找对应的菜单项
             menu_item = self.menu_config.find_by_route(stored_route)
             if menu_item and menu_item.is_leaf:
@@ -481,11 +467,9 @@ class MultilayerLayoutManager:
             # ✅ 新增: 配置管理路由
             'llm_config_management': '大模型配置',
             'prompt_config_management': '提示词配置',  # ✅ 新增
-
             # 用户菜单路由（排除logout）
             'user_profile': '个人资料',
             'change_password': '修改密码',
-            
             # 其他系统路由
             'no_permission': '权限不足',
             'login': '登录',
@@ -495,7 +479,6 @@ class MultilayerLayoutManager:
         for route, label in system_routes.items():
             if route not in self.all_routes:
                 self.all_routes[route] = label
-        
         logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
         logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
         logger.debug(f"⚠️ 注意：logout 路由未注册到持久化路由中（一次性操作）")

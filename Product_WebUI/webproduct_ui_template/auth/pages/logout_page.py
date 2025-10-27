@@ -3,8 +3,7 @@ from ..auth_manager import auth_manager
 from ..decorators import public_route
 from common.log_handler import (
     # 日志记录函数
-    log_trace, log_debug, log_info, log_success, 
-    log_warning, log_error, log_critical,
+    log_trace, log_debug, log_info, log_success, log_warning, log_error, log_critical,
     # 安全执行
     safe, db_safe,
     # 装饰器
