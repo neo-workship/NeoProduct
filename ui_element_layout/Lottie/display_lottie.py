@@ -2,16 +2,13 @@ from nicegui import ui
 
 @ui.page("/")
 def main():
-    # 1. 引入 Lottie Player 的 JS 脚本
-    ui.add_body_html(
-        '<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>'
-    )
+    with ui.row():
+        e1 = ui.spinner(size='lg')
+        e2 = ui.spinner('audio', size='lg', color='green')
+        e3 = ui.spinner('dots', size='lg', color='red')
 
-    # 2. 加载远程或本地的 .json 动画
-    lottie_src = './Loading.json'
-    ui.html(f'<lottie-player src="{lottie_src}" loop autoplay style="height: 200px;"></lottie-player>')
+        e1.visible = False
 
-    # 启动
 
 if __name__ in {"__main__", "__mp_main__"}:
     ui.run(
