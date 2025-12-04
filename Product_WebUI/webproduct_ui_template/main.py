@@ -57,8 +57,8 @@ if __name__ in {"__main__", "__mp_main__"}:
             config=config,
             menu_items=[
                 {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home','separator_after': True},
-                {'key': 'one_page', 'label': 'ChatDemo', 'icon': 'business', 'route': 'chat_page'},
-                {'key': 'two_page', 'label': 'OtherDemo', 'icon': 'people', 'route': 'other_page','separator_after': True},
+                {'key': 'one_page', 'label': 'AI对话', 'icon': 'business', 'route': 'chat_page'},
+                {'key': 'two_page', 'label': '日志测试', 'icon': 'people', 'route': 'other_page','separator_after': True},
             ],
             header_config_items=[
                 {'key': 'search', 'label': '搜索', 'icon': 'search', 'route': 'search'},

@@ -1,3 +1,7 @@
+"""
+ChatAreaManager - 聊天内容显示区域
+负责渲染展示聊天内容的UI和相关业务逻辑
+"""
 from abc import ABC, abstractmethod
 import asyncio
 from datetime import datetime

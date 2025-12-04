@@ -59,7 +59,7 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
                 ),
                 MultilayerMenuItem(
                     key='doc',
-                    label='文档管理',
+                    label='日志测试',
                     icon='description',
                     route='other_page'  # 暂时复用other_page
                 ),
@@ -90,27 +90,6 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
         #             label='权限管理',
         #             icon='lock',
         #             route='permission_management'
-        #         ),
-        #     ]
-        # ),
-        
-        # # 配置中心 - 第3个分组
-        # MultilayerMenuItem(
-        #     key='config',
-        #     label='配置中心',
-        #     icon='tune',
-        #     children=[
-        #         MultilayerMenuItem(
-        #             key='llm',
-        #             label='大模型配置',
-        #             icon='psychology',
-        #             route='llm_config_management'
-        #         ),
-        #         MultilayerMenuItem(
-        #             key='prompt',
-        #             label='提示词配置',
-        #             icon='article',
-        #             route='prompt_config_management'
         #         ),
         #     ]
         # ),

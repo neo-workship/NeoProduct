@@ -11,7 +11,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 class YAMLConfigManager:
     """YAML配置文件管理器 - 提供安全的读写操作"""
     
@@ -163,7 +162,6 @@ class YAMLConfigManager:
             return False, "配置不能为空"
         
         return True, ""
-
 
 class LLMConfigFileManager(YAMLConfigManager):
     """大模型配置文件管理器 - 专门处理 llm_model_config.yaml"""
@@ -357,7 +355,6 @@ class LLMConfigFileManager(YAMLConfigManager):
         
         return True
     
-
 class SystemPromptConfigFileManager(YAMLConfigManager):
     """系统提示词配置文件管理器 - 专门处理 system_prompt_config.yaml"""
     

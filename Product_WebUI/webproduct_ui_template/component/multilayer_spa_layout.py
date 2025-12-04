@@ -81,7 +81,6 @@ def with_multilayer_spa_layout(
         return wrapper
     return decorator
 
-
 def create_multilayer_spa_layout(
     config: Optional[LayoutConfig] = None,
     menu_items: Optional[List[MultilayerMenuItem]] = None,

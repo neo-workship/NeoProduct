@@ -135,7 +135,12 @@ class LLMConfigManagementPage:
             columns=columns,
             rows=self.models_data,
             row_key='model_key',
-            pagination={'rowsPerPage': 10, 'sortBy': 'provider'}
+            pagination={'rowsPerPage': 10, 'sortBy': 'provider'},
+            column_defaults={
+                    'align': 'left',
+                    'headerClasses': 'uppercase text-primary text-base font-bold',
+                    'classes': 'text-base'
+            }
         ).classes('w-full')
         
         # 添加操作按钮列的插槽

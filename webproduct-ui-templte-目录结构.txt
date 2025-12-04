@@ -5,6 +5,8 @@ webproduct_ui_template/
 │   ├── pages/                         # 页面模块
 │   │   ├── __init__.py                # 包初始化和导出
 │   │   ├── change_password_page.py    # 密码修改页面
+│   │   ├── llm_config_management_page.py    	# 大模型配置管理页面
+│   │   ├── prompt_config_management_page.py    # 系统提示词配置管理页面
 │   │   ├── login_page.py              # 登录页面
 │   │   ├── logout_page.py             # 注销页面
 │   │   ├── permission_management_page.py  # 权限管理页面
@@ -27,13 +29,22 @@ webproduct_ui_template/
 │   └── safe_openai_client_pool.py     # 线程安全的OpenAI客户端连接池
 ├── component/                         # 公共UI框架和组件包
 │   ├── __init__.py                    # 包初始化和导出
+│   ├── chat/               		   # 交互聊天组件包
+│   │   ├── chat_area_manager.py       # 聊天内容显示区域
+│   │   ├── chat_component.py          # ChatComponent - 聊天组件统一入口
+│   │   ├── chat_data_state.py         # 聊天数据状态管理
+│   │   ├── chat_sidebar_manager.py    # ChatSidebarManager - 聊天侧边栏管理器
+│   │   ├── config.py    			   # LLM模型配置管理器
+│   │   └── markdown_ui_parser.py      # Markdown 内容解析器和 UI 组件映射器
 │   ├── layout_config.py               # 复杂布局配置类
 │   ├── layout_manager.py              # 复杂布局管理器
 │   ├── simple_layout_manager.py       # 简单布局管理器
 │   ├── simple_spa_layout.py           # 简单布局管理器
 │   ├── spa_layout.py                  # SPA布局装饰器和工具函数
+│   ├── multilayer_menu_config.py      # 多层菜单布局装饰器和工具函数
+│   ├── multilayer_spa_layout.py       # 多层SPA布局装饰器和工具函数
 │   └── static_resources.py            # 静态资源管理器
-├── config/                            # 配置目录
+├── config/                            # 配置型功能
 │   ├── yaml/
 │   │   ├── llm_model_config.yaml      # 大模型配置
 │   │   └── system_prompt_config.yaml  # 系统提示词
@@ -44,56 +55,30 @@ webproduct_ui_template/
 │   ├── business_models/               # 业务表模型
 │   │   ├── __init__.py                
 │   │   └── chat_history_model.py      # 聊天历史模型
-│   ├── doc/                           # 文档目录
-│   │   ├── db_define.md
-│   │   └── 数据模型开发模式.md
 │   ├── __init__.py                    # 包初始化和导出
 │   ├── business_utils.py              # 业务模型工具类 - 提供跨模块的辅助功能
 │   └── shared_base.py                 # 基础模型类和公共字段
-├── header_pages/                      # 头部功能页面模块
+├── header_pages/                      # 页面顶部 header 区域功能包
 │   ├── __init__.py                    # 包初始化和导出
 │   ├── contact_page.py                # 联系我们页面
 │   ├── messages_page.py               # 消息页面
 │   └── search_page.py                 # 搜索页面
 ├── logs/                              # 日志文件夹
-│   └── app_logs_2025-10-18.csv
-├── menu_pages/                        # 菜单页面模块
-│   ├── enterprise_archive/
-│   │   ├── chat_component/            # 聊天UI模块
-│   │   │   ├── __init__.py            # 包初始化和导出
-│   │   │   ├── chat.py                # 聊天页面
-│   │   │   ├── chat_area_manager.py   # 聊天框内容显示区域
-│   │   │   ├── chat_data_state.py     # 聊天框数据状态
-│   │   │   ├── chat_sidebar_manager.py        # 聊天页面左侧管理区域
-│   │   │   ├── config.py                      # 读取大模型配置文件
-│   │   │   └── markdown_ui_parser.py          # Markdown 内容解析器和 UI 组件映射器
-│   │   ├── __init__.py                    	   # 包初始化和导出
-│   │   ├── hierarchy_selector_component.py    # 层级选择器组件
-│   │   └── main_page.py               # 聊天框主页面
+├── menu_pages/                        # 页面左侧 menu 区域功能包
 │   ├── __init__.py                    # 包初始化和导出
-│   ├── enterprise_archive_page.py     # 包含聊天框的样例页面
-│   ├── home_page.py          		   # 主页页面   
-│   └── person_archive_page.py         # 样例页面
+│   ├── home_page.py     			   # 主页页面
+│   ├── demo_page1.py          		   # 样例页面1   
+│   └── demo_page2.py         		   # 样例页面2
 ├── scripts/
-│   ├── doc/                           # 文档目录
-│   │   └── init_database.md
 │   ├── __init__.py                    # 包初始化和导出
 │   ├── database_migrate.py            # 迁移数据库
 │   ├── deploy.py                      # 部署服务的脚本 
 │   ├── health_check.py                
 │   ├── init_database.py               # 初始化数据库脚本
-│   └── start_services.py              # 启动services文件夹下的FastAPI服务的脚本        
-├── services/                          # 独立FastAPI业务服务
-│   ├── fastapi_server1/                # 样例FastAPI服务1
-│   ├── fastapi_server2/                # 样例FastAPI服务2   
-│   └── __init__.py                    # 包初始化和导出
+│   └── start_services.py              # 启动services文件夹下的FastAPI服务的脚本
 ├── static/                        	   # 静态资源
 │   ├── avatars/
 │   ├── config/
-│   ├── css/
-│   │   ├── themes/
-│   ├── fonts/
-│   │   └── custom-fonts/
 │   ├── icons/
 │   │   ├── header-icons/
 │   │   └── menu-icons/
@@ -107,6 +92,6 @@ webproduct_ui_template/
 │   │       ├── robot.svg
 │   │       └── user.svg
 │   └── js/
-├── main.py             # 基于component\spa_layout.py脚本构建UI的启动脚本
-├── README.md
-└── simple_main.py      # 基于component\simple_spa_layout.py脚本构建UI的启动脚本
+├── main.py             # 基于component\spa_layout.py布局UI的启动脚本
+├── multilayer_main.py  # 基于component\multilayer_spa_layout.py布局UI的启动脚本
+└── simple_main.py      # 基于component\simple_spa_layout.py布局UI的启动脚本
