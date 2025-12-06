@@ -82,7 +82,7 @@ if __name__ in {"__main__", "__mp_main__"}:
 
     ui.run(
         title=config.app_title,
-        port=8080,
+        port=8081,
         show=True,
         reload=True,   # 设置为True，控制台中会输出两次
         favicon='🚀',

@@ -178,7 +178,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     # 启动应用
     ui.run(
         title=config.app_title,
-        port=8080,
+        port=8081,
         show=True,
         reload=True,
         favicon='🚀',
