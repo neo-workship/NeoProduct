@@ -14,6 +14,9 @@ from .simple_spa_layout import (
     simple_navigate_to
 )
 
+# 导出聊天组件
+from .chat import ChatComponent
+
 __all__ = [
     # 布局配置
     'LayoutConfig',
@@ -35,6 +38,9 @@ __all__ = [
     'get_simple_layout_manager',
     'register_simple_route_handler',
     'simple_navigate_to',
+
+    # 聊天组件
+    'ChatComponent',  # 新增导出
     
     # 静态资源
     'StaticResourceManager',
