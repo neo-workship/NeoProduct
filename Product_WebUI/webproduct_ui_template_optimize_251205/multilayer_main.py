@@ -63,6 +63,13 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
                     icon='description',
                     route='other_page'  # 暂时复用other_page
                 ),
+                MultilayerMenuItem(
+                    key='auth_test',
+                    label='认证系统测试',
+                    icon='security',
+                    route='auth_test',
+                    separator_after=True
+                ),
             ]
         ),
         

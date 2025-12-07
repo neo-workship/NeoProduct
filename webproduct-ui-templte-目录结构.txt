@@ -19,7 +19,6 @@ webproduct_ui_template/
 │   ├── config.py                      # 配置文件
 │   ├── database.py                    # 数据库连接和ORM
 │   ├── decorators.py                  # 装饰器（登录验证等）
-│   ├── detached_helper.py             # 解决SQLAlchemy DetachedInstanceError问题的通用工具
 │   ├── models.py                      # 数据模型
 │   ├── navigation.py                  # 导航工具函数
 │   ├── session_manager.py             # 会话管理器（内存缓存UserSession）

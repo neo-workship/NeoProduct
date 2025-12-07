@@ -56,7 +56,8 @@ if __name__ in {"__main__", "__mp_main__"}:
                 {'key': 'home', 'label': '首页', 'icon': 'home', 'route': 'home'},
                 {'key': 'one_page', 'label': 'ChatDemo', 'icon': 'business', 'route': 'chat_page'},
                 {'key': 'two_page', 'label': 'OtherDemo', 'icon': 'people', 'route': 'other_page','separator_after': True},
-             
+                {'key': 'auth_page', 'label': 'AuthTest', 'icon': 'security', 'route': 'auth_test','separator_after': True},
+
             ],
             
             route_handlers=protected_handlers

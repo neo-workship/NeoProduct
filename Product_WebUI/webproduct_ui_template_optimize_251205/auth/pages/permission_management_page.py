@@ -1,6 +1,7 @@
 """
-权限管理页面 - SQLModel 版本
-移除 detached_helper 依赖，直接使用 SQLModel 查询
+权限管理页面 - 优化版本
+在每个分类的 ui.expansion 中使用 ui.table 展示权限
+包含3个操作列: 权限操作、角色操作、用户操作
 """
 from nicegui import ui
 from sqlmodel import Session, select, func
@@ -23,14 +24,14 @@ logger = get_logger(__file__)
 
 
 @require_role('admin')
-@safe_protect(name="权限管理页面", error_msg="权限管理页面加载失败，请稍后重试")
+@safe_protect(name="权限管理页面", error_msg="权限管理页面加载失败,请稍后重试")
 def permission_management_page_content():
     """权限管理页面内容 - 仅管理员可访问"""
     
     # 页面标题
     with ui.column().classes('w-full mb-6'):
         ui.label('权限管理').classes('text-4xl font-bold text-green-800 dark:text-green-200 mb-2')
-        ui.label('管理系统权限和资源访问控制，支持角色和用户关联管理').classes('text-lg text-gray-600 dark:text-gray-400')
+        ui.label('管理系统权限和资源访问控制,支持角色和用户关联管理').classes('text-lg text-gray-600 dark:text-gray-400')
 
     # ===========================
     # 统计数据加载
@@ -158,7 +159,7 @@ def permission_management_page_content():
             ).classes('bg-gray-500 text-white')
 
     # ===========================
-    # 权限列表
+    # 权限列表 - 按分类展示
     # ===========================
     
     # 创建列表容器
@@ -166,7 +167,7 @@ def permission_management_page_content():
     
     @safe_protect(name="加载权限列表")
     def load_permissions():
-        """加载权限列表 - SQLModel 版本"""
+        """加载权限列表 - SQLModel 版本,按分类展示"""
         list_container.clear()
         
         with list_container:
@@ -215,77 +216,103 @@ def permission_management_page_content():
                         permissions_by_category[category] = []
                     permissions_by_category[category].append(perm)
                 
-                # 渲染分类卡片
+                # ✅ 为每个分类创建 expansion,内部使用 table 展示
                 for category, perms in sorted(permissions_by_category.items()):
                     with ui.expansion(
                         f"{category.upper()} ({len(perms)})", 
                         icon='folder_open'
                     ).classes('w-full mb-4').props('default-opened'):
-                        with ui.grid(columns=2).classes('w-full gap-4 p-4'):
-                            for perm in perms:
-                                render_permission_card(perm)
+                        # ✅ 为每个分类创建独立的表格
+                        create_category_table(category, perms)
 
-    def render_permission_card(perm: Permission):
-        """渲染单个权限卡片"""
-        with ui.card().classes('p-4 hover:shadow-xl transition-shadow'):
-            # 权限头部
-            with ui.row().classes('w-full items-start justify-between mb-3'):
-                with ui.column().classes('gap-1 flex-1'):
-                    ui.label(perm.display_name or perm.name).classes('text-lg font-bold text-green-700')
-                    ui.label(f"@{perm.name}").classes('text-xs text-gray-500 font-mono')
-                
-                # 分类标签
-                category_colors = {
-                    'system': 'blue',
-                    'user': 'purple',
-                    'content': 'orange',
-                }
-                color = category_colors.get(perm.category, 'gray')
-                ui.badge(perm.category or '其他').props(f'color={color}')
-            
-            # 描述
-            if perm.description:
-                ui.label(perm.description).classes('text-sm text-gray-600 mb-3 line-clamp-2')
-            
-            # 统计信息
-            with ui.row().classes('w-full gap-4 mb-3'):
-                with ui.column().classes('flex-1 items-center'):
-                    ui.icon('group_work').classes('text-xl text-purple-500')
-                    ui.label(str(len(perm.roles))).classes('text-lg font-bold')
-                    ui.label('角色').classes('text-xs text-gray-500')
-                
-                with ui.column().classes('flex-1 items-center'):
-                    ui.icon('person').classes('text-xl text-blue-500')
-                    # 计算直接关联的用户数
-                    direct_user_count = len(perm.users)
-                    ui.label(str(direct_user_count)).classes('text-lg font-bold')
-                    ui.label('直接用户').classes('text-xs text-gray-500')
-            
-            # 操作按钮
-            with ui.row().classes('w-full gap-2'):
-                ui.button(
-                    '编辑', 
-                    icon='edit',
-                    on_click=lambda p=perm: safe(lambda: edit_permission_dialog(p))
-                ).props('size=sm flat').classes('flex-1 text-blue-600')
-                
-                ui.button(
-                    '角色', 
-                    icon='groups',
-                    on_click=lambda p=perm: safe(lambda: manage_permission_roles_dialog(p))
-                ).props('size=sm flat').classes('flex-1 text-purple-600')
-                
-                ui.button(
-                    '用户', 
-                    icon='person_add',
-                    on_click=lambda p=perm: safe(lambda: manage_permission_users_dialog(p))
-                ).props('size=sm flat').classes('flex-1 text-green-600')
-                
-                ui.button(
-                    '删除', 
-                    icon='delete',
-                    on_click=lambda p=perm: safe(lambda: delete_permission_dialog(p))
-                ).props('size=sm flat').classes('flex-1 text-red-600')
+    def create_category_table(category: str, perms: list):
+        """为分类创建表格"""
+        # 表格列定义
+        columns = [
+            {'name': 'name', 'label': '权限名称', 'field': 'name', 'align': 'left', 'sortable': True},
+            {'name': 'display_name', 'label': '显示名称', 'field': 'display_name', 'align': 'left'},
+            {'name': 'description', 'label': '描述', 'field': 'description', 'align': 'left'},
+            {'name': 'roles', 'label': '角色数', 'field': 'roles', 'align': 'center', 'sortable': True},
+            {'name': 'users', 'label': '用户数', 'field': 'users', 'align': 'center', 'sortable': True},
+            {'name': 'perm_actions', 'label': '权限操作', 'field': 'perm_actions', 'align': 'center'},
+            {'name': 'role_actions', 'label': '角色操作', 'field': 'role_actions', 'align': 'center'},
+            {'name': 'user_actions', 'label': '用户操作', 'field': 'user_actions', 'align': 'center'},
+        ]
+        
+        # 转换为表格数据
+        rows = []
+        for perm in perms:
+            rows.append({
+                'id': perm.id,
+                'name': perm.name,
+                'display_name': perm.display_name or '-',
+                'description': perm.description or '-',
+                'roles': len(perm.roles),
+                'users': len(perm.users),
+            })
+        
+        # ✅ 创建表格
+        table = ui.table(
+            columns=columns,
+            rows=rows,
+            row_key='id',
+            pagination={'rowsPerPage': 10, 'sortBy': 'name'},
+            column_defaults={
+                        'align': 'left',
+                        'headerClasses': 'uppercase text-primary text-base font-bold',
+                        'classes': 'text-base'
+            }
+        ).classes('w-full')
+        
+        # ✅ 添加权限操作列的插槽
+        table.add_slot('body-cell-perm_actions', '''
+            <q-td key="perm_actions" :props="props">
+                <q-btn flat dense round icon="edit" color="blue" size="sm"
+                       @click="$parent.$emit('edit_perm', props.row)">
+                    <q-tooltip>编辑权限</q-tooltip>
+                </q-btn>
+                <q-btn flat dense round icon="delete" color="red" size="sm"
+                       @click="$parent.$emit('delete_perm', props.row)">
+                    <q-tooltip>删除权限</q-tooltip>
+                </q-btn>
+            </q-td>
+        ''')
+        
+        # ✅ 添加角色操作列的插槽
+        table.add_slot('body-cell-role_actions', '''
+            <q-td key="role_actions" :props="props">
+                <q-btn flat dense round icon="add_circle" color="purple" size="sm"
+                       @click="$parent.$emit('add_role', props.row)">
+                    <q-tooltip>添加角色 ({{ props.row.roles }})</q-tooltip>
+                </q-btn>
+                <q-btn flat dense round icon="remove_circle" color="orange" size="sm"
+                       @click="$parent.$emit('remove_role', props.row)">
+                    <q-tooltip>删除角色</q-tooltip>
+                </q-btn>
+            </q-td>
+        ''')
+        
+        # ✅ 添加用户操作列的插槽
+        table.add_slot('body-cell-user_actions', '''
+            <q-td key="user_actions" :props="props">
+                <q-btn flat dense round icon="person_add" color="green" size="sm"
+                       @click="$parent.$emit('add_user', props.row)">
+                    <q-tooltip>添加用户 ({{ props.row.users }})</q-tooltip>
+                </q-btn>
+                <q-btn flat dense round icon="person_remove" color="red" size="sm"
+                       @click="$parent.$emit('remove_user', props.row)">
+                    <q-tooltip>删除用户</q-tooltip>
+                </q-btn>
+            </q-td>
+        ''')
+        
+        # ✅ 绑定操作事件
+        table.on('edit_perm', lambda e: safe(lambda: edit_permission_dialog(e.args)))
+        table.on('delete_perm', lambda e: safe(lambda: delete_permission_dialog(e.args)))
+        table.on('add_role', lambda e: safe(lambda: manage_permission_roles_dialog(e.args)))
+        table.on('remove_role', lambda e: safe(lambda: manage_permission_roles_dialog(e.args)))
+        table.on('add_user', lambda e: safe(lambda: manage_permission_users_dialog(e.args)))
+        table.on('remove_user', lambda e: safe(lambda: manage_permission_users_dialog(e.args)))
 
     # ===========================
     # 创建权限对话框
@@ -371,33 +398,40 @@ def permission_management_page_content():
     # ===========================
     
     @safe_protect(name="编辑权限对话框")
-    def edit_permission_dialog(perm: Permission):
+    def edit_permission_dialog(row_data):
         """编辑权限对话框 - SQLModel 版本"""
         with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
-            ui.label(f'编辑权限: {perm.display_name or perm.name}').classes('text-xl font-bold mb-4')
+            ui.label(f'编辑权限: {row_data["display_name"]}').classes('text-xl font-bold mb-4')
             
-            display_name_input = ui.input(
-                label='显示名称',
-                value=perm.display_name or ''
-            ).classes('w-full')
-            
-            category_input = ui.select(
-                label='权限分类',
-                options=['system', 'user', 'content', 'other'],
-                value=perm.category or 'other'
-            ).classes('w-full')
-            
-            description_input = ui.textarea(
-                label='权限描述',
-                value=perm.description or ''
-            ).classes('w-full')
-            
-            ui.label('⚠️ 权限名称不可修改').classes('text-sm text-orange-500 mt-2')
+            # 加载权限数据
+            with get_db() as session:
+                perm = session.get(Permission, row_data['id'])
+                if not perm:
+                    ui.notify('权限不存在', type='negative')
+                    return
+                
+                display_name_input = ui.input(
+                    label='显示名称',
+                    value=perm.display_name or ''
+                ).classes('w-full')
+                
+                category_input = ui.select(
+                    label='权限分类',
+                    options=['system', 'user', 'content', 'other'],
+                    value=perm.category or 'other'
+                ).classes('w-full')
+                
+                description_input = ui.textarea(
+                    label='权限描述',
+                    value=perm.description or ''
+                ).classes('w-full')
+                
+                ui.label('⚠️ 权限名称不可修改').classes('text-sm text-orange-500 mt-2')
             
             def submit_edit():
                 """提交编辑 - SQLModel 版本"""
                 with get_db() as session:
-                    permission = session.get(Permission, perm.id)
+                    permission = session.get(Permission, row_data['id'])
                     if permission:
                         permission.display_name = display_name_input.value.strip()
                         permission.category = category_input.value if category_input.value != 'other' else None
@@ -419,13 +453,13 @@ def permission_management_page_content():
     # ===========================
     
     @safe_protect(name="管理权限角色对话框")
-    def manage_permission_roles_dialog(perm: Permission):
+    def manage_permission_roles_dialog(row_data):
         """管理权限-角色关联对话框 - SQLModel 版本"""
         with ui.dialog() as dialog, ui.card().classes('w-[600px] p-6'):
-            ui.label(f'管理角色: {perm.display_name or perm.name}').classes('text-xl font-bold mb-4')
+            ui.label(f'管理角色: {row_data["display_name"]}').classes('text-xl font-bold mb-4')
             
             with get_db() as session:
-                permission = session.get(Permission, perm.id)
+                permission = session.get(Permission, row_data['id'])
                 if not permission:
                     ui.notify('权限不存在', type='negative')
                     return
@@ -473,7 +507,7 @@ def permission_management_page_content():
                 def submit_roles():
                     """提交角色更改 - SQLModel 版本"""
                     with get_db() as session:
-                        permission = session.get(Permission, perm.id)
+                        permission = session.get(Permission, row_data['id'])
                         if permission:
                             # 清空现有角色
                             permission.roles.clear()
@@ -500,14 +534,14 @@ def permission_management_page_content():
     # ===========================
     
     @safe_protect(name="管理权限用户对话框")
-    def manage_permission_users_dialog(perm: Permission):
+    def manage_permission_users_dialog(row_data):
         """管理权限-用户直接关联对话框 - SQLModel 版本"""
         with ui.dialog() as dialog, ui.card().classes('w-[600px] p-6'):
-            ui.label(f'管理直接用户: {perm.display_name or perm.name}').classes('text-xl font-bold mb-4')
-            ui.label('为用户直接分配权限（不通过角色）').classes('text-sm text-gray-600 mb-4')
+            ui.label(f'管理直接用户: {row_data["display_name"]}').classes('text-xl font-bold mb-4')
+            ui.label('为用户直接分配权限(不通过角色)').classes('text-sm text-gray-600 mb-4')
             
             with get_db() as session:
-                permission = session.get(Permission, perm.id)
+                permission = session.get(Permission, row_data['id'])
                 if not permission:
                     ui.notify('权限不存在', type='negative')
                     return
@@ -557,7 +591,7 @@ def permission_management_page_content():
                 def submit_users():
                     """提交用户更改 - SQLModel 版本"""
                     with get_db() as session:
-                        permission = session.get(Permission, perm.id)
+                        permission = session.get(Permission, row_data['id'])
                         if permission:
                             # 清空现有直接用户
                             permission.users.clear()
@@ -584,16 +618,26 @@ def permission_management_page_content():
     # ===========================
     
     @safe_protect(name="删除权限对话框")
-    def delete_permission_dialog(perm: Permission):
+    def delete_permission_dialog(row_data):
         """删除权限对话框 - SQLModel 版本"""
         with ui.dialog() as dialog, ui.card().classes('w-96 p-6'):
-            ui.label(f'删除权限: {perm.display_name or perm.name}').classes('text-xl font-bold text-red-600 mb-4')
-            ui.label('此操作将移除所有角色和用户的该权限关联，且不可撤销。').classes('text-sm text-red-500 mt-2')
+            ui.label(f'删除权限: {row_data["display_name"]}').classes('text-xl font-bold text-red-600 mb-4')
+            ui.label('此操作将移除所有角色和用户的该权限关联,且不可撤销。').classes('text-sm text-red-500 mt-2')
+            
+            # 二次确认
+            confirm_input = ui.input(
+                label=f'请输入权限名 "{row_data["name"]}" 以确认删除',
+                placeholder=row_data["name"]
+            ).classes('w-full mt-4')
             
             def submit_delete():
                 """提交删除 - SQLModel 版本"""
+                if confirm_input.value != row_data["name"]:
+                    ui.notify('权限名不匹配,删除取消', type='negative')
+                    return
+                
                 with get_db() as session:
-                    permission = session.get(Permission, perm.id)
+                    permission = session.get(Permission, row_data['id'])
                     if permission:
                         perm_name = permission.display_name or permission.name
                         session.delete(permission)
