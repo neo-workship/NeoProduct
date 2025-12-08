@@ -113,5 +113,7 @@ def login_page_content():
             with ui.expansion('查看测试账号', icon='info').classes('w-full mt-4 text-sm'):
                 ui.label('管理员：admin / admin123').classes('text-gray-600')
                 ui.label('普通用户：user / user123').classes('text-gray-600')
+                ui.label('编辑者：editor / editor123').classes('text-gray-600')
+                ui.label('查看者：viewer / viewer123').classes('text-gray-600')
 
 

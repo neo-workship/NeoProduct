@@ -2,6 +2,8 @@ from .home_page import home_content
 from .other_demo_page import other_page_content
 from .chat_demo_page import chat_page_content
 from .auth_test_page import auth_test_page_content
+from .default_auth_page import default_auth_page_content
+from .erp_auth_page import erp_auth_page_content  # ✅ 新增 ERP 场景页面
 
 
 # 导出所有菜单页面处理函数
@@ -11,7 +13,9 @@ def get_menu_page_handlers():
         'home': home_content,
         'other_page': other_page_content,
         'chat_page': chat_page_content,
-        'auth_test': auth_test_page_content
+        'auth_test': auth_test_page_content,
+        'default_auth':default_auth_page_content,
+        'erp_auth_page':erp_auth_page_content
     }
 
 __all__ = [
@@ -19,5 +23,7 @@ __all__ = [
     'other_page_content',
     'chat_page_content',
     'get_menu_page_handlers',
-    'auth_test_page_content'
+    'auth_test_page_content',
+    'default_auth_page_content',
+    'erp_auth_page_content'
 ]

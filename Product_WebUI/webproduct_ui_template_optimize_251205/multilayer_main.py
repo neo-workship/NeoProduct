@@ -6,6 +6,7 @@ import sys
 import os
 from pathlib import Path
 from nicegui import ui, app
+import secrets
 
 # 导入多层布局组件
 from component import (
@@ -63,6 +64,17 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
                     icon='description',
                     route='other_page'  # 暂时复用other_page
                 ),
+                
+            ]
+        ),
+        
+        
+        # 系统管理 - 第2个分组(演示更多子项)
+        MultilayerMenuItem(
+            key='system',
+            label='权限测试',
+            icon='admin_panel_settings',
+            children=[
                 MultilayerMenuItem(
                     key='auth_test',
                     label='认证系统测试',
@@ -70,36 +82,38 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
                     route='auth_test',
                     separator_after=True
                 ),
+                MultilayerMenuItem(
+                    key='default_auth',
+                    label='用户管理',
+                    icon='security',
+                    route='default_auth'
+                ),
+                MultilayerMenuItem(
+                    key='erp_auth_page',
+                    label='erp',
+                    icon='security',
+                    route='erp_auth_page'
+                ),
+                # MultilayerMenuItem(
+                #     key='users',
+                #     label='用户管理',
+                #     icon='group',
+                #     route='user_management'
+                # ),
+                # MultilayerMenuItem(
+                #     key='roles',
+                #     label='角色管理',
+                #     icon='badge',
+                #     route='role_management'
+                # ),
+                # MultilayerMenuItem(
+                #     key='permissions',
+                #     label='权限管理',
+                #     icon='lock',
+                #     route='permission_management'
+                # ),
             ]
         ),
-        
-        
-        # 系统管理 - 第2个分组(演示更多子项)
-        # MultilayerMenuItem(
-        #     key='system',
-        #     label='系统管理',
-        #     icon='admin_panel_settings',
-        #     children=[
-        #         MultilayerMenuItem(
-        #             key='users',
-        #             label='用户管理',
-        #             icon='group',
-        #             route='user_management'
-        #         ),
-        #         MultilayerMenuItem(
-        #             key='roles',
-        #             label='角色管理',
-        #             icon='badge',
-        #             route='role_management'
-        #         ),
-        #         MultilayerMenuItem(
-        #             key='permissions',
-        #             label='权限管理',
-        #             icon='lock',
-        #             route='permission_management'
-        #         ),
-        #     ]
-        # ),
     ]
     
     return menu_items
@@ -166,6 +180,21 @@ if __name__ in {"__main__", "__mp_main__"}:
     @ui.page('/')
     def index():
         ui.navigate.to('/workbench')
+
+    @ui.page('/debug')
+    def debug_page():
+        browser_id = app.storage.browser.get('id', 'None')
+        
+        ui.label(f'Browser ID: {browser_id}').classes('text-2xl')
+        ui.label(f'Storage Secret: your-secret-key-here')
+        
+        # 显示所有 storage 内容
+        with ui.expansion('Browser Storage'):
+            ui.json_editor({'content': {'json': dict(app.storage.browser)}})
+        
+        with ui.expansion('User Storage'):
+            ui.json_editor({'content': {'json': dict(app.storage.user)}})
+
     
     print("\n" + "=" * 70)
     print("✨ 多层布局特性:")
@@ -175,11 +204,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     print("  - 💾 刷新页面保持状态(路由+展开状态)")
     print("  - 🎨 高亮选中的叶子节点")
     print("  - 🔐 集成完整的认证和权限管理")
-    print("📝 测试账号：")
-    print("   管理员 - 用户名: admin, 密码: admin123")
-    print("   普通用户 - 用户名: user, 密码: user123")
-    print("=" * 70)
-    print(f"🌐 应用启动在: http://localhost:8080")
     print("=" * 70 + "\n")
     
     # 启动应用
@@ -190,5 +214,5 @@ if __name__ in {"__main__", "__mp_main__"}:
         reload=True,
         favicon='🚀',
         dark=False,
-        storage_secret='your-secret-key-here'
+        storage_secret=secrets.token_urlsafe(32)
     )

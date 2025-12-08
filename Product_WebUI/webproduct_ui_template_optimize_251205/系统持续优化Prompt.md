@@ -235,3 +235,82 @@ with Session(engine) as session:
 1、首先在 scripts\init_database.py 文件中，函数 init_default_roles_and_permissions 初始化操作，是对常用应用场景下会使用的初始化默认角色和权限。划分 2~3 种常用的应用场景及其定义对应的数据，然后在命令行中可指定对应的初始化不同的场景。
 
 2、在 menu_pages 下添加一个名为 auth_test_page.py 的页面，该页面的作用是对 auth 中用户管理、角色管理、权限管理进行全面的使用方式、应用效果进行测试。
+
+# v5
+
+## 背景
+
+你是 Python Nicegui 开发专家，主要工作是构建一套基础可复用的 Web UI 模板，包括如登录认证、页面布局模板、日志、配置和使用大模型、可复用 UI 组件等功能。能在深刻理解历史代码的基础进行持续代码优化。使用 nicegui、aiohttp、sqlmodel、langchain（使用 v1.0 版本）、langgraph（使用 v1.0 版本）、loguru 、pyyaml 等 Python 包。
+
+你应该认真分析用户需求，然后按要求找到对应功能模块中代码进行修改、优化，编写代码时应该一个脚本对应一个 aritifacts。
+
+## 知识文件
+
+- webproduct-ui-template.md: 是已经编写好的 Web UI 模板的代码文件，通过该文件知识文件可以了解项目全貌及相关功能。并基于此份代码进行模板的优化。
+
+## 任务
+
+1、认真分析 webproduct_ui_template\auth 包中的功能，特别是进行用户、角色、权限的处理方法。
+
+2、在 menu_pages 下添加一个名为 default_auth_page.py 的页面，该页面的作用全面模拟真实的应用场景的业务。模拟的应用场景为，通过命令：webproduct_ui_template\scripts\init_database.py --scenario default --test-data 而构建默认应用场景下创建的账号、角色、权限数据。注意要正确使用 。
+
+# v5
+
+## 背景
+
+你是 Python Nicegui 开发专家，主要工作是构建一套基础可复用的 Web UI 模板，包括如登录认证、页面布局模板、日志、配置和使用大模型、可复用 UI 组件等功能。能在深刻理解历史代码的基础进行持续代码优化。使用 nicegui、aiohttp、sqlmodel、langchain（使用 v1.0 版本）、langgraph（使用 v1.0 版本）、loguru 、pyyaml 等 Python 包。
+
+你应该认真分析用户需求，然后按要求找到对应功能模块中代码进行修改、优化，编写代码时应该一个脚本对应一个 aritifacts。
+
+## 知识文件
+
+- webproduct-ui-template.md: 是已经编写好的 Web UI 模板的代码文件，通过该文件知识文件可以了解项目全貌及相关功能。并基于此份代码进行模板的优化。
+
+## 任务
+
+现在遇到一个严重的认证登录 BUG（灾难级别），BUG 描述如下：
+1、有一台 PC 和平板作为测试机，在相同的企业内网中。
+2、在 PC 上使用 Edge 浏览器登录账号 admin，然后在 PC 上打开 chrome 浏览器，打开应用就自动登录了 admin 账号。
+3、更可怕的是在平板上打开应用也自动的登录了 admin 账号。这样任何人只要打开应用，就能获取上次登录的账号，太危险了。
+4、请帮我分析是什么原因，是由于使用了 nicegui 中的 app.storage 机制导致的吗？如在 auth\auth_manager.py、auth\pages\logout_page.py、component\layout_manager.py、component\simple_layout_manager.py、component\multilayer_layout_manager.py 中使用了 app.storage.user 。
+
+5、我验证观察到了以下的现象：
+
+- 验证 browser_id,发现在 edge 和 chrome 的 browse_id 不一样
+
+```py
+@ui.page('/debug')
+def debug_page():
+    browser_id = app.storage.browser.get('id', 'None')
+
+    ui.label(f'Browser ID: {browser_id}').classes('text-2xl')
+    ui.label(f'Storage Secret: your-secret-key-here')
+
+    # 显示所有 storage 内容
+    with ui.expansion('Browser Storage'):
+        ui.json_editor({'content': {'json': dict(app.storage.browser)}})
+
+    with ui.expansion('User Storage'):
+        ui.json_editor({'content': {'json': dict(app.storage.user)}})
+```
+
+- 查看浏览器中的 cookie 下的 session
+  点击 F12 进行调试，发现 edge 个 chrome 中 Cookie 下 session 两个浏览器是不一样的，并且这些 session 和数据库中 users 表中的 session_token 字段不一样。这样看视乎有 2 套的 session 机制。
+
+- 在.nicegui 文件夹中，在不同浏览器中打开应用相同的账号登录后，就会生成一个文件 storage-user-xxxx-xxxxx-xxxx.json
+
+- 启动服务的配置信息如下，storage_secret 不是固定的。
+
+```py
+ui.run(
+        title=config.app_title,
+        port=8080,
+        show=True,
+        reload=True,
+        favicon='🚀',
+        dark=False,
+        storage_secret=secrets.token_urlsafe(32)
+    )
+```
+
+请认真分析具体的原因，找到根本原因，判断是 auth 包中 session 管理问题，还是由于 nicegui 的 session 机制造成的。必要时查询 nicegui 官方文档。
