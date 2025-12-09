@@ -251,7 +251,7 @@ class LoguruExceptionHandler:
         # 启动后台线程
         cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True, name="LogCleanup")
         cleanup_thread.start()
-        logger.debug("🧹 日志清理后台任务已启动")
+        logger.info("🧹 日志清理后台任务已启动")
     
     def _cleanup_old_log_folders(self):
         """清理过期的日志文件夹"""
@@ -283,7 +283,7 @@ class LoguruExceptionHandler:
             if deleted_count > 0:
                 logger.success(f"✅ 日志清理完成,共删除 {deleted_count} 个过期文件夹")
             else:
-                logger.debug("✅ 日志清理完成,无过期文件夹")
+                logger.warning("✅ 日志清理完成,无过期文件夹")
         
         except Exception as e:
             logger.error(f"清理日志文件夹失败: {e}")
@@ -314,7 +314,7 @@ class LoguruExceptionHandler:
             return {'user_id': None, 'username': 'system'}
         except Exception as e:
             # 其他异常,记录错误原因
-            print(f"⚠️ 获取用户上下文失败: {e}")
+            logger.warning(f"⚠️ 获取用户上下文失败: {e}")
             return {'user_id': None, 'username': 'anonymous'}
     
     def _bind_context(self, extra_data: Optional[Dict] = None, depth: int = 0):

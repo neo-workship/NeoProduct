@@ -200,7 +200,7 @@ def default_auth_page_content():
     # ===========================
     # 当前用户信息卡片
     # ===========================
-    with ui.card().classes('w-full mb-6 bg-gradient-to-r from-blue-50 to-indigo-50'):
+    with ui.card().classes('w-full mb-6  from-blue-50 to-indigo-50'):
         ui.label('👤 当前登录用户').classes('text-lg font-bold text-blue-800 mb-2')
         
         with ui.row().classes('gap-4 w-full'):
@@ -329,7 +329,7 @@ def render_article_management(current_user):
     can_delete = current_user.has_permission('content.delete')
     
     # 显示权限提示
-    with ui.card().classes('w-full mb-4 bg-blue-50'):
+    with ui.card().classes('w-full mb-4 '):
         ui.label('当前模块权限:').classes('font-bold mb-2')
         with ui.row().classes('gap-4'):
             ui.label(f'查看: {"✅" if can_view else "❌"}').classes('text-sm')

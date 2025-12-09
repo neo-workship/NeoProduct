@@ -1,6 +1,7 @@
 """
 认证管理器 - SQLModel 版本
-移除对 detached_helper 和 joinedload 的依赖,直接使用 SQLModel 查询
+修复：移除全局共享的 current_user 实例属性，改为只读属性
+彻底解决跨浏览器/设备会话共享的安全问题
 """
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -29,17 +30,39 @@ class AuthManager:
     """
     认证管理器 - SQLModel 版本
     
-    核心改进:
-    - 移除所有 joinedload 调用
-    - 使用 SQLModel 的 session.get() 和 select() 查询
-    - SQLModel 自动处理关系加载,不会产生 DetachedInstanceError
-    - 简化了查询逻辑,提升性能
+    核心改进（BUG 修复）:
+    - ❌ 移除了 self.current_user 实例属性（这是全局共享状态的根源）
+    - ✅ 改为 @property current_user，每次都从当前浏览器会话验证
+    - ✅ 完全依赖 app.storage.user + SessionManager 的双层缓存机制
+    - ✅ 彻底解决跨浏览器/设备会话共享问题
+    
+    架构说明:
+    - app.storage.user: 基于 cookie 的浏览器级存储（每个浏览器独立）
+    - SessionManager: 内存缓存层（token -> UserSession 映射）
+    - 数据库: 持久化存储层（token 验证和用户数据）
     """
     
     def __init__(self):
-        self.current_user: Optional[UserSession] = None
+        """
+        初始化认证管理器
+        
+        注意：不再存储 self.current_user，避免全局共享状态
+        """
         self._session_key = 'auth_session_token'
         self._remember_key = 'auth_remember_token'
+    
+    @property
+    def current_user(self) -> Optional[UserSession]:
+        """
+        获取当前登录用户（只读属性）
+        
+        ⚠️ 重要：每次访问都会调用 check_session() 重新验证
+        这确保了每个浏览器/设备都获取自己的会话，不会共享
+        
+        Returns:
+            Optional[UserSession]: 当前用户会话，未登录返回 None
+        """
+        return self.check_session()
     
     def register(self, username: str, email: str, password: str, **kwargs) -> Dict[str, Any]:
         """
@@ -105,6 +128,7 @@ class AuthManager:
         - 使用 session.exec(select(...)) 查询
         - 不需要 joinedload
         - SQLModel 自动处理关系
+        - ✅ 不再设置 self.current_user（已移除）
         """
         if not username or not password:
             log_warning("登录失败: 用户名或密码为空")
@@ -174,7 +198,7 @@ class AuthManager:
             
             # 创建内存会话
             user_session = session_manager.create_session(session_token, user)
-            self.current_user = user_session
+            # ✅ 不再设置 self.current_user（已改为只读属性）
             
             # 记录登录日志
             self._create_login_log(
@@ -194,10 +218,11 @@ class AuthManager:
     def logout(self):
         """
         用户登出 - SQLModel 版本
-        """
-        if not self.current_user:
-            return
         
+        改进:
+        - ✅ 不再需要检查或清除 self.current_user（已移除）
+        """
+        # 获取当前会话 token（用于日志记录）
         session_token = app.storage.user.get(self._session_key)
         
         # 清除数据库中的 token
@@ -220,35 +245,47 @@ class AuthManager:
         if session_token:
             session_manager.delete_session(session_token)
         
-        self.current_user = None
+        # ✅ 不再需要设置 self.current_user = None（已移除）
     
     def check_session(self) -> Optional[UserSession]:
         """
         检查会话有效性 - SQLModel 版本
         
-        改进:
-        - 使用 session.exec(select(...)) 查询
-        - 不需要 joinedload
-        - SQLModel 自动处理关系加载
-        """
-        # 1. 检查当前内存会话
-        if self.current_user:
-            return self.current_user
+        核心修复:
+        - ✅ 移除了 "if self.current_user: return self.current_user" 的逻辑
+        - ✅ 永远从 app.storage.user 开始验证（确保浏览器隔离）
+        - ✅ 使用 SessionManager 内存缓存提升性能（按客户端隔离）
+        - ✅ 数据库作为最终验证层
+        - ✅ 移除日志输出，避免与日志系统的用户上下文获取产生无限递归
+        - ✅ 添加防御性检查，处理页面初始化早期的情况
         
-        # 2. 检查浏览器 session token
-        session_token = app.storage.user.get(self._session_key)
-        if not session_token:
-            log_debug("未找到 session_token")
+        流程:
+        1. 从 app.storage.user 获取当前浏览器的 session_token
+        2. 检查 SessionManager 内存缓存（已按客户端隔离）
+        3. 如果缓存未命中，从数据库验证
+        4. 尝试 remember_me token（如果主 token 失效）
+        
+        Returns:
+            Optional[UserSession]: 用户会话对象，未登录返回 None
+        """
+        # ✅ 修复：永远从 app.storage.user 开始（不再检查 self.current_user）
+        # 1. 检查浏览器 session token
+        try:
+            session_token = app.storage.user.get(self._session_key)
+        except:
+            # 防御性检查：在页面初始化早期，app.storage.user 可能还未就绪
             return None
         
-        # 3. 检查内存缓存
+        if not session_token:
+            return None
+        
+        # 2. 检查内存缓存（SessionManager）
         user_session = session_manager.get_session(session_token)
         if user_session:
-            log_debug(f"内存缓存命中: {user_session.username}")
-            self.current_user = user_session
+            # ✅ 移除日志，避免递归（日志系统会调用 current_user）
             return user_session
         
-        # 4. 从数据库验证 token 有效性
+        # 3. 从数据库验证 token 有效性
         try:
             with get_db() as session:
                 # SQLModel 查询: 简单直接
@@ -262,25 +299,21 @@ class AuthManager:
                 if user:
                     # 重新创建内存会话
                     user_session = session_manager.create_session(session_token, user)
-                    self.current_user = user_session
-                    log_debug(f"数据库验证成功: {user.username}")
+                    # ✅ 只在数据库验证成功时记录（这是关键操作）
+                    log_info(f"会话恢复: {user.username}")
                     return user_session
                 else:
-                    log_debug("数据库验证失败: token 已失效或用户不存在")
                     # token 无效,清除浏览器存储
                     app.storage.user.pop(self._session_key, None)
                     app.storage.user.pop(self._remember_key, None)
-                    self.current_user = None
                     
         except Exception as e:
             log_error(f"数据库查询出错: {e}")
-            self.current_user = None
             return None
         
-        # 5. 检查 remember_me token (如果主 token 失效)
+        # 4. 检查 remember_me token (如果主 token 失效)
         remember_token = app.storage.user.get(self._remember_key)
         if remember_token and auth_config.allow_remember_me:
-            log_debug("检查 remember_me token")
             try:
                 with get_db() as session:
                     user = session.exec(
@@ -301,7 +334,6 @@ class AuthManager:
                         
                         # 创建内存会话
                         user_session = session_manager.create_session(new_session_token, user)
-                        self.current_user = user_session
                         
                         log_success(f"Remember me 验证成功: {user.username}")
                         return user_session
@@ -314,7 +346,12 @@ class AuthManager:
     def update_profile(self, **update_data) -> Dict[str, Any]:
         """
         更新用户资料 - SQLModel 版本
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        - ✅ 更新后刷新 SessionManager 缓存
         """
+        # 使用只读属性（自动调用 check_session）
         if not self.current_user:
             return {'success': False, 'message': '请先登录'}
         
@@ -336,7 +373,7 @@ class AuthManager:
             session_token = app.storage.user.get(self._session_key)
             if session_token:
                 session.refresh(user)  # 刷新对象以加载关系
-                self.current_user = session_manager.update_session(session_token, user)
+                session_manager.update_session(session_token, user)
             
             log_info(f"用户资料更新成功: {user.username}")
             return {'success': True, 'message': '资料更新成功', 'user': self.current_user}
@@ -344,6 +381,9 @@ class AuthManager:
     def change_password(self, old_password: str, new_password: str) -> Dict[str, Any]:
         """
         修改密码 - SQLModel 版本
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
         """
         if not self.current_user:
             return {'success': False, 'message': '请先登录'}
@@ -372,6 +412,9 @@ class AuthManager:
     def get_user_by_id(self, user_id: int) -> Optional[UserSession]:
         """
         通过 ID 获取用户 - SQLModel 版本
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
         """
         # 如果是当前用户,直接返回缓存
         if self.current_user and self.current_user.id == user_id:
@@ -400,17 +443,32 @@ class AuthManager:
         return None
     
     def is_authenticated(self) -> bool:
-        """检查是否已认证"""
+        """
+        检查是否已认证
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        """
         return self.current_user is not None
     
     def has_role(self, role_name: str) -> bool:
-        """检查当前用户是否有指定角色"""
+        """
+        检查当前用户是否有指定角色
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        """
         if not self.current_user:
             return False
         return self.current_user.has_role(role_name)
     
     def has_permission(self, permission_name: str) -> bool:
-        """检查当前用户是否有指定权限"""
+        """
+        检查当前用户是否有指定权限
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        """
         if not self.current_user:
             return False
         return self.current_user.has_permission(permission_name)

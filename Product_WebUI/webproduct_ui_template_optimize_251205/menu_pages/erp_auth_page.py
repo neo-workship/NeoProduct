@@ -352,7 +352,7 @@ def erp_auth_page_content():
     # ===========================
     # 当前用户信息卡片
     # ===========================
-    with ui.card().classes('w-full mb-6 bg-gradient-to-r from-indigo-50 to-purple-50'):
+    with ui.card().classes('w-full mb-6 '):
         ui.label('👤 当前登录用户').classes('text-lg font-bold text-indigo-800 mb-2')
         
         with ui.row().classes('gap-4 w-full'):
@@ -501,7 +501,7 @@ def render_purchase_management(current_user):
     can_approve = current_user.has_permission('purchase.approve')
     
     # 权限提示
-    with ui.card().classes('w-full mb-4 bg-blue-50'):
+    with ui.card().classes('w-full mb-4'):
         ui.label('当前模块权限:').classes('font-bold mb-2')
         with ui.row().classes('gap-4'):
             ui.label(f'查看: {"✅" if can_view else "❌"}').classes('text-sm')

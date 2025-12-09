@@ -1,110 +1,163 @@
 """
-认证配置模块
+认证配置模块 - 使用环境变量版本
+
+从 .env 文件加载所有配置，支持灵活的配置管理。
 """
 import os
 from pathlib import Path
 from typing import Optional
 
+# 导入环境变量配置加载器
+try:
+    from config.env_config import env_config
+except ImportError:
+    # 如果导入失败，使用简单的环境变量读取
+    print("⚠️  无法导入 config.env_config，将直接使用 os.environ")
+    
+    class SimpleEnvConfig:
+        def get(self, key, default=None):
+            return os.environ.get(key, default)
+        
+        def get_int(self, key, default=0):
+            try:
+                return int(os.environ.get(key, default))
+            except:
+                return default
+        
+        def get_bool(self, key, default=False):
+            value = os.environ.get(key, '').lower()
+            if value in ('true', 'yes', '1', 'on'):
+                return True
+            elif value in ('false', 'no', '0', 'off'):
+                return False
+            return default
+    
+    env_config = SimpleEnvConfig()
+
+
 class AuthConfig:
-    """认证配置类"""
+    """
+    认证配置类 - 使用环境变量版本
+    
+    所有配置都从 .env 文件加载，支持：
+    - 数据库配置
+    - 会话管理
+    - 密码策略
+    - 登录安全
+    - 功能开关
+    - 路由配置
+    """
     
     def __init__(self):
         """
-        这是类的构造函数，在创建 AuthConfig 类的实例时会自动调用。它初始化了所有认证相关的配置属性，并为其设置了默认值。
+        初始化认证配置
+        
+        从 .env 文件加载所有配置项，并提供合理的默认值。
         """
-        # 数据库配置
-        self.database_type = 'sqlite'  # 默认使用SQLite，可切换为mysql、postgresql等
+        # ==================== 数据库配置 ====================
+        self.database_type = env_config.get('AUTH_DATABASE_TYPE', 'sqlite')
         self.database_url = self._get_database_url()
         
-        # 会话配置
-        self.session_secret_key = os.environ.get('SESSION_SECRET_KEY', 'your-secret-key-here')
-        self.session_timeout = 3600 * 24  # 24小时
-        self.remember_me_duration = 3600 * 24 * 30  # 30天
+        # ==================== 会话配置 ====================
+        self.session_secret_key = env_config.get('AUTH_SESSION_SECRET_KEY','8CAs6NgrsLAaB0Aw-w6lSv--ISwffsDK2cDDKN1r_bQ')
         
-        # 密码配置
-        self.password_min_length = 6
-        self.password_require_uppercase = False
-        self.password_require_lowercase = False
-        self.password_require_numbers = False
-        self.password_require_special = False
+        # 会话超时时间（秒，默认24小时）
+        self.session_timeout = env_config.get_int('AUTH_SESSION_TIMEOUT',3600 * 24)
         
-        # 注册配置
-        self.allow_registration = True
-        self.require_email_verification = False
-        self.default_user_role = 'user'  # 默认角色
+        # "记住我"持续时间（秒，默认30天）
+        self.remember_me_duration = env_config.get_int('AUTH_REMEMBER_ME_DURATION',3600 * 24 * 30)
         
-        # 登录配置
-        self.max_login_attempts = 5
-        self.lockout_duration = 1800  # 30分钟
-        self.allow_remember_me = True
+        # ==================== 密码策略配置 ====================
+        self.password_min_length = env_config.get_int('AUTH_PASSWORD_MIN_LENGTH',6)
         
-        # 路由配置
-        self.login_route = '/login'
-        self.logout_route = '/logout'
-        self.register_route = '/register'
-        self.unauthorized_redirect = '/login'
+        self.password_max_length = env_config.get_int('AUTH_PASSWORD_MAX_LENGTH',128)
         
-        # 默认角色配置（预留给权限管理包使用）
-        self.default_roles = [
-            {'name': 'admin', 'display_name': '管理员', 'description': '系统管理员，拥有所有权限'},
-            {'name': 'editor', 'display_name': '编辑', 'description': '可以编辑内容'},
-            {'name': 'viewer', 'display_name': '查看', 'description': '只能查看内容'},
-            {'name': 'user', 'display_name': '普通用户', 'description': '普通注册用户'}
-        ]
+        self.password_require_uppercase = env_config.get_bool('AUTH_PASSWORD_REQUIRE_UPPERCASE',False)
         
-        # 默认权限配置（预留给权限管理包使用）
-        self.default_permissions = [
-            # 系统权限
-            {'name': 'system.manage', 'display_name': '系统管理', 'category': '系统'},
-            {'name': 'user.manage', 'display_name': '用户管理', 'category': '系统'},
-            {'name': 'role.manage', 'display_name': '角色管理', 'category': '系统'},
-            
-            # 内容权限
-            {'name': 'content.create', 'display_name': '创建内容', 'category': '内容'},
-            {'name': 'content.edit', 'display_name': '编辑内容', 'category': '内容'},
-            {'name': 'content.delete', 'display_name': '删除内容', 'category': '内容'},
-            {'name': 'content.view', 'display_name': '查看内容', 'category': '内容'},
-        ]
+        self.password_require_lowercase = env_config.get_bool('AUTH_PASSWORD_REQUIRE_LOWERCASE',False)
         
-        # 页面权限映射（预留给权限管理包使用）
-        self.page_permissions = {
-            # menu_pages
-            'dashboard': ['content.view'],
-            'data': ['content.view', 'content.edit'],
-            'analysis': ['content.view'],
-            'mcp': ['system.manage'],
-            
-            # header_pages
-            'settings_page': ['user.manage'],
-            'user_profile_page': [],  # 所有登录用户都可访问
-        }
+        self.password_require_digit = env_config.get_bool('AUTH_PASSWORD_REQUIRE_DIGIT',False)
+        
+        self.password_require_special = env_config.get_bool('AUTH_PASSWORD_REQUIRE_SPECIAL',False)
+        
+        # ==================== 登录安全配置 ====================
+        # 最大登录失败次数
+        self.max_login_attempts = env_config.get_int('AUTH_MAX_LOGIN_ATTEMPTS',5)
+        
+        # 账户锁定持续时间（分钟）
+        self.login_lock_duration = env_config.get_int('AUTH_LOGIN_LOCK_DURATION',30)
+        
+        # 是否启用验证码
+        self.enable_captcha = env_config.get_bool('AUTH_ENABLE_CAPTCHA',False)
+        
+        # ==================== 功能开关 ====================
+        # 是否允许用户注册
+        self.allow_registration = env_config.get_bool('AUTH_ALLOW_REGISTRATION',True)
+        
+        # 是否允许"记住我"
+        self.allow_remember_me = env_config.get_bool('AUTH_ALLOW_REMEMBER_ME',True)
+        
+        # 是否启用邮箱验证
+        self.enable_email_verification = env_config.get_bool('AUTH_ENABLE_EMAIL_VERIFICATION', False)
+        
+        # 是否启用双因素认证
+        self.enable_two_factor = env_config.get_bool('AUTH_ENABLE_TWO_FACTOR',False)
+        
+        # ==================== 路由配置 ====================
+        self.login_route = env_config.get('AUTH_LOGIN_ROUTE','/login')
+        
+        self.register_route = env_config.get('AUTH_REGISTER_ROUTE','/register')
+        
+        self.logout_route = env_config.get('AUTH_LOGOUT_ROUTE','/logout')
+        
+        self.default_redirect = env_config.get('AUTH_DEFAULT_REDIRECT','/workbench')
     
     def _get_database_url(self) -> str:
-        """获取数据库URL
-        一个私有方法（以下划线开头），用于根据 self.database_type 属性生成数据库连接字符串。
         """
-        if self.database_type == 'sqlite':
-            db_path = Path('data') / 'auth.db'
-            db_path.parent.mkdir(exist_ok=True)
-            return f'sqlite:///{db_path}'
-        elif self.database_type == 'mysql':
-            # 示例：mysql://user:password@localhost/dbname
-            return os.environ.get('DATABASE_URL', 'mysql://root:12345678@localhost:3309/auth_db')
-        elif self.database_type == 'postgresql':
-            # 示例：postgresql://user:password@localhost/dbname
-            return os.environ.get('DATABASE_URL', 'postgresql://neo:12345678@172.22.160.1/auth_db')
+        根据数据库类型构建连接URL
+        
+        Returns:
+            str: 数据库连接URL
+        """
+        db_type = self.database_type.lower()
+        
+        if db_type == 'sqlite':
+            # SQLite 数据库路径
+            sqlite_path = env_config.get(
+                'AUTH_SQLITE_PATH',
+                'data/neoapp.db'
+            )
+            
+            # 确保数据目录存在
+            db_path = Path(sqlite_path)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            return f'sqlite:///{sqlite_path}'
+        
+        elif db_type == 'mysql':
+            # MySQL 连接配置
+            host = env_config.get('AUTH_MYSQL_HOST', 'localhost')
+            port = env_config.get_int('AUTH_MYSQL_PORT', 3306)
+            user = env_config.get('AUTH_MYSQL_USER', 'root')
+            password = env_config.get('AUTH_MYSQL_PASSWORD', '')
+            database = env_config.get('AUTH_MYSQL_DATABASE', 'neoapp')
+            
+            return f'mysql+pymysql://{user}:{password}@{host}:{port}/{database}'
+        
+        elif db_type == 'postgresql':
+            # PostgreSQL 连接配置
+            host = env_config.get('AUTH_POSTGRES_HOST', 'localhost')
+            port = env_config.get_int('AUTH_POSTGRES_PORT', 5432)
+            user = env_config.get('AUTH_POSTGRES_USER', 'postgres')
+            password = env_config.get('AUTH_POSTGRES_PASSWORD', '')
+            database = env_config.get('AUTH_POSTGRES_DATABASE', 'neoapp')
+            
+            return f'postgresql://{user}:{password}@{host}:{port}/{database}'
+        
         else:
-            raise ValueError(f"Unsupported database type: {self.database_type}")
+            # 默认使用 SQLite
+            print(f"⚠️  未知的数据库类型: {db_type}，使用默认 SQLite")
+            return 'sqlite:///data/neoapp.db'
     
-    def set_database_type(self, db_type: str):
-        """设置数据库类型
-        允许在程序运行时动态修改数据库类型。
-        """
-        if db_type not in ['sqlite', 'mysql', 'postgresql']:
-            raise ValueError(f"Unsupported database type: {db_type}")
-        self.database_type = db_type
-        self.database_url = self._get_database_url()
-
 # 全局配置实例
-# 创建了一个AuthConfig的全局实例 auth_config。在项目的其他地方，可以直接导入 auth_config 来访问和使用这些配置，而无需每次都创建一个新的 AuthConfig 对象
 auth_config = AuthConfig()

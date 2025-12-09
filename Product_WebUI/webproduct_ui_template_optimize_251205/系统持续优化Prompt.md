@@ -269,48 +269,74 @@ with Session(engine) as session:
 ## 任务
 
 现在遇到一个严重的认证登录 BUG（灾难级别），BUG 描述如下：
-1、有一台 PC 和平板作为测试机，在相同的企业内网中。
-2、在 PC 上使用 Edge 浏览器登录账号 admin，然后在 PC 上打开 chrome 浏览器，打开应用就自动登录了 admin 账号。
+1、有一台 PC 和平板作为测试机，在相同的企业内网环境中。
+2、在 PC 上使用 Edge 浏览器登录账号 admin，然后在 PC 上打开 chrome 浏览器，打开应用后就自动登录了 admin 账号。
 3、更可怕的是在平板上打开应用也自动的登录了 admin 账号。这样任何人只要打开应用，就能获取上次登录的账号，太危险了。
-4、请帮我分析是什么原因，是由于使用了 nicegui 中的 app.storage 机制导致的吗？如在 auth\auth_manager.py、auth\pages\logout_page.py、component\layout_manager.py、component\simple_layout_manager.py、component\multilayer_layout_manager.py 中使用了 app.storage.user 。
 
-5、我验证观察到了以下的现象：
+4、分析原因为：auth\auth_manager.py 中的 auth_manager 是一个全局单例，其 self.current_user 是实例属性,不是请求级别的，Edge 登录后设置了 self.current_user，Chrome 访问时，check_session()第一行就返回了 Edge 设置的值。我进行以下的验证。
 
-- 验证 browser_id,发现在 edge 和 chrome 的 browse_id 不一样
-
-```py
-@ui.page('/debug')
-def debug_page():
-    browser_id = app.storage.browser.get('id', 'None')
-
-    ui.label(f'Browser ID: {browser_id}').classes('text-2xl')
-    ui.label(f'Storage Secret: your-secret-key-here')
-
-    # 显示所有 storage 内容
-    with ui.expansion('Browser Storage'):
-        ui.json_editor({'content': {'json': dict(app.storage.browser)}})
-
-    with ui.expansion('User Storage'):
-        ui.json_editor({'content': {'json': dict(app.storage.user)}})
-```
-
-- 查看浏览器中的 cookie 下的 session
-  点击 F12 进行调试，发现 edge 个 chrome 中 Cookie 下 session 两个浏览器是不一样的，并且这些 session 和数据库中 users 表中的 session_token 字段不一样。这样看视乎有 2 套的 session 机制。
-
-- 在.nicegui 文件夹中，在不同浏览器中打开应用相同的账号登录后，就会生成一个文件 storage-user-xxxx-xxxxx-xxxx.json
-
-- 启动服务的配置信息如下，storage_secret 不是固定的。
+4.1、添加以下信息输出代码进行验证
 
 ```py
-ui.run(
-        title=config.app_title,
-        port=8080,
-        show=True,
-        reload=True,
-        favicon='🚀',
-        dark=False,
-        storage_secret=secrets.token_urlsafe(32)
-    )
+import threading
+print(f"🔍 当前内存会话: {self.current_user}")
+print(f"🔍 当前client: {id(self)}")  # 打印对象ID
+print(f"🔍 Thread ID: {threading.current_thread().ident}")
+print(f"🔍 AuthManager ID: {id(self)}")
+print(f"🔍 Current User: {self.current_user.username if self.current_user else 'None'}")
+print(f"🔍 Browser Storage Keys: {app.storage.browser.get('id', 'None')}")
 ```
 
-请认真分析具体的原因，找到根本原因，判断是 auth 包中 session 管理问题，还是由于 nicegui 的 session 机制造成的。必要时查询 nicegui 官方文档。
+执行上述代码后，使用 Edge 浏览器和 Chrome 浏览器打开应用分别输出的信息如下：
+
+- edge 浏览器登录后输出：
+  🔍 当前内存会话: UserSession(id=1, username='admin', email='admin@example.com', full_name='系统管理员', phone=None, avatar=None, bio=None, is_active=True, is_verified=False, is_superuser=True, last_login=datetime.datetime(2025, 12, 9, 10, 57, 53, 856543), login_count=5, failed_login_count=0, locked_until=None, created_at=datetime.datetime(2025, 12, 8, 17, 20, 6, 549667), updated_at=datetime.datetime(2025, 12, 8, 17, 20, 6, 550669), roles=['admin'], permissions={'\*'})
+  🔍 当前 client: 2663428982480
+  🔍 Thread ID: 8056
+  🔍 AuthManager ID: 2663428982480
+  🔍 Current User: admin
+  🔍 Browser Storage Keys: 8409060e-1bd1-49bf-ac6b-386907c09c75
+
+- chrome 浏览器打开浏览器自动登录，输出如下信息：
+  🔍 当前内存会话: UserSession(id=1, username='admin', email='admin@example.com', full_name='系统管理员', phone=None, avatar=None, bio=None, is_active=True, is_verified=False, is_superuser=True, last_login=datetime.datetime(2025, 12, 9, 10, 57, 53, 856543), login_count=5, failed_login_count=0, locked_until=None, created_at=datetime.datetime(2025, 12, 8, 17, 20, 6, 549667), updated_at=datetime.datetime(2025, 12, 8, 17, 20, 6, 550669), roles=['admin'], permissions={'\*'})
+  🔍 当前 client: 2663428982480
+  🔍 Thread ID: 8056
+  🔍 AuthManager ID: 2663428982480
+  🔍 Current User: admin
+  🔍 Browser Storage Keys: 35b28505-3dfa-4f45-80db-65f2b66ef6b9
+
+  4.2、在 check_session 函数中添加 self.current_user = None 后进行验证。
+  在 chrome 浏览器打开应用后不会自动登录，而是跳转到登录页面
+
+```py
+self.current_user = None  # 强制清空
+# 1. 检查当前内存会话
+if self.current_user:
+    return self.current_user
+```
+
+5、使用了 app.storage.user 的脚本
+
+auth/auth_manager.py
+auth/pages/logout_page.py
+component/layout_manager.py
+component/simple_layout_manager.py
+component/multilayer_layout_manager.py
+multilayer_main.py
+
+6、使用了 auth_manager.current_user 的一些脚本脚本
+auth\auth_manager.py
+auth\decorators.py
+auth\pages\change_password_page.py
+auth\pages\permission_management_page.py
+auth\pages\profile_page.py
+
+7、原来我想使用 app.storage.browser 进行替换，但是提示了如下错误。由于 app.storage.browser 只能在页面构建时（响应发送前）修改，不能在事件处理器中修改。
+2025-12-09 14:23:56.394 | ERROR | None@anonymous | contextlib:**exit**:158 | ❌ 数据库操作失败: the response to the browser has already been built, so modifications cannot be sent back anymore
+the response to the browser has already been built, so modifications cannot be sent back anymore
+Traceback (most recent call last):
+\auth\auth_manager.py", line 202, in login
+app.storage.browser[self._session_key] = session_token
+File "nicegui\persistence\read_only_dict.py", line 15, in **setitem**
+raise TypeError(self.\_write_error_message)
+TypeError: the response to the browser has already been built, so modifications cannot be sent back anymore

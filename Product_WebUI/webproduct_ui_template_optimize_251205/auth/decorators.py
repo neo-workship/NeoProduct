@@ -40,9 +40,7 @@ def require_login(redirect_to_login: bool = True):
                 else:
                     ui.notify('需要登录才能访问此功能', type='error')
                 return
-            
-            # 更新current_user确保是最新的
-            auth_manager.current_user = user
+        
             return func(*args, **kwargs)
         return wrapper
     return decorator
@@ -66,13 +64,7 @@ def require_role(*roles):
             # 超级管理员跳过角色检查
             if user.is_superuser:
                 return func(*args, **kwargs)
-            
-            # 检查角色
-            # user_roles = [role.name for role in user.roles]
-            # if not any(role in user_roles for role in roles):
-            #     log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
-            #     ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')
-            #     return
+        
             #------------------------------------------------------
             # ✅ 修复：user.roles 已经是字符串列表，不需要提取 .name
             # 检查角色

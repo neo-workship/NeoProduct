@@ -78,9 +78,9 @@ class SimpleLayoutManager:
         for route, label in system_routes.items():
             self.all_routes[route] = label
             
-        logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
-        logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
-        logger.debug(f"⚠️  注意：logout 路由未注册到持久化路由中（一次性操作）")
+        # logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
+        # logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
+        # logger.debug(f"⚠️  注意：logout 路由未注册到持久化路由中（一次性操作）")
 
     def select_nav_item(self, key: str, button_element=None, update_storage: bool = True):
         """选择导航项"""

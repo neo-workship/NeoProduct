@@ -5,6 +5,8 @@ import sys
 import os
 from pathlib import Path
 from nicegui import ui, app
+import secrets
+from config.env_config import env_config  # 导入环境变量配置
 from component import with_spa_layout, LayoutConfig, static_manager
 from menu_pages import get_menu_page_handlers
 from header_pages import get_header_page_handlers
@@ -78,12 +80,16 @@ if __name__ in {"__main__", "__mp_main__"}:
     def index():
         ui.navigate.to('/workbench')
 
+    storage_secret = env_config.get('APP_STORAGE_SECRET')
+    if not storage_secret:
+        storage_secret = secrets.token_urlsafe(32)
     ui.run(
-        title=config.app_title,
-        port=8080,
-        show=True,
-        reload=True,
-        favicon='🚀',
-        dark=False,
-        storage_secret='your-secret-key-here'
+        title=env_config.get('APP_TITLE', 'NeoUI侧边栏布局模板'),
+        port=env_config.get_int('APP_PORT', 8080),
+        show=env_config.get_bool('APP_SHOW', True),
+        reload=env_config.get_bool('APP_RELOAD', True),
+        favicon=env_config.get('APP_FAVICON', '🚀'),
+        dark=env_config.get_bool('APP_DARK', False),
+        prod_js=env_config.get_bool('APP_PROD_JS', False),
+        storage_secret=secrets.token_urlsafe(32)
     )

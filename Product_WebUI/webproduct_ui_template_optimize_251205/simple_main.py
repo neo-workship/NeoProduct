@@ -2,6 +2,8 @@
 简单布局主应用入口 - 只包含顶部导航栏的布局
 """
 from nicegui import ui, app
+import secrets
+from config.env_config import env_config  # 导入环境变量配置
 from component import with_simple_spa_layout, LayoutConfig, static_manager
 from menu_pages import get_menu_page_handlers
 from header_pages import get_header_page_handlers
@@ -75,19 +77,17 @@ if __name__ in {"__main__", "__mp_main__"}:
     # 启动应用
     print("🌐 启动简单布局应用服务器...")
     print("📋 布局特点：只包含顶部导航栏，无侧边栏")
-    print("🎯 访问地址：http://localhost:8080/workbench")
-    print("📝 测试账号：")
-    print("   管理员 - 用户名: admin, 密码: admin123")
-    print("   普通用户 - 用户名: user, 密码: user123")
-    print("🔄 支持页面刷新保持路由状态（基于存储）")
 
+    storage_secret = env_config.get('APP_STORAGE_SECRET')
+    if not storage_secret:
+        storage_secret = secrets.token_urlsafe(32)
     ui.run(
-        title=config.app_title,
-        port=8080,
-        show=True,
-        reload=True,   # 设置为True，控制台中会输出两次
-        favicon='🚀',
-        dark=False,
-        prod_js=False,
-        storage_secret='your-secret-key-here'
+        title=env_config.get('APP_TITLE', 'NeoUI布局模板'),
+        port=env_config.get_int('APP_PORT', 8080),
+        show=env_config.get_bool('APP_SHOW', True),
+        reload=env_config.get_bool('APP_RELOAD', True),   # 设置为True，控制台中会输出两次
+        favicon=env_config.get('APP_FAVICON', '🚀'),
+        dark=env_config.get_bool('APP_DARK', False),
+        prod_js=env_config.get_bool('APP_PROD_JS', False),
+        storage_secret=secrets.token_urlsafe(32)
     )

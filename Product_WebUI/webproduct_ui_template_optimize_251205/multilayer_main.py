@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from nicegui import ui, app
 import secrets
+# 导入环境变量配置
+from config.env_config import env_config
 
 # 导入多层布局组件
 from component import (
@@ -30,10 +32,9 @@ from auth import (
     get_auth_page_handlers
 )
 
-def create_demo_menu_structure() -> list[MultilayerMenuItem]:
+def create_menu_structure() -> list[MultilayerMenuItem]:
     """
-    创建演示用的多层菜单结构
-    这里展示了2-3层的菜单结构
+    创建多层菜单结构,这里展示了2-3层的菜单结构
     """
     menu_items = [
         # 首页 - 单独的顶层菜单(无子菜单)
@@ -94,24 +95,6 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
                     icon='security',
                     route='erp_auth_page'
                 ),
-                # MultilayerMenuItem(
-                #     key='users',
-                #     label='用户管理',
-                #     icon='group',
-                #     route='user_management'
-                # ),
-                # MultilayerMenuItem(
-                #     key='roles',
-                #     label='角色管理',
-                #     icon='badge',
-                #     route='role_management'
-                # ),
-                # MultilayerMenuItem(
-                #     key='permissions',
-                #     label='权限管理',
-                #     icon='lock',
-                #     route='permission_management'
-                # ),
             ]
         ),
     ]
@@ -136,8 +119,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     
     # 创建自定义配置
     config = LayoutConfig()
-    config.app_title = 'NeoUI多层布局'
-    config.menu_title = '功能导航'
     
     # 登录页面
     @ui.page('/login')
@@ -158,7 +139,7 @@ if __name__ in {"__main__", "__mp_main__"}:
             ui.navigate.to('/login')
             return        
         # 创建多层菜单结构
-        menu_items = create_demo_menu_structure()
+        menu_items = create_menu_structure()
         
         # 创建带认证的多层SPA布局
         @with_multilayer_spa_layout(
@@ -181,21 +162,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     def index():
         ui.navigate.to('/workbench')
 
-    @ui.page('/debug')
-    def debug_page():
-        browser_id = app.storage.browser.get('id', 'None')
-        
-        ui.label(f'Browser ID: {browser_id}').classes('text-2xl')
-        ui.label(f'Storage Secret: your-secret-key-here')
-        
-        # 显示所有 storage 内容
-        with ui.expansion('Browser Storage'):
-            ui.json_editor({'content': {'json': dict(app.storage.browser)}})
-        
-        with ui.expansion('User Storage'):
-            ui.json_editor({'content': {'json': dict(app.storage.user)}})
-
-    
     print("\n" + "=" * 70)
     print("✨ 多层布局特性:")
     print("  - 🎯 支持多层级折叠菜单(无限层级)")
@@ -206,13 +172,17 @@ if __name__ in {"__main__", "__mp_main__"}:
     print("  - 🔐 集成完整的认证和权限管理")
     print("=" * 70 + "\n")
     
+    storage_secret = env_config.get('APP_STORAGE_SECRET')
+    if not storage_secret:
+        storage_secret = secrets.token_urlsafe(32)
     # 启动应用
     ui.run(
-        title=config.app_title,
-        port=8080,
-        show=True,
-        reload=True,
-        favicon='🚀',
-        dark=False,
+        title=env_config.get('APP_TITLE', 'NeoUI多层布局模板'),
+        port=env_config.get_int('APP_PORT', 8080),
+        show=env_config.get_bool('APP_SHOW', True),
+        reload=env_config.get_bool('APP_RELOAD', True),
+        favicon=env_config.get('APP_FAVICON', '🚀'),
+        dark=env_config.get_bool('APP_DARK', False),
+        prod_js=env_config.get_bool('APP_PROD_JS', False),
         storage_secret=secrets.token_urlsafe(32)
     )
