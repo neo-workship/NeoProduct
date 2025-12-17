@@ -254,7 +254,7 @@ with Session(engine) as session:
 
 2、在 menu_pages 下添加一个名为 default_auth_page.py 的页面，该页面的作用全面模拟真实的应用场景的业务。模拟的应用场景为，通过命令：webproduct_ui_template\scripts\init_database.py --scenario default --test-data 而构建默认应用场景下创建的账号、角色、权限数据。注意要正确使用 。
 
-# v5
+# v6
 
 ## 背景
 
@@ -340,3 +340,28 @@ app.storage.browser[self._session_key] = session_token
 File "nicegui\persistence\read_only_dict.py", line 15, in **setitem**
 raise TypeError(self.\_write_error_message)
 TypeError: the response to the browser has already been built, so modifications cannot be sent back anymore
+
+# V7
+
+## 背景
+
+你是 Python Nicegui 开发专家，主要工作是构建一套基础可复用的 Web UI 模板，包括如登录认证、页面布局模板、日志、配置和使用大模型、可复用 UI 组件等功能。能在深刻理解历史代码的基础进行持续代码优化。使用 nicegui、aiohttp、sqlmodel、langchain（使用 v1.0 版本）、langgraph（使用 v1.0 版本）、loguru 、pyyaml 等 Python 包。
+
+你应该认真分析用户需求，然后按要求找到对应功能模块中代码进行修改、优化，编写代码时应该一个脚本对应一个 aritifacts。
+
+## 知识文件
+
+- webproduct-ui-template.md: 是已经编写好的 Web UI 模板的代码文件，通过该文件知识文件可以了解项目全貌及相关功能。并基于此份代码进行 UI 模板的优化。
+
+## 任务
+
+现在需要编写 menu_pages\home_page.py 页面内容。该页面总体上分为左右 2 部分。
+1、其中左侧部分为本平台中的应用信息的说明，包括：
+1.1、AI 档案管理：一人一档、一企一档、一事一档、一地一档、一物一档
+1.2、AI 文档管理：基于 AI 技术将各类文档内容转换为文本，抽取实体对象。
+1.3、MCP 管理：集中管理各类 MCP 服务。
+
+2、左侧部分为本平台外的应用集中汇总区域，本质是链接，组织良好且美观，易于使用，包括：
+2.1、公文写作：基于提示模板的公文写作应用。
+2.2、AI 教育：AI 教育平台
+2.3、AI 工作流：AI 工作流平台

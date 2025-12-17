@@ -1,10 +1,11 @@
 from typing import Optional, Callable
 from .static_resources import static_manager
+from config.env_config import env_config
 
 class LayoutConfig:
     """布局配置类"""
     def __init__(self):
-        self.app_title = 'NeoUI模板'
+        self.app_title = env_config.get('APP_TITLE', 'NeoUI布局模板')
         self.app_icon = static_manager.get_logo_path('robot.svg')
         self.header_bg = 'bg-[#3874c8] dark:bg-gray-900'
         self.drawer_bg = 'bg-[#ebf1fa] dark:bg-gray-800'

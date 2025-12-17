@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 from nicegui import ui, app
 import secrets
+# 导入环境变量配置
+from config.env_config import env_config
 
 # 导入多层布局组件
 from component import (
@@ -34,10 +36,9 @@ from auth import (
     get_auth_page_handlers
 )
 
-def create_demo_menu_structure() -> list[MultilayerMenuItem]:
+def create_menu_structure() -> list[MultilayerMenuItem]:
     """
-    创建演示用的多层菜单结构
-    这里展示了2-3层的菜单结构
+    创建多层菜单结构,这里展示了2-3层的菜单结构
     """
     menu_items = [
         # 首页 - 单独的顶层菜单(无子菜单)
@@ -87,22 +88,16 @@ def create_demo_menu_structure() -> list[MultilayerMenuItem]:
                     separator_after=True
                 ),
                 MultilayerMenuItem(
-                    key='users',
+                    key='default_auth',
                     label='用户管理',
-                    icon='group',
-                    route='user_management'
+                    icon='security',
+                    route='default_auth'
                 ),
                 MultilayerMenuItem(
-                    key='roles',
-                    label='角色管理',
-                    icon='badge',
-                    route='role_management'
-                ),
-                MultilayerMenuItem(
-                    key='permissions',
-                    label='权限管理',
-                    icon='lock',
-                    route='permission_management'
+                    key='erp_auth_page',
+                    label='erp',
+                    icon='security',
+                    route='erp_auth_page'
                 ),
             ]
         ),
@@ -128,8 +123,6 @@ if __name__ in {"__main__", "__mp_main__"}:
     
     # 创建自定义配置
     config = LayoutConfig()
-    config.app_title = 'NeoUI多层布局'
-    config.menu_title = '功能导航'
     
     # 登录页面
     @ui.page('/login')
@@ -150,7 +143,7 @@ if __name__ in {"__main__", "__mp_main__"}:
             ui.navigate.to('/login')
             return        
         # 创建多层菜单结构
-        menu_items = create_demo_menu_structure()
+        menu_items = create_menu_structure()
         
         # 创建带认证的多层SPA布局
         @with_multilayer_spa_layout(
@@ -172,7 +165,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     @ui.page('/')
     def index():
         ui.navigate.to('/workbench')
-    
+
     print("\n" + "=" * 70)
     print("✨ 多层布局特性:")
     print("  - 🎯 支持多层级折叠菜单(无限层级)")
@@ -183,14 +176,18 @@ if __name__ in {"__main__", "__mp_main__"}:
     print("  - 🔐 集成完整的认证和权限管理")
     print("=" * 70 + "\n")
     
+    storage_secret = env_config.get('APP_STORAGE_SECRET')
+    if not storage_secret:
+        storage_secret = secrets.token_urlsafe(32)
     # 启动应用
     ui.run(
-        title=config.app_title,
-        port=8080,
-        show=True,
-        reload=True,
-        favicon='🚀',
-        dark=False,
+        title=env_config.get('APP_TITLE', 'NeoUI多层布局模板'),
+        port=env_config.get_int('APP_PORT', 8080),
+        show=env_config.get_bool('APP_SHOW', True),
+        reload=env_config.get_bool('APP_RELOAD', True),
+        favicon=env_config.get('APP_FAVICON', '🚀'),
+        dark=env_config.get_bool('APP_DARK', False),
+        prod_js=env_config.get_bool('APP_PROD_JS', False),
         storage_secret=secrets.token_urlsafe(32)
     )
 ```
@@ -259,7 +256,8 @@ __all__ = [
 ```python
 """
 认证管理器 - SQLModel 版本
-移除对 detached_helper 和 joinedload 的依赖,直接使用 SQLModel 查询
+修复：移除全局共享的 current_user 实例属性，改为只读属性
+彻底解决跨浏览器/设备会话共享的安全问题
 """
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -288,17 +286,39 @@ class AuthManager:
     """
     认证管理器 - SQLModel 版本
     
-    核心改进:
-    - 移除所有 joinedload 调用
-    - 使用 SQLModel 的 session.get() 和 select() 查询
-    - SQLModel 自动处理关系加载,不会产生 DetachedInstanceError
-    - 简化了查询逻辑,提升性能
+    核心改进（BUG 修复）:
+    - ❌ 移除了 self.current_user 实例属性（这是全局共享状态的根源）
+    - ✅ 改为 @property current_user，每次都从当前浏览器会话验证
+    - ✅ 完全依赖 app.storage.user + SessionManager 的双层缓存机制
+    - ✅ 彻底解决跨浏览器/设备会话共享问题
+    
+    架构说明:
+    - app.storage.user: 基于 cookie 的浏览器级存储（每个浏览器独立）
+    - SessionManager: 内存缓存层（token -> UserSession 映射）
+    - 数据库: 持久化存储层（token 验证和用户数据）
     """
     
     def __init__(self):
-        self.current_user: Optional[UserSession] = None
+        """
+        初始化认证管理器
+        
+        注意：不再存储 self.current_user，避免全局共享状态
+        """
         self._session_key = 'auth_session_token'
         self._remember_key = 'auth_remember_token'
+    
+    @property
+    def current_user(self) -> Optional[UserSession]:
+        """
+        获取当前登录用户（只读属性）
+        
+        ⚠️ 重要：每次访问都会调用 check_session() 重新验证
+        这确保了每个浏览器/设备都获取自己的会话，不会共享
+        
+        Returns:
+            Optional[UserSession]: 当前用户会话，未登录返回 None
+        """
+        return self.check_session()
     
     def register(self, username: str, email: str, password: str, **kwargs) -> Dict[str, Any]:
         """
@@ -364,6 +384,7 @@ class AuthManager:
         - 使用 session.exec(select(...)) 查询
         - 不需要 joinedload
         - SQLModel 自动处理关系
+        - ✅ 不再设置 self.current_user（已移除）
         """
         if not username or not password:
             log_warning("登录失败: 用户名或密码为空")
@@ -433,7 +454,7 @@ class AuthManager:
             
             # 创建内存会话
             user_session = session_manager.create_session(session_token, user)
-            self.current_user = user_session
+            # ✅ 不再设置 self.current_user（已改为只读属性）
             
             # 记录登录日志
             self._create_login_log(
@@ -453,10 +474,11 @@ class AuthManager:
     def logout(self):
         """
         用户登出 - SQLModel 版本
-        """
-        if not self.current_user:
-            return
         
+        改进:
+        - ✅ 不再需要检查或清除 self.current_user（已移除）
+        """
+        # 获取当前会话 token（用于日志记录）
         session_token = app.storage.user.get(self._session_key)
         
         # 清除数据库中的 token
@@ -479,35 +501,47 @@ class AuthManager:
         if session_token:
             session_manager.delete_session(session_token)
         
-        self.current_user = None
+        # ✅ 不再需要设置 self.current_user = None（已移除）
     
     def check_session(self) -> Optional[UserSession]:
         """
         检查会话有效性 - SQLModel 版本
         
-        改进:
-        - 使用 session.exec(select(...)) 查询
-        - 不需要 joinedload
-        - SQLModel 自动处理关系加载
-        """
-        # 1. 检查当前内存会话
-        if self.current_user:
-            return self.current_user
+        核心修复:
+        - ✅ 移除了 "if self.current_user: return self.current_user" 的逻辑
+        - ✅ 永远从 app.storage.user 开始验证（确保浏览器隔离）
+        - ✅ 使用 SessionManager 内存缓存提升性能（按客户端隔离）
+        - ✅ 数据库作为最终验证层
+        - ✅ 移除日志输出，避免与日志系统的用户上下文获取产生无限递归
+        - ✅ 添加防御性检查，处理页面初始化早期的情况
         
-        # 2. 检查浏览器 session token
-        session_token = app.storage.user.get(self._session_key)
-        if not session_token:
-            log_debug("未找到 session_token")
+        流程:
+        1. 从 app.storage.user 获取当前浏览器的 session_token
+        2. 检查 SessionManager 内存缓存（已按客户端隔离）
+        3. 如果缓存未命中，从数据库验证
+        4. 尝试 remember_me token（如果主 token 失效）
+        
+        Returns:
+            Optional[UserSession]: 用户会话对象，未登录返回 None
+        """
+        # ✅ 修复：永远从 app.storage.user 开始（不再检查 self.current_user）
+        # 1. 检查浏览器 session token
+        try:
+            session_token = app.storage.user.get(self._session_key)
+        except:
+            # 防御性检查：在页面初始化早期，app.storage.user 可能还未就绪
             return None
         
-        # 3. 检查内存缓存
+        if not session_token:
+            return None
+        
+        # 2. 检查内存缓存（SessionManager）
         user_session = session_manager.get_session(session_token)
         if user_session:
-            log_debug(f"内存缓存命中: {user_session.username}")
-            self.current_user = user_session
+            # ✅ 移除日志，避免递归（日志系统会调用 current_user）
             return user_session
         
-        # 4. 从数据库验证 token 有效性
+        # 3. 从数据库验证 token 有效性
         try:
             with get_db() as session:
                 # SQLModel 查询: 简单直接
@@ -521,25 +555,21 @@ class AuthManager:
                 if user:
                     # 重新创建内存会话
                     user_session = session_manager.create_session(session_token, user)
-                    self.current_user = user_session
-                    log_debug(f"数据库验证成功: {user.username}")
+                    # ✅ 只在数据库验证成功时记录（这是关键操作）
+                    log_info(f"会话恢复: {user.username}")
                     return user_session
                 else:
-                    log_debug("数据库验证失败: token 已失效或用户不存在")
                     # token 无效,清除浏览器存储
                     app.storage.user.pop(self._session_key, None)
                     app.storage.user.pop(self._remember_key, None)
-                    self.current_user = None
                     
         except Exception as e:
             log_error(f"数据库查询出错: {e}")
-            self.current_user = None
             return None
         
-        # 5. 检查 remember_me token (如果主 token 失效)
+        # 4. 检查 remember_me token (如果主 token 失效)
         remember_token = app.storage.user.get(self._remember_key)
         if remember_token and auth_config.allow_remember_me:
-            log_debug("检查 remember_me token")
             try:
                 with get_db() as session:
                     user = session.exec(
@@ -560,7 +590,6 @@ class AuthManager:
                         
                         # 创建内存会话
                         user_session = session_manager.create_session(new_session_token, user)
-                        self.current_user = user_session
                         
                         log_success(f"Remember me 验证成功: {user.username}")
                         return user_session
@@ -573,7 +602,12 @@ class AuthManager:
     def update_profile(self, **update_data) -> Dict[str, Any]:
         """
         更新用户资料 - SQLModel 版本
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        - ✅ 更新后刷新 SessionManager 缓存
         """
+        # 使用只读属性（自动调用 check_session）
         if not self.current_user:
             return {'success': False, 'message': '请先登录'}
         
@@ -595,7 +629,7 @@ class AuthManager:
             session_token = app.storage.user.get(self._session_key)
             if session_token:
                 session.refresh(user)  # 刷新对象以加载关系
-                self.current_user = session_manager.update_session(session_token, user)
+                session_manager.update_session(session_token, user)
             
             log_info(f"用户资料更新成功: {user.username}")
             return {'success': True, 'message': '资料更新成功', 'user': self.current_user}
@@ -603,6 +637,9 @@ class AuthManager:
     def change_password(self, old_password: str, new_password: str) -> Dict[str, Any]:
         """
         修改密码 - SQLModel 版本
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
         """
         if not self.current_user:
             return {'success': False, 'message': '请先登录'}
@@ -631,6 +668,9 @@ class AuthManager:
     def get_user_by_id(self, user_id: int) -> Optional[UserSession]:
         """
         通过 ID 获取用户 - SQLModel 版本
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
         """
         # 如果是当前用户,直接返回缓存
         if self.current_user and self.current_user.id == user_id:
@@ -659,17 +699,32 @@ class AuthManager:
         return None
     
     def is_authenticated(self) -> bool:
-        """检查是否已认证"""
+        """
+        检查是否已认证
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        """
         return self.current_user is not None
     
     def has_role(self, role_name: str) -> bool:
-        """检查当前用户是否有指定角色"""
+        """
+        检查当前用户是否有指定角色
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        """
         if not self.current_user:
             return False
         return self.current_user.has_role(role_name)
     
     def has_permission(self, permission_name: str) -> bool:
-        """检查当前用户是否有指定权限"""
+        """
+        检查当前用户是否有指定权限
+        
+        改进:
+        - ✅ 使用 self.current_user（现在是只读属性，自动验证）
+        """
         if not self.current_user:
             return False
         return self.current_user.has_permission(permission_name)
@@ -710,114 +765,167 @@ auth_manager = AuthManager()
 - **webproduct_ui_template\auth\config.py**
 ```python
 """
-认证配置模块
+认证配置模块 - 使用环境变量版本
+
+从 .env 文件加载所有配置，支持灵活的配置管理。
 """
 import os
 from pathlib import Path
 from typing import Optional
 
+# 导入环境变量配置加载器
+try:
+    from config.env_config import env_config
+except ImportError:
+    # 如果导入失败，使用简单的环境变量读取
+    print("⚠️  无法导入 config.env_config，将直接使用 os.environ")
+    
+    class SimpleEnvConfig:
+        def get(self, key, default=None):
+            return os.environ.get(key, default)
+        
+        def get_int(self, key, default=0):
+            try:
+                return int(os.environ.get(key, default))
+            except:
+                return default
+        
+        def get_bool(self, key, default=False):
+            value = os.environ.get(key, '').lower()
+            if value in ('true', 'yes', '1', 'on'):
+                return True
+            elif value in ('false', 'no', '0', 'off'):
+                return False
+            return default
+    
+    env_config = SimpleEnvConfig()
+
+
 class AuthConfig:
-    """认证配置类"""
+    """
+    认证配置类 - 使用环境变量版本
+    
+    所有配置都从 .env 文件加载，支持：
+    - 数据库配置
+    - 会话管理
+    - 密码策略
+    - 登录安全
+    - 功能开关
+    - 路由配置
+    """
     
     def __init__(self):
         """
-        这是类的构造函数，在创建 AuthConfig 类的实例时会自动调用。它初始化了所有认证相关的配置属性，并为其设置了默认值。
+        初始化认证配置
+        
+        从 .env 文件加载所有配置项，并提供合理的默认值。
         """
-        # 数据库配置
-        self.database_type = 'sqlite'  # 默认使用SQLite，可切换为mysql、postgresql等
+        # ==================== 数据库配置 ====================
+        self.database_type = env_config.get('AUTH_DATABASE_TYPE', 'sqlite')
         self.database_url = self._get_database_url()
         
-        # 会话配置
-        self.session_secret_key = os.environ.get('SESSION_SECRET_KEY', 'your-secret-key-here')
-        self.session_timeout = 3600 * 24  # 24小时
-        self.remember_me_duration = 3600 * 24 * 30  # 30天
+        # ==================== 会话配置 ====================
+        self.session_secret_key = env_config.get('AUTH_SESSION_SECRET_KEY','8CAs6NgrsLAaB0Aw-w6lSv--ISwffsDK2cDDKN1r_bQ')
         
-        # 密码配置
-        self.password_min_length = 6
-        self.password_require_uppercase = False
-        self.password_require_lowercase = False
-        self.password_require_numbers = False
-        self.password_require_special = False
+        # 会话超时时间（秒，默认24小时）
+        self.session_timeout = env_config.get_int('AUTH_SESSION_TIMEOUT',3600 * 24)
         
-        # 注册配置
-        self.allow_registration = True
-        self.require_email_verification = False
-        self.default_user_role = 'user'  # 默认角色
+        # "记住我"持续时间（秒，默认30天）
+        self.remember_me_duration = env_config.get_int('AUTH_REMEMBER_ME_DURATION',3600 * 24 * 30)
         
-        # 登录配置
-        self.max_login_attempts = 5
-        self.lockout_duration = 1800  # 30分钟
-        self.allow_remember_me = True
+        # ==================== 密码策略配置 ====================
+        self.password_min_length = env_config.get_int('AUTH_PASSWORD_MIN_LENGTH',6)
         
-        # 路由配置
-        self.login_route = '/login'
-        self.logout_route = '/logout'
-        self.register_route = '/register'
-        self.unauthorized_redirect = '/login'
+        self.password_max_length = env_config.get_int('AUTH_PASSWORD_MAX_LENGTH',128)
         
-        # 默认角色配置（预留给权限管理包使用）
-        self.default_roles = [
-            {'name': 'admin', 'display_name': '管理员', 'description': '系统管理员，拥有所有权限'},
-            {'name': 'editor', 'display_name': '编辑', 'description': '可以编辑内容'},
-            {'name': 'viewer', 'display_name': '查看', 'description': '只能查看内容'},
-            {'name': 'user', 'display_name': '普通用户', 'description': '普通注册用户'}
-        ]
+        self.password_require_uppercase = env_config.get_bool('AUTH_PASSWORD_REQUIRE_UPPERCASE',False)
         
-        # 默认权限配置（预留给权限管理包使用）
-        self.default_permissions = [
-            # 系统权限
-            {'name': 'system.manage', 'display_name': '系统管理', 'category': '系统'},
-            {'name': 'user.manage', 'display_name': '用户管理', 'category': '系统'},
-            {'name': 'role.manage', 'display_name': '角色管理', 'category': '系统'},
-            
-            # 内容权限
-            {'name': 'content.create', 'display_name': '创建内容', 'category': '内容'},
-            {'name': 'content.edit', 'display_name': '编辑内容', 'category': '内容'},
-            {'name': 'content.delete', 'display_name': '删除内容', 'category': '内容'},
-            {'name': 'content.view', 'display_name': '查看内容', 'category': '内容'},
-        ]
+        self.password_require_lowercase = env_config.get_bool('AUTH_PASSWORD_REQUIRE_LOWERCASE',False)
         
-        # 页面权限映射（预留给权限管理包使用）
-        self.page_permissions = {
-            # menu_pages
-            'dashboard': ['content.view'],
-            'data': ['content.view', 'content.edit'],
-            'analysis': ['content.view'],
-            'mcp': ['system.manage'],
-            
-            # header_pages
-            'settings_page': ['user.manage'],
-            'user_profile_page': [],  # 所有登录用户都可访问
-        }
+        self.password_require_digit = env_config.get_bool('AUTH_PASSWORD_REQUIRE_DIGIT',False)
+        
+        self.password_require_special = env_config.get_bool('AUTH_PASSWORD_REQUIRE_SPECIAL',False)
+        
+        # ==================== 登录安全配置 ====================
+        # 最大登录失败次数
+        self.max_login_attempts = env_config.get_int('AUTH_MAX_LOGIN_ATTEMPTS',5)
+        
+        # 账户锁定持续时间（分钟）
+        self.login_lock_duration = env_config.get_int('AUTH_LOGIN_LOCK_DURATION',30)
+        
+        # 是否启用验证码
+        self.enable_captcha = env_config.get_bool('AUTH_ENABLE_CAPTCHA',False)
+        
+        # ==================== 功能开关 ====================
+        # 是否允许用户注册
+        self.allow_registration = env_config.get_bool('AUTH_ALLOW_REGISTRATION',True)
+        
+        # 是否允许"记住我"
+        self.allow_remember_me = env_config.get_bool('AUTH_ALLOW_REMEMBER_ME',True)
+        
+        # 是否启用邮箱验证
+        self.enable_email_verification = env_config.get_bool('AUTH_ENABLE_EMAIL_VERIFICATION', False)
+        
+        # 是否启用双因素认证
+        self.enable_two_factor = env_config.get_bool('AUTH_ENABLE_TWO_FACTOR',False)
+        
+        # ==================== 路由配置 ====================
+        self.login_route = env_config.get('AUTH_LOGIN_ROUTE','/login')
+        
+        self.register_route = env_config.get('AUTH_REGISTER_ROUTE','/register')
+        
+        self.logout_route = env_config.get('AUTH_LOGOUT_ROUTE','/logout')
+        
+        self.default_redirect = env_config.get('AUTH_DEFAULT_REDIRECT','/workbench')
     
     def _get_database_url(self) -> str:
-        """获取数据库URL
-        一个私有方法（以下划线开头），用于根据 self.database_type 属性生成数据库连接字符串。
         """
-        if self.database_type == 'sqlite':
-            db_path = Path('data') / 'auth.db'
-            db_path.parent.mkdir(exist_ok=True)
-            return f'sqlite:///{db_path}'
-        elif self.database_type == 'mysql':
-            # 示例：mysql://user:password@localhost/dbname
-            return os.environ.get('DATABASE_URL', 'mysql://root:12345678@localhost:3309/auth_db')
-        elif self.database_type == 'postgresql':
-            # 示例：postgresql://user:password@localhost/dbname
-            return os.environ.get('DATABASE_URL', 'postgresql://neo:12345678@172.22.160.1/auth_db')
+        根据数据库类型构建连接URL
+        
+        Returns:
+            str: 数据库连接URL
+        """
+        db_type = self.database_type.lower()
+        
+        if db_type == 'sqlite':
+            # SQLite 数据库路径
+            sqlite_path = env_config.get(
+                'AUTH_SQLITE_PATH',
+                'data/neoapp.db'
+            )
+            
+            # 确保数据目录存在
+            db_path = Path(sqlite_path)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            return f'sqlite:///{sqlite_path}'
+        
+        elif db_type == 'mysql':
+            # MySQL 连接配置
+            host = env_config.get('AUTH_MYSQL_HOST', 'localhost')
+            port = env_config.get_int('AUTH_MYSQL_PORT', 3306)
+            user = env_config.get('AUTH_MYSQL_USER', 'root')
+            password = env_config.get('AUTH_MYSQL_PASSWORD', '')
+            database = env_config.get('AUTH_MYSQL_DATABASE', 'neoapp')
+            
+            return f'mysql+pymysql://{user}:{password}@{host}:{port}/{database}'
+        
+        elif db_type == 'postgresql':
+            # PostgreSQL 连接配置
+            host = env_config.get('AUTH_POSTGRES_HOST', 'localhost')
+            port = env_config.get_int('AUTH_POSTGRES_PORT', 5432)
+            user = env_config.get('AUTH_POSTGRES_USER', 'postgres')
+            password = env_config.get('AUTH_POSTGRES_PASSWORD', '')
+            database = env_config.get('AUTH_POSTGRES_DATABASE', 'neoapp')
+            
+            return f'postgresql://{user}:{password}@{host}:{port}/{database}'
+        
         else:
-            raise ValueError(f"Unsupported database type: {self.database_type}")
+            # 默认使用 SQLite
+            print(f"⚠️  未知的数据库类型: {db_type}，使用默认 SQLite")
+            return 'sqlite:///data/neoapp.db'
     
-    def set_database_type(self, db_type: str):
-        """设置数据库类型
-        允许在程序运行时动态修改数据库类型。
-        """
-        if db_type not in ['sqlite', 'mysql', 'postgresql']:
-            raise ValueError(f"Unsupported database type: {db_type}")
-        self.database_type = db_type
-        self.database_url = self._get_database_url()
-
 # 全局配置实例
-# 创建了一个AuthConfig的全局实例 auth_config。在项目的其他地方，可以直接导入 auth_config 来访问和使用这些配置，而无需每次都创建一个新的 AuthConfig 对象
 auth_config = AuthConfig()
 ```
 
@@ -1156,9 +1264,7 @@ def require_login(redirect_to_login: bool = True):
                 else:
                     ui.notify('需要登录才能访问此功能', type='error')
                 return
-            
-            # 更新current_user确保是最新的
-            auth_manager.current_user = user
+        
             return func(*args, **kwargs)
         return wrapper
     return decorator
@@ -1182,13 +1288,7 @@ def require_role(*roles):
             # 超级管理员跳过角色检查
             if user.is_superuser:
                 return func(*args, **kwargs)
-            
-            # 检查角色
-            # user_roles = [role.name for role in user.roles]
-            # if not any(role in user_roles for role in roles):
-            #     log_warning(f"用户 {user.username} 尝试访问需要角色 {roles} 的资源")
-            #     ui.notify(f'您没有权限访问此功能，需要以下角色之一：{", ".join(roles)}', type='error')
-            #     return
+        
             #------------------------------------------------------
             # ✅ 修复：user.roles 已经是字符串列表，不需要提取 .name
             # 检查角色
@@ -1753,102 +1853,92 @@ def redirect_to_home():
 - **webproduct_ui_template\auth\session_manager.py**
 ```python
 """
-会话管理器 - SQLModel 版本
-移除对 detached_helper 的依赖,直接使用 SQLModel User 对象
+会话管理器 - 修复版本
+
+修复内容:
+- ✅ 使用客户端ID隔离会话存储，避免跨浏览器共享
+- ✅ 每个浏览器有独立的会话缓存空间
+- ✅ 彻底解决跨浏览器/设备会话泄露问题
 """
-from typing import Optional, Dict, Set
-from dataclasses import dataclass, field
+from typing import Optional, Dict
 from datetime import datetime
+from dataclasses import dataclass
+from nicegui import app
 
 
 @dataclass
 class UserSession:
     """
-    用户会话数据类
+    用户会话数据类（内存缓存）
     
-    核心改进 (SQLModel 版本):
-    - 直接从 User 模型创建,无需 Detached 转换
-    - 保持轻量级内存缓存
-    - 与 SQLModel User 模型完全兼容
+    这是一个轻量级的用户会话对象，用于内存缓存，避免频繁的数据库查询。
+    与数据库中的 User 模型分离，避免 DetachedInstanceError。
     """
     id: int
     username: str
     email: str
-    full_name: Optional[str] = None
-    phone: Optional[str] = None
-    avatar: Optional[str] = None
-    bio: Optional[str] = None
-    
-    # 状态信息
-    is_active: bool = True
-    is_verified: bool = False
-    is_superuser: bool = False
-    
-    # 登录信息
-    last_login: Optional[datetime] = None
-    login_count: int = 0
-    failed_login_count: int = 0
-    locked_until: Optional[datetime] = None
-    
-    # 时间戳
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    
-    # 关联数据 (存储为字符串列表/集合)
-    roles: list = field(default_factory=list)          # 角色名称列表
-    permissions: Set[str] = field(default_factory=set)  # 权限名称集合 (包括角色权限和直接权限)
+    full_name: Optional[str]
+    phone: Optional[str]
+    avatar: Optional[str]
+    bio: Optional[str]
+    is_active: bool
+    is_verified: bool
+    is_superuser: bool
+    last_login: Optional[datetime]
+    login_count: int
+    failed_login_count: int
+    locked_until: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+    roles: list  # 角色名称列表
+    permissions: dict  # 权限字典
     
     def has_role(self, role_name: str) -> bool:
         """检查是否有指定角色"""
+        if self.is_superuser:
+            return True
         return role_name in self.roles
     
     def has_permission(self, permission_name: str) -> bool:
         """检查是否有指定权限"""
-        return self.is_superuser or permission_name in self.permissions
+        if self.is_superuser:
+            return True
+        # 检查通配符权限
+        if '*' in self.permissions:
+            return True
+        # 检查具体权限
+        return permission_name in self.permissions
     
-    def is_locked(self) -> bool:
-        """检查用户是否被锁定"""
-        return self.locked_until is not None and self.locked_until > datetime.now()
-    
-    @classmethod
-    def from_user(cls, user) -> 'UserSession':
+    @staticmethod
+    def from_user(user):
         """
-        从 SQLModel User 对象创建会话对象
+        从 SQLModel User 对象创建 UserSession
         
-        核心改进:
-        - 直接访问 user.roles 和 user.permissions (SQLModel 自动处理关系)
-        - 不需要 joinedload
-        - 不会产生 DetachedInstanceError
+        Args:
+            user: SQLModel User 对象
+        
+        Returns:
+            UserSession: 会话对象
         """
         # 提取角色名称
-        role_names = []
-        try:
-            # SQLModel: user.roles 返回 List[Role] 对象
-            role_names = [role.name for role in user.roles]
-        except Exception as e:
-            # 如果关系未加载,返回空列表
-            pass
+        role_names = [role.name for role in user.roles] if user.roles else []
         
-        # 提取权限 (包括角色权限和直接权限)
-        permissions = set()
-        if user.is_superuser:
-            permissions.add('*')  # 超级管理员拥有所有权限
-        else:
-            try:
-                # 1. 用户直接分配的权限
-                if hasattr(user, 'permissions') and user.permissions:
-                    permissions.update(perm.name for perm in user.permissions)
-                
-                # 2. 角色权限
-                if hasattr(user, 'roles') and user.roles:
-                    for role in user.roles:
-                        if hasattr(role, 'permissions') and role.permissions:
-                            permissions.update(perm.name for perm in role.permissions)
-            except Exception as e:
-                # 如果关系未加载,保持空集合
-                pass
+        # 提取权限（从角色和直接权限）
+        permissions = {}
         
-        return cls(
+        # 从角色获取权限
+        if user.roles:
+            for role in user.roles:
+                if role.permissions:
+                    for perm in role.permissions:
+                        permissions[perm.name] = perm.display_name or perm.name
+        
+        # 从直接权限获取
+        if user.permissions:
+            for perm in user.permissions:
+                permissions[perm.name] = perm.display_name or perm.name
+        
+        return UserSession(
             id=user.id,
             username=user.username,
             email=user.email,
@@ -1872,82 +1962,248 @@ class UserSession:
 
 class SessionManager:
     """
-    会话管理器
+    会话管理器 - 修复版本
+    
+    核心修复:
+    - ✅ 使用客户端ID作为命名空间，每个浏览器有独立的会话存储
+    - ✅ 避免跨浏览器/设备的会话共享问题
+    - ✅ 自动清理断开连接的客户端会话
     
     职责:
-    - 管理内存中的用户会话缓存
+    - 管理内存中的用户会话缓存（按客户端隔离）
     - 提供快速的会话查询
     - 避免频繁的数据库查询
+    
+    架构说明:
+    _client_sessions = {
+        'client_id_1': {
+            'token_A': UserSession(admin),
+            'token_B': UserSession(user1)
+        },
+        'client_id_2': {
+            'token_C': UserSession(ceo),
+        }
+    }
     """
     
     def __init__(self):
-        self._sessions: Dict[str, UserSession] = {}
+        """
+        初始化会话管理器
+        
+        使用二级字典结构：
+        - 第一级：客户端ID → 该客户端的会话字典
+        - 第二级：token → UserSession
+        """
+        self._client_sessions: Dict[str, Dict[str, UserSession]] = {}
+    
+    def _get_client_id(self) -> str:
+        """
+        获取当前客户端的唯一ID
+        
+        使用 app.storage.browser 获取浏览器级别的唯一标识。
+        每个浏览器（即使是同一台电脑的不同浏览器）都有不同的 browser ID。
+        
+        Returns:
+            str: 客户端唯一ID，如果无法获取则返回 'default'
+            
+        注意:
+            - 在页面刚加载时，app.storage.browser 可能还未就绪
+            - 此时返回 'default' 作为临时ID
+            - 一旦浏览器ID就绪，会自动使用正确的ID
+        """
+        try:
+            # app.storage.browser 包含一个自动生成的 'id' 字段
+            client_id = app.storage.browser.get('id')
+            if client_id:
+                return str(client_id)
+        except:
+            pass
+        
+        # 如果无法获取，使用默认值
+        # 这通常发生在页面初始化早期
+        return 'default'
+    
+    def _get_sessions_dict(self) -> Dict[str, UserSession]:
+        """
+        获取当前客户端的会话字典
+        
+        为当前客户端创建或获取独立的会话存储空间。
+        
+        Returns:
+            Dict[str, UserSession]: 当前客户端的会话字典（token -> UserSession）
+        """
+        client_id = self._get_client_id()
+        
+        # 如果该客户端还没有会话字典，创建一个
+        if client_id not in self._client_sessions:
+            self._client_sessions[client_id] = {}
+        
+        return self._client_sessions[client_id]
     
     def create_session(self, token: str, user) -> UserSession:
         """
         创建会话
         
+        为当前客户端创建一个新的会话缓存。
+        
         Args:
-            token: 会话 token
+            token: 会话 token（唯一标识）
             user: SQLModel User 对象
         
         Returns:
-            UserSession: 会话对象
+            UserSession: 创建的会话对象
+            
+        示例:
+            >>> session = session_manager.create_session('token_abc', user)
+            >>> print(session.username)
+            'admin'
         """
+        # 从 User 对象创建 UserSession
         session = UserSession.from_user(user)
-        self._sessions[token] = session
+        
+        # 存储到当前客户端的会话字典中
+        sessions_dict = self._get_sessions_dict()
+        sessions_dict[token] = session
+        
         return session
     
     def get_session(self, token: str) -> Optional[UserSession]:
         """
         获取会话
         
+        从当前客户端的会话缓存中获取指定 token 的会话。
+        
         Args:
             token: 会话 token
         
         Returns:
-            Optional[UserSession]: 会话对象,不存在则返回 None
+            Optional[UserSession]: 会话对象，不存在则返回 None
+            
+        注意:
+            - 只能获取当前客户端的会话
+            - 无法获取其他客户端的会话（隔离保护）
         """
-        return self._sessions.get(token)
+        sessions_dict = self._get_sessions_dict()
+        return sessions_dict.get(token)
     
     def update_session(self, token: str, user) -> Optional[UserSession]:
         """
-        更新会话 (从数据库重新加载用户数据)
+        更新会话（从数据库重新加载用户数据）
+        
+        当用户信息发生变化时（如修改资料、更改角色权限），
+        需要调用此方法刷新内存缓存。
         
         Args:
             token: 会话 token
-            user: SQLModel User 对象
+            user: SQLModel User 对象（最新数据）
         
         Returns:
-            Optional[UserSession]: 更新后的会话对象
+            Optional[UserSession]: 更新后的会话对象，token不存在则返回None
         """
-        if token in self._sessions:
+        sessions_dict = self._get_sessions_dict()
+        
+        if token in sessions_dict:
+            # 重新创建 UserSession 并更新
             session = UserSession.from_user(user)
-            self._sessions[token] = session
+            sessions_dict[token] = session
             return session
+        
         return None
     
     def delete_session(self, token: str):
         """
         删除会话
         
+        从当前客户端的会话缓存中删除指定 token 的会话。
+        通常在用户登出时调用。
+        
         Args:
             token: 会话 token
         """
-        if token in self._sessions:
-            del self._sessions[token]
+        sessions_dict = self._get_sessions_dict()
+        
+        if token in sessions_dict:
+            del sessions_dict[token]
+    
+    def clear_client_sessions(self):
+        """
+        清除当前客户端的所有会话
+        
+        删除当前客户端的所有会话缓存。
+        通常在客户端断开连接或重置会话时使用。
+        """
+        client_id = self._get_client_id()
+        
+        if client_id in self._client_sessions:
+            del self._client_sessions[client_id]
     
     def clear_all_sessions(self):
-        """清除所有会话"""
-        self._sessions.clear()
+        """
+        清除所有客户端的所有会话
+        
+        ⚠️ 警告：这会删除所有浏览器的会话缓存！
+        通常只在系统维护或测试时使用。
+        """
+        self._client_sessions.clear()
     
     def get_session_count(self) -> int:
-        """获取当前会话数量"""
-        return len(self._sessions)
+        """
+        获取当前客户端的会话数量
+        
+        Returns:
+            int: 当前客户端的会话数量
+        """
+        sessions_dict = self._get_sessions_dict()
+        return len(sessions_dict)
+    
+    def get_total_session_count(self) -> int:
+        """
+        获取所有客户端的会话总数
+        
+        Returns:
+            int: 所有客户端的会话总数
+        """
+        total = 0
+        for sessions_dict in self._client_sessions.values():
+            total += len(sessions_dict)
+        return total
+    
+    def get_client_count(self) -> int:
+        """
+        获取当前活跃的客户端数量
+        
+        Returns:
+            int: 客户端数量
+        """
+        return len(self._client_sessions)
     
     def get_all_sessions(self) -> Dict[str, UserSession]:
-        """获取所有会话 (用于调试/管理)"""
-        return self._sessions.copy()
+        """
+        获取当前客户端的所有会话（用于调试/管理）
+        
+        Returns:
+            Dict[str, UserSession]: 当前客户端的会话字典副本
+        """
+        sessions_dict = self._get_sessions_dict()
+        return sessions_dict.copy()
+    
+    def get_debug_info(self) -> Dict:
+        """
+        获取调试信息
+        
+        Returns:
+            dict: 包含客户端ID、会话数量等调试信息
+        """
+        client_id = self._get_client_id()
+        sessions_dict = self._get_sessions_dict()
+        
+        return {
+            'current_client_id': client_id,
+            'current_client_sessions': len(sessions_dict),
+            'total_clients': len(self._client_sessions),
+            'total_sessions': self.get_total_session_count(),
+            'all_client_ids': list(self._client_sessions.keys())
+        }
 
 
 # 全局会话管理器实例
@@ -6949,7 +7205,7 @@ class LoguruExceptionHandler:
         # 启动后台线程
         cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True, name="LogCleanup")
         cleanup_thread.start()
-        logger.debug("🧹 日志清理后台任务已启动")
+        logger.info("🧹 日志清理后台任务已启动")
     
     def _cleanup_old_log_folders(self):
         """清理过期的日志文件夹"""
@@ -6981,7 +7237,7 @@ class LoguruExceptionHandler:
             if deleted_count > 0:
                 logger.success(f"✅ 日志清理完成,共删除 {deleted_count} 个过期文件夹")
             else:
-                logger.debug("✅ 日志清理完成,无过期文件夹")
+                logger.warning("✅ 日志清理完成,无过期文件夹")
         
         except Exception as e:
             logger.error(f"清理日志文件夹失败: {e}")
@@ -7012,7 +7268,7 @@ class LoguruExceptionHandler:
             return {'user_id': None, 'username': 'system'}
         except Exception as e:
             # 其他异常,记录错误原因
-            print(f"⚠️ 获取用户上下文失败: {e}")
+            logger.warning(f"⚠️ 获取用户上下文失败: {e}")
             return {'user_id': None, 'username': 'anonymous'}
     
     def _bind_context(self, extra_data: Optional[Dict] = None, depth: int = 0):
@@ -8404,11 +8660,12 @@ LAYOUT_TYPE_MULTILAYER = 'multilayer'      # 多层布局(折叠菜单)
 ```python
 from typing import Optional, Callable
 from .static_resources import static_manager
+from config.env_config import env_config
 
 class LayoutConfig:
     """布局配置类"""
     def __init__(self):
-        self.app_title = 'NeoUI模板'
+        self.app_title = env_config.get('APP_TITLE', 'NeoUI布局模板')
         self.app_icon = static_manager.get_logo_path('robot.svg')
         self.header_bg = 'bg-[#3874c8] dark:bg-gray-900'
         self.drawer_bg = 'bg-[#ebf1fa] dark:bg-gray-800'
@@ -8525,9 +8782,9 @@ class LayoutManager:
         for route, label in system_routes.items():
             self.all_routes[route] = label
             
-        logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
-        logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
-        logger.debug(f"⚠️ 注意：logout 路由未注册到持久化路由中（一次性操作）")
+        # logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
+        # logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
+        # logger.debug(f"⚠️ 注意：logout 路由未注册到持久化路由中（一次性操作）")
 
     def select_menu_item(self, key: str, row_element=None, update_storage: bool = True):
         """选择菜单项"""
@@ -9292,9 +9549,9 @@ class MultilayerLayoutManager:
         for route, label in system_routes.items():
             if route not in self.all_routes:
                 self.all_routes[route] = label
-        logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
-        logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
-        logger.debug(f"⚠️ 注意：logout 路由未注册到持久化路由中（一次性操作）")
+        # logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
+        # logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
+        # logger.debug(f"⚠️ 注意：logout 路由未注册到持久化路由中（一次性操作）")
     
     def initialize_layout(self):
         """初始化布局"""
@@ -10112,9 +10369,9 @@ class SimpleLayoutManager:
         for route, label in system_routes.items():
             self.all_routes[route] = label
             
-        logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
-        logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
-        logger.debug(f"⚠️  注意：logout 路由未注册到持久化路由中（一次性操作）")
+        # logger.debug(f"🔧 已注册系统路由: {list(system_routes.keys())}")
+        # logger.debug(f"🔧 注册的全部路由：{self.all_routes}")
+        # logger.debug(f"⚠️  注意：logout 路由未注册到持久化路由中（一次性操作）")
 
     def select_nav_item(self, key: str, button_element=None, update_storage: bool = True):
         """选择导航项"""
@@ -13620,6 +13877,421 @@ class MarkdownUIParser:
 
 ```
 
+- **webproduct_ui_template\config\env_config.py**
+```python
+"""
+环境变量配置加载器
+
+统一管理从 .env 文件加载环境变量，并提供类型转换和默认值处理。
+
+使用方法:
+    from config.env_config import env_config
+    
+    # 获取字符串配置
+    app_title = env_config.get('APP_TITLE', 'Default Title')
+    
+    # 获取整数配置
+    app_port = env_config.get_int('APP_PORT', 8080)
+    
+    # 获取布尔配置
+    app_show = env_config.get_bool('APP_SHOW', True)
+    
+    # 获取列表配置
+    allowed_hosts = env_config.get_list('ALLOWED_HOSTS', ['localhost'])
+"""
+import os
+from pathlib import Path
+from typing import Any, Optional, List, Dict
+import secrets
+
+
+class EnvConfig:
+    """环境变量配置管理器"""
+    
+    def __init__(self, env_file: str = '.env'):
+        """
+        初始化环境变量配置
+        
+        Args:
+            env_file: .env 文件路径（相对于项目根目录）
+        """
+        self.env_file = env_file
+        self.config: Dict[str, str] = {}
+        self._load_env_file()
+    
+    def _get_project_root(self) -> Path:
+        """
+        获取项目根目录
+        
+        Returns:
+            Path: 项目根目录路径
+        """
+        # 从当前文件向上查找，直到找到包含 .env 或 requirements.txt 的目录
+        current = Path(__file__).resolve().parent
+        
+        # 向上最多查找5层
+        for _ in range(5):
+            if (current / '.env').exists() or (current / '.env.example').exists():
+                return current
+            if (current / 'requirements.txt').exists():
+                return current
+            if current.parent == current:  # 到达根目录
+                break
+            current = current.parent
+        
+        # 如果没找到，返回当前文件的父目录的父目录（假设结构是 project/config/env_config.py）
+        return Path(__file__).resolve().parent.parent
+    
+    def _load_env_file(self):
+        """从 .env 文件加载环境变量"""
+        project_root = self._get_project_root()
+        env_path = project_root / self.env_file
+        
+        # 如果 .env 不存在，尝试加载 .env.example
+        if not env_path.exists():
+            env_example_path = project_root / '.env.example'
+            if env_example_path.exists():
+                print(f"⚠️  .env 文件不存在，使用 .env.example 的默认配置")
+                print(f"   建议执行: cp .env.example .env")
+                env_path = env_example_path
+        
+        if not env_path.exists():
+            print(f"⚠️  未找到环境变量配置文件: {env_path}")
+            print(f"   将使用代码中的默认值")
+            return
+        
+        # 读取并解析 .env 文件
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    
+                    # 跳过空行和注释
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    # 解析 KEY=VALUE 格式
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        
+                        # 移除值两端的引号
+                        if value.startswith('"') and value.endswith('"'):
+                            value = value[1:-1]
+                        elif value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                        
+                        self.config[key] = value
+            
+            print(f"✅ 已加载环境变量配置: {env_path}")
+            print(f"   共加载 {len(self.config)} 个配置项")
+        
+        except Exception as e:
+            print(f"❌ 加载环境变量配置失败: {e}")
+    
+    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """
+        获取字符串配置
+        
+        优先级: 系统环境变量 > .env 文件 > 默认值
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+        
+        Returns:
+            配置值或默认值
+        """
+        # 1. 优先从系统环境变量获取
+        value = os.environ.get(key)
+        if value is not None:
+            return value
+        
+        # 2. 从 .env 文件获取
+        value = self.config.get(key)
+        if value is not None and value != '':
+            return value
+        
+        # 3. 返回默认值
+        return default
+    
+    def get_int(self, key: str, default: int = 0) -> int:
+        """
+        获取整数配置
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+        
+        Returns:
+            整数配置值
+        """
+        value = self.get(key)
+        if value is None:
+            return default
+        
+        try:
+            return int(value)
+        except ValueError:
+            print(f"⚠️  配置 {key}='{value}' 无法转换为整数，使用默认值: {default}")
+            return default
+    
+    def get_float(self, key: str, default: float = 0.0) -> float:
+        """
+        获取浮点数配置
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+        
+        Returns:
+            浮点数配置值
+        """
+        value = self.get(key)
+        if value is None:
+            return default
+        
+        try:
+            return float(value)
+        except ValueError:
+            print(f"⚠️  配置 {key}='{value}' 无法转换为浮点数，使用默认值: {default}")
+            return default
+    
+    def get_bool(self, key: str, default: bool = False) -> bool:
+        """
+        获取布尔配置
+        
+        支持的真值: true, yes, 1, on (不区分大小写)
+        支持的假值: false, no, 0, off (不区分大小写)
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+        
+        Returns:
+            布尔配置值
+        """
+        value = self.get(key)
+        if value is None:
+            return default
+        
+        value_lower = value.lower()
+        if value_lower in ('true', 'yes', '1', 'on'):
+            return True
+        elif value_lower in ('false', 'no', '0', 'off'):
+            return False
+        else:
+            print(f"⚠️  配置 {key}='{value}' 无法转换为布尔值，使用默认值: {default}")
+            return default
+    
+    def get_list(self, key: str, default: Optional[List[str]] = None, 
+                 separator: str = ',') -> List[str]:
+        """
+        获取列表配置
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+            separator: 分隔符，默认为逗号
+        
+        Returns:
+            列表配置值
+        
+        示例:
+            ALLOWED_HOSTS=localhost,127.0.0.1,example.com
+            => ['localhost', '127.0.0.1', 'example.com']
+        """
+        if default is None:
+            default = []
+        
+        value = self.get(key)
+        if value is None:
+            return default
+        
+        # 分割并去除空白
+        items = [item.strip() for item in value.split(separator)]
+        # 过滤空字符串
+        return [item for item in items if item]
+    
+    def get_dict(self, key: str, default: Optional[Dict[str, str]] = None,
+                 item_separator: str = ',', kv_separator: str = ':') -> Dict[str, str]:
+        """
+        获取字典配置
+        
+        Args:
+            key: 配置键名
+            default: 默认值
+            item_separator: 项分隔符，默认为逗号
+            kv_separator: 键值分隔符，默认为冒号
+        
+        Returns:
+            字典配置值
+        
+        示例:
+            DATABASE_OPTIONS=host:localhost,port:3306,charset:utf8
+            => {'host': 'localhost', 'port': '3306', 'charset': 'utf8'}
+        """
+        if default is None:
+            default = {}
+        
+        value = self.get(key)
+        if value is None:
+            return default
+        
+        result = {}
+        items = value.split(item_separator)
+        
+        for item in items:
+            item = item.strip()
+            if not item:
+                continue
+            
+            if kv_separator in item:
+                k, v = item.split(kv_separator, 1)
+                result[k.strip()] = v.strip()
+        
+        return result
+    
+    def require(self, key: str) -> str:
+        """
+        获取必需的配置，如果不存在则抛出异常
+        
+        Args:
+            key: 配置键名
+        
+        Returns:
+            配置值
+        
+        Raises:
+            ValueError: 如果配置不存在
+        """
+        value = self.get(key)
+        if value is None:
+            raise ValueError(f"必需的环境变量 {key} 未设置")
+        return value
+    
+    def set(self, key: str, value: str):
+        """
+        设置配置值（仅在内存中，不会写入文件）
+        
+        Args:
+            key: 配置键名
+            value: 配置值
+        """
+        self.config[key] = value
+    
+    def has(self, key: str) -> bool:
+        """
+        检查配置是否存在
+        
+        Args:
+            key: 配置键名
+        
+        Returns:
+            是否存在
+        """
+        return key in os.environ or key in self.config
+    
+    def all(self) -> Dict[str, str]:
+        """
+        获取所有配置
+        
+        Returns:
+            所有配置的字典
+        """
+        # 合并系统环境变量和 .env 配置
+        result = self.config.copy()
+        result.update(os.environ)
+        return result
+    
+    def get_or_generate_secret(self, key: str, length: int = 32) -> str:
+        """
+        获取密钥配置，如果不存在则生成一个随机密钥
+        
+        Args:
+            key: 配置键名
+            length: 随机密钥长度（字节数）
+        
+        Returns:
+            密钥字符串
+        
+        注意:
+            生成的密钥不会被保存到 .env 文件，每次重启都会生成新的。
+            建议在生产环境中设置固定的密钥。
+        """
+        value = self.get(key)
+        if value:
+            return value
+        
+        # 生成随机密钥
+        secret = secrets.token_urlsafe(length)
+        print(f"⚠️  {key} 未设置，已生成随机密钥（重启后会改变）")
+        print(f"   建议在 .env 文件中设置: {key}={secret}")
+        return secret
+
+# 全局单例
+env_config = EnvConfig()
+
+
+# ============================================================================
+# 便捷的配置访问函数（可选）
+# ============================================================================
+
+def get_env(key: str, default: Optional[str] = None) -> Optional[str]:
+    """便捷函数：获取字符串配置"""
+    return env_config.get(key, default)
+
+
+def get_env_int(key: str, default: int = 0) -> int:
+    """便捷函数：获取整数配置"""
+    return env_config.get_int(key, default)
+
+
+def get_env_bool(key: str, default: bool = False) -> bool:
+    """便捷函数：获取布尔配置"""
+    return env_config.get_bool(key, default)
+
+
+def get_env_list(key: str, default: Optional[List[str]] = None, separator: str = ',') -> List[str]:
+    """便捷函数：获取列表配置"""
+    return env_config.get_list(key, default, separator)
+
+
+# ============================================================================
+# 示例用法
+# ============================================================================
+
+if __name__ == '__main__':
+    print("=" * 70)
+    print("🔧 环境变量配置测试")
+    print("=" * 70)
+    
+    # 测试各种类型的配置读取
+    print("\n📝 测试配置读取:")
+    print(f"APP_TITLE: {env_config.get('APP_TITLE', 'Default Title')}")
+    print(f"APP_PORT: {env_config.get_int('APP_PORT', 8080)}")
+    print(f"APP_SHOW: {env_config.get_bool('APP_SHOW', True)}")
+    print(f"APP_RELOAD: {env_config.get_bool('APP_RELOAD', True)}")
+    print(f"APP_DARK: {env_config.get_bool('APP_DARK', False)}")
+    
+    print("\n🔐 密钥生成测试:")
+    secret = env_config.get_or_generate_secret('APP_STORAGE_SECRET', 32)
+    print(f"APP_STORAGE_SECRET: {secret[:10]}... (已截断)")
+    
+    print("\n📊 所有配置项:")
+    all_config = env_config.all()
+    app_configs = {k: v for k, v in all_config.items() if k.startswith('APP_') or k.startswith('AUTH_')}
+    for key in sorted(app_configs.keys())[:10]:  # 只显示前10个
+        value = app_configs[key]
+        # 隐藏密钥信息
+        if 'SECRET' in key or 'PASSWORD' in key:
+            value = '***'
+        print(f"  {key}: {value}")
+    
+    print(f"\n✅ 配置加载完成，共 {len(app_configs)} 个应用配置项")
+```
+
 - **webproduct_ui_template\config\provider_manager.py**
 ```python
 """
@@ -14650,6 +15322,8 @@ from .home_page import home_content
 from .other_demo_page import other_page_content
 from .chat_demo_page import chat_page_content
 from .auth_test_page import auth_test_page_content
+from .default_auth_page import default_auth_page_content
+from .erp_auth_page import erp_auth_page_content  # ✅ 新增 ERP 场景页面
 
 
 # 导出所有菜单页面处理函数
@@ -14659,7 +15333,9 @@ def get_menu_page_handlers():
         'home': home_content,
         'other_page': other_page_content,
         'chat_page': chat_page_content,
-        'auth_test': auth_test_page_content
+        'auth_test': auth_test_page_content,
+        'default_auth':default_auth_page_content,
+        'erp_auth_page':erp_auth_page_content
     }
 
 __all__ = [
@@ -14667,454 +15343,10 @@ __all__ = [
     'other_page_content',
     'chat_page_content',
     'get_menu_page_handlers',
-    'auth_test_page_content'
+    'auth_test_page_content',
+    'default_auth_page_content',
+    'erp_auth_page_content'
 ]
-```
-
-- **webproduct_ui_template\menu_pages\auth_test_page.py**
-```python
-"""
-认证系统测试页面
-全面测试用户管理、角色管理、权限管理的功能和效果
-使用与其他管理页面一致的 session 管理方式
-"""
-from nicegui import ui
-from auth import auth_manager, require_login
-from auth.database import get_db
-from auth.models import User, Role, Permission
-from sqlmodel import select
-from common.log_handler import (
-    log_info, log_success, log_warning, log_error,
-    safe_protect, get_logger
-)
-
-logger = get_logger(__name__)
-
-
-@safe_protect(name="认证系统测试页面", error_msg="认证系统测试页面加载失败")
-@require_login(redirect_to_login=True)
-def auth_test_page_content():
-    """
-    认证系统测试页面内容
-    
-    功能模块:
-    1. 当前用户信息展示
-    2. 权限检查测试
-    3. 角色管理测试
-    4. 用户权限分配测试
-    5. 数据库数据查看
-    
-    采用与 user_management_page.py 一致的 session 管理方式
-    """
-    
-    ui.label('🔐 认证系统全面测试').classes('text-3xl font-bold text-indigo-700 mb-6')
-    
-    # 获取当前用户 - 直接使用 auth_manager
-    current_user = auth_manager.check_session()
-    if not current_user:
-        ui.label('❌ 无法获取当前用户信息').classes('text-red-600')
-        return
-    
-    # ===========================
-    # 第一部分: 当前用户信息
-    # ===========================
-    with ui.card().classes('w-full mb-6'):
-        ui.label('👤 当前登录用户信息').classes('text-2xl font-bold mb-4')
-        
-        # 从数据库加载完整用户数据 - 使用标准模式
-        def load_current_user_info():
-            """加载当前用户完整信息"""
-            try:
-                with get_db() as session:
-                    # 重新从数据库加载用户以获取关系数据
-                    # UserSession.id 对应 User.id
-                    user = session.exec(
-                        select(User).where(User.id == current_user.id)
-                    ).first()
-                    
-                    if not user:
-                        return None
-                    
-                    # 刷新关系数据
-                    session.refresh(user)
-                    
-                    return {
-                        'username': user.username,
-                        'full_name': user.full_name,
-                        'email': user.email,
-                        'is_superuser': user.is_superuser,
-                        'is_active': user.is_active,
-                        'roles': [
-                            {'name': role.name, 'display_name': role.display_name}
-                            for role in (user.roles if hasattr(user, 'roles') else [])
-                        ],
-                        'permissions': list(user.get_all_permissions())
-                    }
-            except Exception as e:
-                log_error(f"加载用户信息失败: {e}")
-                return None
-        
-        user_info = load_current_user_info()
-        
-        if user_info:
-            with ui.row().classes('w-full gap-4'):
-                with ui.column().classes('flex-1'):
-                    ui.label(f'用户名: {user_info["username"]}').classes('text-lg')
-                    ui.label(f'全名: {user_info["full_name"] or "未设置"}').classes('text-lg')
-                    ui.label(f'邮箱: {user_info["email"] or "未设置"}').classes('text-lg')
-                    ui.label(f'超级管理员: {"是" if user_info["is_superuser"] else "否"}').classes('text-lg')
-                    ui.label(f'账户状态: {"激活" if user_info["is_active"] else "未激活"}').classes('text-lg')
-                
-                with ui.column().classes('flex-1'):
-                    ui.label('📋 当前角色:').classes('text-lg font-semibold')
-                    if user_info['roles']:
-                        for role in user_info['roles']:
-                            ui.label(f'  • {role["display_name"]} ({role["name"]})').classes('text-sm text-blue-600')
-                    else:
-                        ui.label('  无角色').classes('text-sm text-gray-500')
-                    
-                    ui.label('🔑 拥有权限数量:').classes('text-lg font-semibold mt-2')
-                    if '*' in user_info['permissions']:
-                        ui.label('  全部权限 (超级管理员)').classes('text-sm text-green-600')
-                    else:
-                        ui.label(f'  {len(user_info["permissions"])} 个权限').classes('text-sm text-blue-600')
-        else:
-            ui.label('加载用户信息失败').classes('text-red-600')
-    
-    # ===========================
-    # 第二部分: 权限检查测试
-    # ===========================
-    with ui.card().classes('w-full mb-6'):
-        ui.label('🧪 权限检查测试').classes('text-2xl font-bold mb-4')
-        
-        # 测试权限列表
-        test_permissions = [
-            ('system.manage', '系统管理'),
-            ('user.manage', '用户管理'),
-            ('role.manage', '角色管理'),
-            ('content.create', '创建内容'),
-            ('content.edit', '编辑内容'),
-            ('content.delete', '删除内容'),
-            ('content.view', '查看内容'),
-            ('profile.view', '查看个人资料'),
-            ('profile.edit', '编辑个人资料'),
-        ]
-        
-        ui.label('检测当前用户是否拥有以下权限:').classes('text-sm text-gray-600 mb-2')
-        
-        with ui.grid(columns=3).classes('w-full gap-2'):
-            for perm_name, perm_display in test_permissions:
-                has_perm = auth_manager.has_permission(perm_name)
-                
-                with ui.card().classes('p-3'):
-                    ui.label(perm_display).classes('font-semibold text-sm')
-                    ui.label(perm_name).classes('text-xs text-gray-500')
-                    
-                    if has_perm:
-                        ui.label('✅ 有权限').classes('text-green-600 text-sm font-bold mt-2')
-                    else:
-                        ui.label('❌ 无权限').classes('text-red-600 text-sm font-bold mt-2')
-    
-    # ===========================
-    # 第三部分: 数据库数据查看
-    # ===========================
-    with ui.card().classes('w-full mb-6'):
-        ui.label('📊 数据库数据查看').classes('text-2xl font-bold mb-4')
-        
-        # 数据展示容器
-        data_display = ui.column().classes('w-full')
-        
-        with ui.row().classes('gap-2 mb-4'):
-            def show_all_users():
-                """显示所有用户 - 使用标准 session 模式"""
-                data_display.clear()
-                with data_display:
-                    ui.label('👥 所有用户列表').classes('text-xl font-bold mb-3')
-                    
-                    try:
-                        with get_db() as session:
-                            users = session.exec(select(User)).all()
-                            
-                            if not users:
-                                ui.label('暂无用户数据').classes('text-gray-500')
-                                return
-                            
-                            # 在 session 内处理所有关系数据
-                            rows = []
-                            for user in users:
-                                session.refresh(user)  # 确保关系数据已加载
-                                roles_str = ', '.join([r.display_name for r in user.roles]) if hasattr(user, 'roles') and user.roles else '无'
-                                rows.append({
-                                    'id': user.id,
-                                    'username': user.username,
-                                    'full_name': user.full_name or '-',
-                                    'email': user.email or '-',
-                                    'is_superuser': '是' if user.is_superuser else '否',
-                                    'is_active': '是' if user.is_active else '否',
-                                    'roles': roles_str,
-                                })
-                            
-                            # 创建表格数据
-                            columns = [
-                                {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
-                                {'name': 'username', 'label': '用户名', 'field': 'username', 'align': 'left'},
-                                {'name': 'full_name', 'label': '全名', 'field': 'full_name', 'align': 'left'},
-                                {'name': 'email', 'label': '邮箱', 'field': 'email', 'align': 'left'},
-                                {'name': 'is_superuser', 'label': '超管', 'field': 'is_superuser', 'align': 'center'},
-                                {'name': 'is_active', 'label': '激活', 'field': 'is_active', 'align': 'center'},
-                                {'name': 'roles', 'label': '角色', 'field': 'roles', 'align': 'left'},
-                            ]
-                            
-                            ui.table(columns=columns, rows=rows, row_key='id').classes('w-full')
-                            ui.label(f'共 {len(users)} 个用户').classes('text-sm text-gray-500 mt-2')
-                    
-                    except Exception as e:
-                        log_error(f"查询用户失败: {e}")
-                        ui.label(f'查询失败: {str(e)}').classes('text-red-600')
-            
-            def show_all_roles():
-                """显示所有角色 - 使用标准 session 模式"""
-                data_display.clear()
-                with data_display:
-                    ui.label('🎭 所有角色列表').classes('text-xl font-bold mb-3')
-                    
-                    try:
-                        with get_db() as session:
-                            roles = session.exec(select(Role)).all()
-                            
-                            if not roles:
-                                ui.label('暂无角色数据').classes('text-gray-500')
-                                return
-                            
-                            # 在 session 内处理所有数据
-                            rows = []
-                            for role in roles:
-                                session.refresh(role)  # 刷新关系数据
-                                perm_count = len(role.permissions) if hasattr(role, 'permissions') else 0
-                                
-                                rows.append({
-                                    'id': role.id,
-                                    'name': role.name,
-                                    'display_name': role.display_name or '-',
-                                    'description': role.description or '-',
-                                    'is_system': '是' if role.is_system else '否',
-                                    'perm_count': perm_count,
-                                })
-                            
-                            columns = [
-                                {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
-                                {'name': 'name', 'label': '角色名', 'field': 'name', 'align': 'left'},
-                                {'name': 'display_name', 'label': '显示名', 'field': 'display_name', 'align': 'left'},
-                                {'name': 'description', 'label': '描述', 'field': 'description', 'align': 'left'},
-                                {'name': 'is_system', 'label': '系统角色', 'field': 'is_system', 'align': 'center'},
-                                {'name': 'perm_count', 'label': '权限数', 'field': 'perm_count', 'align': 'center'},
-                            ]
-                            
-                            ui.table(columns=columns, rows=rows, row_key='id').classes('w-full')
-                            ui.label(f'共 {len(roles)} 个角色').classes('text-sm text-gray-500 mt-2')
-                    
-                    except Exception as e:
-                        log_error(f"查询角色失败: {e}")
-                        ui.label(f'查询失败: {str(e)}').classes('text-red-600')
-            
-            def show_all_permissions():
-                """显示所有权限 - 使用标准 session 模式"""
-                data_display.clear()
-                with data_display:
-                    ui.label('🔑 所有权限列表').classes('text-xl font-bold mb-3')
-                    
-                    try:
-                        with get_db() as session:
-                            permissions = session.exec(select(Permission)).all()
-                            
-                            if not permissions:
-                                ui.label('暂无权限数据').classes('text-gray-500')
-                                return
-                            
-                            # 在 session 内处理数据
-                            rows = []
-                            for perm in permissions:
-                                rows.append({
-                                    'id': perm.id,
-                                    'name': perm.name,
-                                    'display_name': perm.display_name or '-',
-                                    'category': perm.category or '-',
-                                    'description': perm.description or '-',
-                                })
-                            
-                            columns = [
-                                {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
-                                {'name': 'name', 'label': '权限名', 'field': 'name', 'align': 'left'},
-                                {'name': 'display_name', 'label': '显示名', 'field': 'display_name', 'align': 'left'},
-                                {'name': 'category', 'label': '分类', 'field': 'category', 'align': 'left'},
-                                {'name': 'description', 'label': '描述', 'field': 'description', 'align': 'left'},
-                            ]
-                            
-                            ui.table(columns=columns, rows=rows, row_key='id').classes('w-full')
-                            ui.label(f'共 {len(permissions)} 个权限').classes('text-sm text-gray-500 mt-2')
-                    
-                    except Exception as e:
-                        log_error(f"查询权限失败: {e}")
-                        ui.label(f'查询失败: {str(e)}').classes('text-red-600')
-            
-            ui.button('查看所有用户', on_click=show_all_users, icon='group').classes('bg-blue-500')
-            ui.button('查看所有角色', on_click=show_all_roles, icon='badge').classes('bg-green-500')
-            ui.button('查看所有权限', on_click=show_all_permissions, icon='lock').classes('bg-purple-500')
-    
-    # ===========================
-    # 第四部分: 角色-权限关系测试
-    # ===========================
-    with ui.card().classes('w-full mb-6'):
-        ui.label('🔗 角色-权限关系测试').classes('text-2xl font-bold mb-4')
-        
-        relationship_display = ui.column().classes('w-full')
-        
-        def show_role_permissions():
-            """显示每个角色的权限详情 - 使用标准 session 模式"""
-            relationship_display.clear()
-            with relationship_display:
-                try:
-                    with get_db() as session:
-                        roles = session.exec(select(Role)).all()
-                        
-                        if not roles:
-                            ui.label('暂无角色数据').classes('text-gray-500')
-                            return
-                        
-                        for role in roles:
-                            # 在 session 内刷新关系数据
-                            session.refresh(role)
-                            
-                            with ui.expansion(role.display_name or role.name, icon='badge').classes('w-full mb-2'):
-                                with ui.column().classes('p-4'):
-                                    ui.label(f'角色标识: {role.name}').classes('text-sm')
-                                    ui.label(f'角色描述: {role.description or "无"}').classes('text-sm')
-                                    ui.label(f'系统角色: {"是" if role.is_system else "否"}').classes('text-sm')
-                                    
-                                    ui.separator()
-                                    
-                                    ui.label('拥有的权限:').classes('font-semibold mt-2')
-                                    if hasattr(role, 'permissions') and role.permissions:
-                                        # 按分类组织权限
-                                        perms_by_category = {}
-                                        for perm in role.permissions:
-                                            category = perm.category or '其他'
-                                            if category not in perms_by_category:
-                                                perms_by_category[category] = []
-                                            perms_by_category[category].append(perm)
-                                        
-                                        for category, perms in perms_by_category.items():
-                                            ui.label(f'  📁 {category}:').classes('text-sm font-semibold mt-2')
-                                            for perm in perms:
-                                                ui.label(f'    • {perm.display_name} ({perm.name})').classes('text-xs text-blue-600')
-                                    else:
-                                        ui.label('  无权限').classes('text-sm text-gray-500')
-                
-                except Exception as e:
-                    log_error(f"查询角色权限关系失败: {e}")
-                    ui.label(f'查询失败: {str(e)}').classes('text-red-600')
-        
-        ui.button('查看角色-权限关系', on_click=show_role_permissions, icon='account_tree').classes('bg-indigo-500')
-    
-    # ===========================
-    # 第五部分: 权限测试工具
-    # ===========================
-    with ui.card().classes('w-full mb-6'):
-        ui.label('🛠️ 权限测试工具').classes('text-2xl font-bold mb-4')
-        
-        ui.label('输入权限标识,测试当前用户是否拥有该权限:').classes('text-sm text-gray-600 mb-2')
-        
-        test_result = ui.column().classes('w-full mt-4')
-        
-        with ui.row().classes('w-full gap-2 items-end'):
-            perm_input = ui.input(
-                label='权限标识',
-                placeholder='例如: user.manage',
-                value='user.manage'
-            ).classes('flex-1')
-            
-            def test_permission():
-                """测试权限"""
-                perm_name = perm_input.value.strip()
-                if not perm_name:
-                    ui.notify('请输入权限标识', type='warning')
-                    return
-                
-                test_result.clear()
-                with test_result:
-                    has_perm = auth_manager.has_permission(perm_name)
-                    
-                    with ui.card().classes('w-full p-4'):
-                        ui.label(f'测试权限: {perm_name}').classes('text-lg font-bold')
-                        
-                        if has_perm:
-                            ui.label('✅ 当前用户拥有此权限').classes('text-green-600 text-xl font-bold mt-2')
-                            ui.notify(f'权限检查通过: {perm_name}', type='positive')
-                        else:
-                            ui.label('❌ 当前用户没有此权限').classes('text-red-600 text-xl font-bold mt-2')
-                            ui.notify(f'权限检查失败: {perm_name}', type='negative')
-                        
-                        # 显示用户拥有的所有权限
-                        ui.separator()
-                        ui.label('当前用户拥有的所有权限:').classes('text-sm font-semibold mt-2')
-                        
-                        # 从数据库重新加载获取最新权限
-                        try:
-                            with get_db() as session:
-                                user = session.exec(
-                                    select(User).where(User.id == current_user.id)
-                                ).first()
-                                
-                                if user:
-                                    session.refresh(user)
-                                    all_perms = user.get_all_permissions()
-                                    
-                                    if '*' in all_perms:
-                                        ui.label('  🌟 全部权限 (超级管理员)').classes('text-sm text-green-600')
-                                    else:
-                                        for perm in sorted(all_perms):
-                                            ui.label(f'  • {perm}').classes('text-xs text-gray-600')
-                                else:
-                                    ui.label('  无法加载权限数据').classes('text-sm text-red-500')
-                        except Exception as e:
-                            log_error(f"加载权限失败: {e}")
-                            ui.label('  加载权限失败').classes('text-sm text-red-500')
-            
-            ui.button('测试权限', on_click=test_permission, icon='check_circle').classes('bg-blue-500')
-    
-    # ===========================
-    # 第六部分: 使用说明
-    # ===========================
-    with ui.card().classes('w-full'):
-        ui.label('📖 使用说明').classes('text-2xl font-bold mb-4')
-        
-        with ui.column().classes('gap-2'):
-            ui.label('1️⃣ 当前用户信息').classes('font-semibold')
-            ui.label('   展示当前登录用户的基本信息、角色和权限统计').classes('text-sm text-gray-600')
-            
-            ui.label('2️⃣ 权限检查测试').classes('font-semibold mt-3')
-            ui.label('   快速检查当前用户是否拥有常用权限').classes('text-sm text-gray-600')
-            
-            ui.label('3️⃣ 数据库数据查看').classes('font-semibold mt-3')
-            ui.label('   查看系统中所有的用户、角色、权限数据').classes('text-sm text-gray-600')
-            
-            ui.label('4️⃣ 角色-权限关系').classes('font-semibold mt-3')
-            ui.label('   查看每个角色分配了哪些权限').classes('text-sm text-gray-600')
-            
-            ui.label('5️⃣ 权限测试工具').classes('font-semibold mt-3')
-            ui.label('   输入任意权限标识,测试当前用户是否拥有').classes('text-sm text-gray-600')
-            
-            ui.separator().classes('my-3')
-            
-            ui.label('💡 提示:').classes('font-semibold text-blue-600')
-            ui.label('   • 使用不同角色的账户登录,可以看到不同的权限效果').classes('text-sm')
-            ui.label('   • 超级管理员拥有所有权限').classes('text-sm')
-            ui.label('   • 可以在用户管理页面修改用户角色,然后重新登录查看效果').classes('text-sm')
-            ui.label('   • 本页面采用与其他管理页面一致的 session 管理方式').classes('text-sm text-green-600')
-
-
-# 导出
-__all__ = ['auth_test_page_content']
 ```
 
 - **webproduct_ui_template\menu_pages\chat_demo_page.py**
@@ -15180,1255 +15412,4 @@ def home_content():
     """首页内容"""
     ui.label('欢迎回到首页!').classes('text-3xl font-bold text-green-800 dark:text-green-200')
     ui.label('这是您个性化的仪表板。').classes('text-gray-600 dark:text-gray-400 mt-4')
-```
-
-- **webproduct_ui_template\menu_pages\other_demo_page.py**
-```python
-"""
-log_handler.py 功能测试页面
-全面测试所有日志功能,包括装饰器、日志级别、安全执行等
-"""
-from nicegui import ui
-from datetime import datetime
-
-# 导入 log_handler 所有功能
-from common.log_handler import (
-    # 日志记录函数
-    log_trace, log_debug, log_info, log_success, log_warning, log_error, log_critical,
-    # 安全执行
-    safe, db_safe,
-    # 装饰器
-    safe_protect, catch,
-    # Logger 实例
-    get_logger,
-    # 日志查询
-    get_log_files, get_today_errors, get_today_logs_by_level,
-    get_log_statistics, cleanup_logs
-)
-
-def other_page_content():
-    """log_handler 测试页面内容"""
-    
-    # 页面标题
-    with ui.column().classes('w-full mb-6'):
-        ui.label('日志系统测试中心').classes('text-4xl font-bold text-blue-800 dark:text-blue-200 mb-2')
-        ui.label('全面测试 log_handler.py 的所有功能').classes('text-lg text-gray-600 dark:text-gray-400')
-    
-    # 测试结果显示容器
-    result_container = ui.column().classes('w-full')
-    
-    # ======================== 第一部分: 日志级别测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('1️⃣ 日志级别测试 (7个级别)').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_log_levels():
-                """测试所有7个日志级别"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试所有日志级别...').classes('text-lg font-semibold mb-2')
-                    
-                    # 测试每个级别
-                    log_trace("这是 TRACE 级别日志 - 最详细的调试信息")
-                    ui.label('✅ TRACE: 已记录').classes('text-gray-600')
-                    
-                    log_debug("这是 DEBUG 级别日志 - 开发调试信息", 
-                             extra_data='{"function": "test_log_levels", "line": 45}')
-                    ui.label('✅ DEBUG: 已记录 (带额外数据)').classes('text-gray-600')
-                    
-                    log_info("这是 INFO 级别日志 - 普通运行信息")
-                    ui.label('✅ INFO: 已记录').classes('text-blue-600')
-                    
-                    log_success("这是 SUCCESS 级别日志 - 操作成功标记")
-                    ui.label('✅ SUCCESS: 已记录').classes('text-green-600')
-                    
-                    log_warning("这是 WARNING 级别日志 - 需要注意的情况")
-                    ui.label('✅ WARNING: 已记录').classes('text-orange-600')
-                    
-                    try:
-                        raise ValueError("模拟的错误异常")
-                    except Exception as e:
-                        log_error("这是 ERROR 级别日志 - 捕获的错误", exception=e)
-                        ui.label('✅ ERROR: 已记录 (带异常堆栈)').classes('text-red-600')
-                    
-                    try:
-                        raise RuntimeError("模拟的严重错误")
-                    except Exception as e:
-                        log_critical("这是 CRITICAL 级别日志 - 严重错误", exception=e,
-                                   extra_data='{"severity": "high", "action": "alert_admin"}')
-                        ui.label('✅ CRITICAL: 已记录 (带异常和额外数据)').classes('text-red-800 font-bold')
-                    
-                    ui.separator()
-                    ui.label('📁 查看日志文件: logs/[今天日期]/app_logs.csv').classes('text-sm text-gray-500 mt-2')
-                    ui.notify('所有日志级别测试完成!', type='positive')
-            
-            ui.button('测试所有日志级别', on_click=test_log_levels, icon='bug_report').classes('bg-blue-500')
-    
-    # ======================== 第二部分: safe() 函数测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('2️⃣ safe() 安全执行测试').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_safe_success():
-                """测试 safe() 成功场景"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 safe() 成功场景...').classes('text-lg font-semibold mb-2')
-                    
-                    def normal_function(a, b):
-                        result = a + b
-                        log_info(f"计算结果: {a} + {b} = {result}")
-                        return result
-                    
-                    result = safe(normal_function, 10, 20)
-                    ui.label(f'✅ 函数正常执行: 10 + 20 = {result}').classes('text-green-600 text-lg')
-                    ui.notify('Safe 执行成功!', type='positive')
-            
-            def test_safe_error():
-                """测试 safe() 错误场景"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 safe() 错误场景...').classes('text-lg font-semibold mb-2')
-                    
-                    def error_function():
-                        raise ValueError("这是一个模拟的错误")
-                    
-                    result = safe(
-                        error_function,
-                        return_value="默认返回值",
-                        show_error=True,
-                        error_msg="函数执行失败,已返回默认值"
-                    )
-                    # error_function()
-                    # result = "默认值"
-                    ui.label(f'✅ 错误已捕获,返回默认值: "{result}"').classes('text-orange-600 text-lg')
-                    ui.label('📝 错误已记录到日志,UI已显示通知').classes('text-sm text-gray-500')
-            
-            def test_safe_with_kwargs():
-                """测试 safe() 带关键字参数"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 safe() 带参数...').classes('text-lg font-semibold mb-2')
-                    
-                    def process_user_data(user_id, name="", email="", phone=""):
-                        log_info(f"处理用户数据: ID={user_id}, Name={name}, Email={email}")
-                        return {"id": user_id, "name": name, "email": email, "phone": phone}
-                    
-                    result = safe(
-                        process_user_data,
-                        123,
-                        name="张三",
-                        email="zhangsan@test.com",
-                        phone="13800138000",
-                        return_value={}
-                    )
-                    ui.label(f'✅ 处理结果: {result}').classes('text-green-600')
-                    ui.notify('带参数的 safe 执行成功!', type='positive')
-            
-            ui.button('测试正常执行', on_click=test_safe_success, icon='check_circle').classes('bg-green-500')
-            ui.button('测试错误捕获', on_click=test_safe_error, icon='error').classes('bg-orange-500')
-            ui.button('测试带参数', on_click=test_safe_with_kwargs, icon='settings').classes('bg-purple-500')
-    
-    # ======================== 第三部分: 装饰器测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('3️⃣ 装饰器测试').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_safe_protect_decorator():
-                """测试 @safe_protect 装饰器"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 @safe_protect 装饰器...').classes('text-lg font-semibold mb-2')
-                    
-                    @safe_protect(name="测试函数", error_msg="函数执行失败,已被保护")
-                    def protected_function(should_fail=False):
-                        log_info("进入被保护的函数")
-                        if should_fail:
-                            raise RuntimeError("模拟的错误")
-                        return "执行成功"
-                    
-                    # 测试成功场景
-                    result = protected_function(should_fail=False)
-                    ui.label(f'✅ 正常执行: {result}').classes('text-green-600')
-                    ui.seperator()
-                    # 测试失败场景
-                    result = protected_function(should_fail=True)
-                    ui.label(f'✅ 错误已被装饰器捕获,返回: {result}').classes('text-orange-600')
-                    ui.notify('safe_protect 装饰器测试完成!', type='positive')
-            
-            def test_catch_decorator():
-                """测试 @catch 装饰器"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 @catch 装饰器...').classes('text-lg font-semibold mb-2')
-                    
-                    @catch(message="数据处理失败", show_ui_error=True)
-                    def process_data(data):
-                        log_info(f"处理数据: {data}")
-                        if not data:
-                            raise ValueError("数据不能为空")
-                        return f"处理完成: {data}"
-                    
-                    # 正常场景
-                    try:
-                        result = process_data(["数据1", "数据2"])
-                        ui.label(f'✅ 正常处理: {result}').classes('text-green-600')
-                    except:
-                        pass
-                    
-                    # 错误场景
-                    try:
-                        result = process_data(None)
-                    except Exception as e:
-                        ui.label(f'✅ 异常已被捕获: {type(e).__name__}').classes('text-orange-600')
-                        ui.label('📝 详细堆栈已记录到日志').classes('text-sm text-gray-500')
-            
-            ui.button('测试 @safe_protect', on_click=test_safe_protect_decorator, icon='shield').classes('bg-indigo-500')
-            ui.button('测试 @catch', on_click=test_catch_decorator, icon='security').classes('bg-cyan-500')
-    
-    # ======================== 第四部分: Logger 实例测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('4️⃣ get_logger() 实例测试').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_get_logger():
-                """测试 get_logger 获取自定义 logger"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 get_logger()...').classes('text-lg font-semibold mb-2')
-                    
-                    # 创建自定义 logger
-                    log = get_logger(__file__)
-                    
-                    log.info("使用自定义 logger 记录 INFO")
-                    ui.label('✅ INFO: 已记录').classes('text-blue-600')
-                    
-                    log.success("使用自定义 logger 记录 SUCCESS")
-                    ui.label('✅ SUCCESS: 已记录').classes('text-green-600')
-                    
-                    log.warning("使用自定义 logger 记录 WARNING")
-                    ui.label('✅ WARNING: 已记录').classes('text-orange-600')
-                    
-                    try:
-                        raise ValueError("测试错误")
-                    except Exception as e:
-                        log.error(f"使用自定义 logger 记录 ERROR: {e}")
-                        ui.label('✅ ERROR: 已记录').classes('text-red-600')
-                    
-                    ui.separator()
-                    ui.label('💡 自定义 logger 会自动绑定用户上下文信息').classes('text-sm text-gray-500 mt-2')
-                    ui.notify('get_logger 测试完成!', type='positive')
-            
-            ui.button('测试自定义 Logger', on_click=test_get_logger, icon='article').classes('bg-teal-500')
-    
-    # ======================== 第五部分: db_safe 测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('5️⃣ db_safe() 数据库安全测试').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_db_safe():
-                """测试 db_safe 数据库安全上下文"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🧪 测试 db_safe()...').classes('text-lg font-semibold mb-2')
-                    
-                    try:
-                        with db_safe("测试数据库操作") as db:
-                            ui.label('✅ 进入数据库安全上下文').classes('text-blue-600')
-                            # 这里可以执行数据库操作
-                            # user = db.query(User).first()
-                            log_info("模拟数据库查询操作")
-                            ui.label('✅ 数据库操作已记录').classes('text-green-600')
-                    except Exception as e:
-                        ui.label(f'⚠️ 数据库操作异常: {e}').classes('text-orange-600')
-                    
-                    ui.separator()
-                    ui.label('💡 db_safe 会自动捕获异常、记录日志、回滚事务').classes('text-sm text-gray-500 mt-2')
-                    ui.notify('db_safe 测试完成!', type='positive')
-            
-            ui.button('测试 db_safe', on_click=test_db_safe, icon='storage').classes('bg-purple-500')
-    
-    # ======================== 第六部分: 日志查询测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('6️⃣ 日志查询功能测试').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_get_log_files():
-                """查询最近的日志文件"""
-                result_container.clear()
-                with result_container:
-                    ui.label('📂 查询最近7天的日志文件...').classes('text-lg font-semibold mb-2')
-                    
-                    files = get_log_files(days=7)
-                    
-                    if files:
-                        ui.label(f'找到 {len(files)} 个日志文件:').classes('text-blue-600 mb-2')
-                        for f in files[:10]:  # 最多显示10个
-                            ui.label(f"📄 {f['date']} - {f['type']} ({f['size']} bytes)").classes('text-sm')
-                    else:
-                        ui.label('暂无日志文件').classes('text-gray-500')
-                    
-                    ui.notify('日志文件查询完成!', type='info')
-            
-            def test_get_today_errors():
-                """查询今天的错误日志"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🔍 查询今天的错误日志...').classes('text-lg font-semibold mb-2')
-                    
-                    errors = get_today_errors(limit=10)
-                    
-                    if errors:
-                        ui.label(f'找到 {len(errors)} 条错误日志:').classes('text-red-600 mb-2')
-                        for err in errors[:5]:  # 最多显示5条
-                            ui.label(f"❌ [{err['timestamp']}] {err['message']}").classes('text-sm text-red-500')
-                    else:
-                        ui.label('✅ 今天暂无错误日志').classes('text-green-600')
-                    
-                    ui.notify('错误日志查询完成!', type='info')
-            
-            def test_get_log_statistics():
-                """获取日志统计信息"""
-                result_container.clear()
-                with result_container:
-                    ui.label('📊 获取日志统计信息...').classes('text-lg font-semibold mb-2')
-                    
-                    stats = get_log_statistics(days=7)
-                    
-                    ui.label(f"📈 统计周期: 最近7天").classes('text-blue-600 mb-2')
-                    ui.label(f"总日志数: {stats['total_logs']}").classes('text-sm')
-                    ui.label(f"错误数量: {stats['error_count']}").classes('text-sm text-red-600')
-                    ui.label(f"警告数量: {stats['warning_count']}").classes('text-sm text-orange-600')
-                    ui.label(f"信息数量: {stats['info_count']}").classes('text-sm text-green-600')
-                    
-                    if stats['by_level']:
-                        ui.separator()
-                        ui.label('按级别统计:').classes('text-sm font-semibold mt-2')
-                        for level, count in stats['by_level'].items():
-                            ui.label(f"  {level}: {count}").classes('text-xs')
-                    
-                    ui.notify('统计信息获取完成!', type='info')
-            
-            def test_get_logs_by_level():
-                """按级别查询日志"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🎯 按级别查询今天的日志...').classes('text-lg font-semibold mb-2')
-                    
-                    # 查询 SUCCESS 级别
-                    success_logs = get_today_logs_by_level(level="SUCCESS", limit=5)
-                    ui.label(f'✅ SUCCESS 级别: {len(success_logs)} 条').classes('text-green-600')
-                    
-                    # 查询 WARNING 级别
-                    warning_logs = get_today_logs_by_level(level="WARNING", limit=5)
-                    ui.label(f'⚠️ WARNING 级别: {len(warning_logs)} 条').classes('text-orange-600')
-                    
-                    # 查询 ERROR 级别
-                    error_logs = get_today_logs_by_level(level="ERROR", limit=5)
-                    ui.label(f'❌ ERROR 级别: {len(error_logs)} 条').classes('text-red-600')
-                    
-                    ui.notify('按级别查询完成!', type='info')
-            
-            ui.button('查询日志文件', on_click=test_get_log_files, icon='folder').classes('bg-blue-500')
-            ui.button('查询今天错误', on_click=test_get_today_errors, icon='error_outline').classes('bg-red-500')
-            ui.button('日志统计', on_click=test_get_log_statistics, icon='analytics').classes('bg-green-500')
-            ui.button('按级别查询', on_click=test_get_log_statistics, icon='filter_list').classes('bg-purple-500')
-    
-    # ======================== 第七部分: 综合场景测试 ========================
-    with ui.card().classes('w-full p-6 mb-4'):
-        ui.label('7️⃣ 综合场景测试').classes('text-2xl font-bold mb-4')
-        
-        with ui.row().classes('w-full gap-2 flex-wrap'):
-            def test_comprehensive_scenario():
-                """综合场景: 模拟真实业务流程"""
-                result_container.clear()
-                with result_container:
-                    ui.label('🎬 模拟用户注册流程 (综合测试)...').classes('text-lg font-semibold mb-2')
-                    
-                    log_info("========== 用户注册流程开始 ==========")
-                    ui.label('1️⃣ 开始用户注册流程').classes('text-blue-600')
-                    
-                    # 步骤1: 验证输入
-                    log_debug("验证用户输入数据", extra_data='{"step": 1}')
-                    ui.label('  ✓ 步骤1: 验证输入数据').classes('text-sm text-gray-600')
-                    
-                    # 步骤2: 检查用户名
-                    username = "test_user_" + str(datetime.now().timestamp())[:10]
-                    log_info(f"检查用户名可用性: {username}")
-                    ui.label(f'  ✓ 步骤2: 用户名检查 ({username})').classes('text-sm text-gray-600')
-                    
-                    # 步骤3: 数据库操作(使用 db_safe)
-                    try:
-                        with db_safe("创建用户记录"):
-                            log_info(f"创建用户记录: {username}")
-                            ui.label('  ✓ 步骤3: 数据库操作').classes('text-sm text-gray-600')
-                    except Exception as e:
-                        log_error("数据库操作失败", exception=e)
-                    
-                    # 步骤4: 发送欢迎邮件(可能失败)
-                    def send_welcome_email(email):
-                        log_info(f"发送欢迎邮件到: {email}")
-                        # 模拟随机失败
-                        import random
-                        if random.random() < 0.3:
-                            raise ConnectionError("邮件服务器连接失败")
-                        return True
-                    
-                    result = safe(
-                        send_welcome_email,
-                        "test@example.com",
-                        return_value=False,
-                        show_error=False,
-                        error_msg="邮件发送失败,将稍后重试"
-                    )
-                    
-                    if result:
-                        log_success(f"用户注册成功: {username}")
-                        ui.label('  ✓ 步骤4: 欢迎邮件已发送').classes('text-sm text-gray-600')
-                        ui.separator()
-                        ui.label('✅ 注册流程完成!').classes('text-xl text-green-600 font-bold mt-2')
-                    else:
-                        log_warning("邮件发送失败,但用户已创建")
-                        ui.label('  ⚠️ 步骤4: 邮件发送失败(将重试)').classes('text-sm text-orange-600')
-                        ui.separator()
-                        ui.label('⚠️ 注册完成,但邮件待发送').classes('text-xl text-orange-600 font-bold mt-2')
-                    
-                    log_info("========== 用户注册流程结束 ==========")
-                    ui.notify('综合场景测试完成!', type='positive')
-            
-            ui.button('运行综合场景', on_click=test_comprehensive_scenario, icon='rocket_launch').classes('bg-gradient-to-r from-purple-500 to-pink-500 text-lg px-6 py-3')
-    
-    # ======================== 底部说明 ========================
-    with ui.card().classes('w-full p-6 bg-blue-50 dark:bg-blue-900/20'):
-        ui.label('📋 日志文件位置').classes('text-xl font-bold mb-3')
-        ui.label('日志保存在 logs/[日期]/ 目录下:').classes('text-sm mb-2')
-        ui.label('  • app.log - 所有级别的日志(文本格式)').classes('text-xs text-gray-600')
-        ui.label('  • error.log - 仅错误和严重错误(文本格式)').classes('text-xs text-gray-600')
-        ui.label('  • app_logs.csv - CSV格式日志(便于查询分析)').classes('text-xs text-gray-600')
-        
-        ui.separator().classes('my-3')
-        
-        ui.label('💡 使用建议').classes('text-xl font-bold mb-3')
-        ui.label('1. 先运行各个测试,生成日志记录').classes('text-sm')
-        ui.label('2. 然后查看 logs/ 目录下的日志文件').classes('text-sm')
-        ui.label('3. CSV 文件可用 Excel 或文本编辑器打开查看').classes('text-sm')
-        ui.label('4. 观察不同日志级别的输出格式和内容').classes('text-sm')
-```
-
-## webproduct_ui_template\scripts
-
-- **webproduct_ui_template\scripts\__init__.py** *(包初始化文件 - 空)*
-```python
-
-```
-
-- **webproduct_ui_template\scripts\deploy.py**
-```python
-
-```
-
-- **webproduct_ui_template\scripts\health_check.py**
-```python
-
-```
-
-- **webproduct_ui_template\scripts\init_database.py**
-```python
-#!/usr/bin/env python3
-"""
-独立的数据库初始化脚本 - SQLModel 版本
-使用方法:python scripts/init_database.py [--test-data] [--reset] [--verbose] [--scenario SCENARIO]
-
-核心改进:
-- 使用 SQLModel 的 Session 和 select()
-- 移除 SQLAlchemy 的 joinedload
-- 简化查询逻辑
-- 支持多场景初始化
-"""
-import os
-import sys
-import logging
-import argparse
-from pathlib import Path
-from contextlib import contextmanager
-from typing import Dict, List
-
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-def setup_logging(verbose=False):
-    """设置日志"""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)]
-    )
-    return logging.getLogger(__name__)
-
-
-# ===========================
-# 场景配置定义
-# ===========================
-
-class ScenarioConfig:
-    """场景配置基类"""
-    
-    def __init__(self, name: str, description: str):
-        self.name = name
-        self.description = description
-        self.roles: List[Dict] = []
-        self.permissions: List[Dict] = []
-        self.role_permissions: Dict[str, List[str]] = {}
-    
-    def get_roles(self) -> List[Dict]:
-        """获取场景角色配置"""
-        return self.roles
-    
-    def get_permissions(self) -> List[Dict]:
-        """获取场景权限配置"""
-        return self.permissions
-    
-    def get_role_permissions(self) -> Dict[str, List[str]]:
-        """获取角色权限映射"""
-        return self.role_permissions
-
-
-class DefaultScenario(ScenarioConfig):
-    """默认场景 - 通用Web应用"""
-    
-    def __init__(self):
-        super().__init__('default', '默认场景 - 通用Web应用,适合一般的业务系统')
-        
-        # 定义角色
-        self.roles = [
-            {
-                'name': 'admin',
-                'display_name': '系统管理员',
-                'description': '系统管理员,拥有所有权限',
-                'is_system': True
-            },
-            {
-                'name': 'user',
-                'display_name': '普通用户',
-                'description': '普通注册用户,基本权限',
-                'is_system': True
-            },
-            {
-                'name': 'editor',
-                'display_name': '编辑者',
-                'description': '可以创建和编辑内容',
-                'is_system': False
-            },
-            {
-                'name': 'viewer',
-                'display_name': '查看者',
-                'description': '只能查看内容',
-                'is_system': False
-            },
-        ]
-        
-        # 定义权限
-        self.permissions = [
-            # 系统权限
-            {'name': 'system.manage', 'display_name': '系统管理', 'category': 'system', 'description': '管理系统设置'},
-            {'name': 'user.manage', 'display_name': '用户管理', 'category': 'system', 'description': '管理用户账户'},
-            {'name': 'role.manage', 'display_name': '角色管理', 'category': 'system', 'description': '管理角色和权限'},
-            
-            # 内容权限
-            {'name': 'content.create', 'display_name': '创建内容', 'category': 'content', 'description': '创建新内容'},
-            {'name': 'content.edit', 'display_name': '编辑内容', 'category': 'content', 'description': '编辑现有内容'},
-            {'name': 'content.delete', 'display_name': '删除内容', 'category': 'content', 'description': '删除内容'},
-            {'name': 'content.view', 'display_name': '查看内容', 'category': 'content', 'description': '查看内容'},
-            
-            # 个人资料权限
-            {'name': 'profile.view', 'display_name': '查看个人资料', 'category': 'profile', 'description': '查看个人资料信息'},
-            {'name': 'profile.edit', 'display_name': '编辑个人资料', 'category': 'profile', 'description': '编辑个人资料信息'},
-            {'name': 'password.change', 'display_name': '修改密码', 'category': 'profile', 'description': '修改登录密码'},
-        ]
-        
-        # 角色权限映射
-        self.role_permissions = {
-            'admin': ['*'],  # 所有权限
-            'user': ['content.view', 'profile.view', 'profile.edit', 'password.change'],
-            'editor': ['content.create', 'content.edit', 'content.view', 'profile.view', 'profile.edit', 'password.change'],
-            'viewer': ['content.view', 'profile.view', 'password.change'],
-        }
-
-
-class CMSScenario(ScenarioConfig):
-    """CMS场景 - 内容管理系统"""
-    
-    def __init__(self):
-        super().__init__('cms', 'CMS场景 - 内容管理系统,适合博客、新闻、文档等内容发布平台')
-        
-        # 定义角色
-        self.roles = [
-            {
-                'name': 'admin',
-                'display_name': '超级管理员',
-                'description': '拥有所有权限的超级管理员',
-                'is_system': True
-            },
-            {
-                'name': 'editor_chief',
-                'display_name': '主编',
-                'description': '负责内容审核和发布',
-                'is_system': False
-            },
-            {
-                'name': 'author',
-                'display_name': '作者',
-                'description': '撰写和编辑文章',
-                'is_system': False
-            },
-            {
-                'name': 'contributor',
-                'display_name': '投稿者',
-                'description': '提交文章草稿,需要审核',
-                'is_system': False
-            },
-            {
-                'name': 'reader',
-                'display_name': '读者',
-                'description': '浏览已发布的内容',
-                'is_system': False
-            },
-        ]
-        
-        # 定义权限
-        self.permissions = [
-            # 系统管理
-            {'name': 'system.manage', 'display_name': '系统管理', 'category': 'system', 'description': '管理系统设置'},
-            {'name': 'user.manage', 'display_name': '用户管理', 'category': 'system', 'description': '管理用户账户'},
-            {'name': 'role.manage', 'display_name': '角色管理', 'category': 'system', 'description': '管理角色权限'},
-            
-            # 文章管理
-            {'name': 'article.create', 'display_name': '创建文章', 'category': 'article', 'description': '创建新文章'},
-            {'name': 'article.edit', 'display_name': '编辑文章', 'category': 'article', 'description': '编辑文章内容'},
-            {'name': 'article.edit_all', 'display_name': '编辑所有文章', 'category': 'article', 'description': '编辑任何人的文章'},
-            {'name': 'article.delete', 'display_name': '删除文章', 'category': 'article', 'description': '删除文章'},
-            {'name': 'article.delete_all', 'display_name': '删除所有文章', 'category': 'article', 'description': '删除任何人的文章'},
-            {'name': 'article.publish', 'display_name': '发布文章', 'category': 'article', 'description': '发布文章到前台'},
-            {'name': 'article.view_draft', 'display_name': '查看草稿', 'category': 'article', 'description': '查看未发布的草稿'},
-            {'name': 'article.view', 'display_name': '查看文章', 'category': 'article', 'description': '查看已发布文章'},
-            
-            # 评论管理
-            {'name': 'comment.create', 'display_name': '发表评论', 'category': 'comment', 'description': '对文章发表评论'},
-            {'name': 'comment.moderate', 'display_name': '审核评论', 'category': 'comment', 'description': '审核和管理评论'},
-            {'name': 'comment.delete', 'display_name': '删除评论', 'category': 'comment', 'description': '删除不当评论'},
-            
-            # 分类标签
-            {'name': 'category.manage', 'display_name': '管理分类', 'category': 'taxonomy', 'description': '管理文章分类'},
-            {'name': 'tag.manage', 'display_name': '管理标签', 'category': 'taxonomy', 'description': '管理文章标签'},
-            
-            # 媒体库
-            {'name': 'media.upload', 'display_name': '上传媒体', 'category': 'media', 'description': '上传图片、视频等'},
-            {'name': 'media.manage', 'display_name': '管理媒体', 'category': 'media', 'description': '管理媒体库'},
-            
-            # 个人资料
-            {'name': 'profile.view', 'display_name': '查看资料', 'category': 'profile', 'description': '查看个人资料'},
-            {'name': 'profile.edit', 'display_name': '编辑资料', 'category': 'profile', 'description': '编辑个人资料'},
-        ]
-        
-        # 角色权限映射
-        self.role_permissions = {
-            'admin': ['*'],
-            'editor_chief': [
-                'article.create', 'article.edit', 'article.edit_all', 
-                'article.delete', 'article.delete_all', 'article.publish',
-                'article.view_draft', 'article.view',
-                'comment.create', 'comment.moderate', 'comment.delete',
-                'category.manage', 'tag.manage',
-                'media.upload', 'media.manage',
-                'profile.view', 'profile.edit'
-            ],
-            'author': [
-                'article.create', 'article.edit', 'article.view_draft', 'article.view',
-                'comment.create', 'comment.moderate',
-                'media.upload',
-                'profile.view', 'profile.edit'
-            ],
-            'contributor': [
-                'article.create', 'article.edit', 'article.view',
-                'comment.create',
-                'media.upload',
-                'profile.view', 'profile.edit'
-            ],
-            'reader': [
-                'article.view', 'comment.create',
-                'profile.view', 'profile.edit'
-            ],
-        }
-
-
-class ERPScenario(ScenarioConfig):
-    """ERP场景 - 企业资源计划系统"""
-    
-    def __init__(self):
-        super().__init__('erp', 'ERP场景 - 企业资源计划系统,适合企业内部管理、财务、采购等业务')
-        
-        # 定义角色
-        self.roles = [
-            {
-                'name': 'admin',
-                'display_name': '系统管理员',
-                'description': '系统管理员,拥有所有权限',
-                'is_system': True
-            },
-            {
-                'name': 'ceo',
-                'display_name': 'CEO',
-                'description': '公司最高管理者,查看所有数据',
-                'is_system': False
-            },
-            {
-                'name': 'finance_manager',
-                'display_name': '财务经理',
-                'description': '管理公司财务和账目',
-                'is_system': False
-            },
-            {
-                'name': 'purchase_manager',
-                'display_name': '采购经理',
-                'description': '管理采购订单和供应商',
-                'is_system': False
-            },
-            {
-                'name': 'sales_manager',
-                'display_name': '销售经理',
-                'description': '管理销售订单和客户',
-                'is_system': False
-            },
-            {
-                'name': 'warehouse_manager',
-                'display_name': '仓库管理员',
-                'description': '管理库存和出入库',
-                'is_system': False
-            },
-            {
-                'name': 'employee',
-                'display_name': '普通员工',
-                'description': '普通员工,基础权限',
-                'is_system': False
-            },
-        ]
-        
-        # 定义权限
-        self.permissions = [
-            # 系统管理
-            {'name': 'system.manage', 'display_name': '系统管理', 'category': 'system', 'description': '系统设置和配置'},
-            {'name': 'user.manage', 'display_name': '用户管理', 'category': 'system', 'description': '管理用户账户'},
-            {'name': 'role.manage', 'display_name': '角色管理', 'category': 'system', 'description': '管理角色权限'},
-            
-            # 财务管理
-            {'name': 'finance.view', 'display_name': '查看财务', 'category': 'finance', 'description': '查看财务报表'},
-            {'name': 'finance.manage', 'display_name': '管理财务', 'category': 'finance', 'description': '管理财务数据'},
-            {'name': 'invoice.create', 'display_name': '创建发票', 'category': 'finance', 'description': '创建销售发票'},
-            {'name': 'invoice.approve', 'display_name': '审批发票', 'category': 'finance', 'description': '审批发票'},
-            {'name': 'payment.manage', 'display_name': '管理付款', 'category': 'finance', 'description': '处理付款事务'},
-            
-            # 采购管理
-            {'name': 'purchase.view', 'display_name': '查看采购', 'category': 'purchase', 'description': '查看采购订单'},
-            {'name': 'purchase.create', 'display_name': '创建采购', 'category': 'purchase', 'description': '创建采购订单'},
-            {'name': 'purchase.approve', 'display_name': '审批采购', 'category': 'purchase', 'description': '审批采购订单'},
-            {'name': 'supplier.manage', 'display_name': '管理供应商', 'category': 'purchase', 'description': '管理供应商信息'},
-            
-            # 销售管理
-            {'name': 'sales.view', 'display_name': '查看销售', 'category': 'sales', 'description': '查看销售订单'},
-            {'name': 'sales.create', 'display_name': '创建销售', 'category': 'sales', 'description': '创建销售订单'},
-            {'name': 'sales.approve', 'display_name': '审批销售', 'category': 'sales', 'description': '审批销售订单'},
-            {'name': 'customer.manage', 'display_name': '管理客户', 'category': 'sales', 'description': '管理客户信息'},
-            
-            # 库存管理
-            {'name': 'inventory.view', 'display_name': '查看库存', 'category': 'inventory', 'description': '查看库存状态'},
-            {'name': 'inventory.manage', 'display_name': '管理库存', 'category': 'inventory', 'description': '管理库存数据'},
-            {'name': 'warehouse.in', 'display_name': '入库操作', 'category': 'inventory', 'description': '商品入库'},
-            {'name': 'warehouse.out', 'display_name': '出库操作', 'category': 'inventory', 'description': '商品出库'},
-            
-            # 报表权限
-            {'name': 'report.view', 'display_name': '查看报表', 'category': 'report', 'description': '查看各类报表'},
-            {'name': 'report.export', 'display_name': '导出报表', 'category': 'report', 'description': '导出报表数据'},
-            
-            # 个人资料
-            {'name': 'profile.view', 'display_name': '查看资料', 'category': 'profile', 'description': '查看个人资料'},
-            {'name': 'profile.edit', 'display_name': '编辑资料', 'category': 'profile', 'description': '编辑个人资料'},
-        ]
-        
-        # 角色权限映射
-        self.role_permissions = {
-            'admin': ['*'],
-            'ceo': [
-                'finance.view', 'purchase.view', 'purchase.approve',
-                'sales.view', 'sales.approve', 'inventory.view',
-                'report.view', 'report.export',
-                'profile.view', 'profile.edit'
-            ],
-            'finance_manager': [
-                'finance.view', 'finance.manage',
-                'invoice.create', 'invoice.approve', 'payment.manage',
-                'report.view', 'report.export',
-                'profile.view', 'profile.edit'
-            ],
-            'purchase_manager': [
-                'purchase.view', 'purchase.create', 'purchase.approve',
-                'supplier.manage', 'inventory.view',
-                'report.view',
-                'profile.view', 'profile.edit'
-            ],
-            'sales_manager': [
-                'sales.view', 'sales.create', 'sales.approve',
-                'customer.manage', 'invoice.create',
-                'report.view',
-                'profile.view', 'profile.edit'
-            ],
-            'warehouse_manager': [
-                'inventory.view', 'inventory.manage',
-                'warehouse.in', 'warehouse.out',
-                'report.view',
-                'profile.view', 'profile.edit'
-            ],
-            'employee': [
-                'profile.view', 'profile.edit'
-            ],
-        }
-
-
-# 场景注册表
-SCENARIOS = {
-    'default': DefaultScenario(),
-    'cms': CMSScenario(),
-    'erp': ERPScenario(),
-}
-
-
-# ===========================
-# 数据库初始化类
-# ===========================
-
-class DatabaseInitializer:
-    """
-    数据库初始化器 - SQLModel 版本
-    
-    核心改进:
-    - 使用 SQLModel 的 create_engine
-    - 使用 Session 而非 sessionmaker
-    - 使用 select() 查询而非 query()
-    - 支持多场景初始化
-    """
-    
-    def __init__(self, logger, scenario='default'):
-        self.logger = logger
-        self.engine = None
-        self.scenario = SCENARIOS.get(scenario, SCENARIOS['default'])
-        self.logger.info(f"🎯 使用场景: {self.scenario.name} - {self.scenario.description}")
-    
-    def create_engine_and_session(self):
-        """创建数据库引擎 - SQLModel 版本"""
-        try:
-            from sqlmodel import create_engine
-            from sqlalchemy import event
-            from auth.config import auth_config
-            
-            # 使用 SQLModel 的 create_engine
-            self.engine = create_engine(
-                auth_config.database_url,
-                pool_pre_ping=True,
-                echo=False
-            )
-            
-            # 为 SQLite 启用外键约束
-            if auth_config.database_type == 'sqlite':
-                @event.listens_for(self.engine, "connect")
-                def set_sqlite_pragma(dbapi_connection, connection_record):
-                    cursor = dbapi_connection.cursor()
-                    cursor.execute("PRAGMA foreign_keys=ON")
-                    cursor.close()
-            
-            self.logger.info(f"✅ 数据库引擎创建成功: {auth_config.database_type}")
-            self.logger.info(f"📍 数据库位置: {auth_config.database_url}")
-            
-        except Exception as e:
-            self.logger.error(f"❌ 数据库引擎创建失败: {e}")
-            raise
-    
-    @contextmanager
-    def get_db_session(self):
-        """
-        获取数据库会话 - SQLModel 版本
-        使用 Session 而不是 sessionmaker
-        """
-        from sqlmodel import Session
-        
-        session = Session(self.engine)
-        try:
-            yield session
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            self.logger.error(f"❌ 数据库操作失败: {e}")
-            raise
-        finally:
-            session.close()
-    
-    def import_all_models(self):
-        """
-        导入所有模型以注册到 SQLModel.metadata
-        """
-        try:
-            from auth.models import (
-                User, Role, Permission, LoginLog,
-                UserRoleLink, RolePermissionLink, UserPermissionLink
-            )
-            
-            models = {
-                'User': User,
-                'Role': Role,
-                'Permission': Permission,
-                'LoginLog': LoginLog,
-                'UserRoleLink': UserRoleLink,
-                'RolePermissionLink': RolePermissionLink,
-                'UserPermissionLink': UserPermissionLink,
-            }
-            
-            self.logger.info(f"✅ 成功导入 {len(models)} 个模型")
-            return models
-            
-        except Exception as e:
-            self.logger.error(f"❌ 模型导入失败: {e}")
-            raise
-    
-    def create_all_tables(self):
-        """
-        创建所有数据库表 - SQLModel 版本
-        """
-        try:
-            from sqlmodel import SQLModel
-            
-            self.logger.info("创建数据库表...")
-            
-            # 导入模型
-            models = self.import_all_models()
-            
-            # 创建所有表
-            SQLModel.metadata.create_all(bind=self.engine)
-            
-            self.logger.info("✅ 数据库表创建完成")
-            return models
-            
-        except Exception as e:
-            self.logger.error(f"❌ 表创建失败: {e}")
-            raise
-    
-    def init_default_roles_and_permissions(self, models):
-        """
-        初始化默认角色和权限 - 支持多场景
-        """
-        try:
-            with self.get_db_session() as session:
-                from sqlmodel import select
-                Role = models['Role']
-                Permission = models['Permission']
-                
-                # 检查是否已初始化
-                existing_role = session.exec(select(Role)).first()
-                if existing_role is not None:
-                    self.logger.info("角色和权限已存在,跳过初始化")
-                    return
-                
-                # 创建角色
-                self.logger.info(f"创建 {self.scenario.name} 场景的角色...")
-                for role_data in self.scenario.get_roles():
-                    role = Role(**role_data)
-                    session.add(role)
-                
-                # 创建权限
-                self.logger.info(f"创建 {self.scenario.name} 场景的权限...")
-                for perm_data in self.scenario.get_permissions():
-                    permission = Permission(**perm_data)
-                    session.add(permission)
-                
-                session.commit()
-                self.logger.info(f"✅ {self.scenario.name} 场景的角色和权限初始化完成")
-                
-        except Exception as e:
-            self.logger.error(f"❌ 角色和权限初始化失败: {e}")
-            raise
-    
-    def init_role_permissions(self, models):
-        """
-        初始化角色权限关系 - 支持多场景
-        """
-        try:
-            with self.get_db_session() as session:
-                from sqlmodel import select
-                Role = models['Role']
-                Permission = models['Permission']
-                
-                # 获取所有角色和权限
-                all_roles = session.exec(select(Role)).all()
-                all_permissions = session.exec(select(Permission)).all()
-                
-                # 创建权限字典方便查找
-                permission_dict = {perm.name: perm for perm in all_permissions}
-                
-                self.logger.info(f"分配 {self.scenario.name} 场景的角色权限...")
-                
-                # 为每个角色分配权限
-                for role in all_roles:
-                    # 清除现有权限
-                    role.permissions.clear()
-                    
-                    # 获取该角色应有的权限
-                    role_perms = self.scenario.get_role_permissions().get(role.name, [])
-                    
-                    if '*' in role_perms:
-                        # 分配所有权限
-                        role.permissions.extend(all_permissions)
-                        self.logger.info(f"  - {role.display_name}: 所有权限 ({len(all_permissions)}个)")
-                    else:
-                        # 分配指定权限
-                        assigned = 0
-                        for perm_name in role_perms:
-                            if perm_name in permission_dict:
-                                role.permissions.append(permission_dict[perm_name])
-                                assigned += 1
-                        self.logger.info(f"  - {role.display_name}: {assigned}个权限")
-                
-                session.commit()
-                self.logger.info(f"✅ {self.scenario.name} 场景的角色权限分配完成")
-                
-        except Exception as e:
-            self.logger.error(f"❌ 角色权限分配失败: {e}")
-            raise
-    
-    def init_test_users(self, models, create_test_data=False):
-        """
-        初始化测试用户 - SQLModel 版本
-        """
-        if not create_test_data:
-            return
-        
-        try:
-            with self.get_db_session() as session:
-                from sqlmodel import select
-                User = models['User']
-                Role = models['Role']
-                
-                # 检查是否已有用户
-                existing_user = session.exec(select(User)).first()
-                if existing_user is not None:
-                    self.logger.info("测试用户已存在,跳过创建")
-                    return
-                
-                self.logger.info("创建测试用户...")
-                
-                # 获取角色
-                roles = session.exec(select(Role)).all()
-                role_dict = {role.name: role for role in roles}
-                
-                # 创建管理员用户
-                admin_user = User(
-                    username='admin',
-                    email='admin@example.com',
-                    full_name='系统管理员',
-                    is_superuser=True,
-                    is_active=True
-                )
-                admin_user.set_password('admin123')
-                if 'admin' in role_dict:
-                    admin_user.roles.append(role_dict['admin'])
-                session.add(admin_user)
-                
-                # 根据场景创建不同的测试用户
-                if self.scenario.name == 'default':
-                    # 普通用户
-                    user = User(username='user', email='user@example.com', full_name='普通用户')
-                    user.set_password('user123')
-                    if 'user' in role_dict:
-                        user.roles.append(role_dict['user'])
-                    session.add(user)
-                    
-                    # 编辑者
-                    editor = User(username='editor', email='editor@example.com', full_name='编辑者')
-                    editor.set_password('editor123')
-                    if 'editor' in role_dict:
-                        editor.roles.append(role_dict['editor'])
-                    session.add(editor)
-                    
-                    # 查看者
-                    viewer = User(username='viewer', email='viewer@example.com', full_name='查看者')
-                    viewer.set_password('viewer123')
-                    if 'viewer' in role_dict:
-                        viewer.roles.append(role_dict['viewer'])
-                    session.add(viewer)
-                
-                elif self.scenario.name == 'cms':
-                    # 主编
-                    chief = User(username='chief', email='chief@example.com', full_name='主编')
-                    chief.set_password('chief123')
-                    if 'editor_chief' in role_dict:
-                        chief.roles.append(role_dict['editor_chief'])
-                    session.add(chief)
-                    
-                    # 作者
-                    author = User(username='author', email='author@example.com', full_name='作者')
-                    author.set_password('author123')
-                    if 'author' in role_dict:
-                        author.roles.append(role_dict['author'])
-                    session.add(author)
-                    
-                    # 投稿者
-                    contributor = User(username='contributor', email='contributor@example.com', full_name='投稿者')
-                    contributor.set_password('contributor123')
-                    if 'contributor' in role_dict:
-                        contributor.roles.append(role_dict['contributor'])
-                    session.add(contributor)
-                
-                elif self.scenario.name == 'erp':
-                    # CEO
-                    ceo = User(username='ceo', email='ceo@example.com', full_name='CEO')
-                    ceo.set_password('ceo123')
-                    if 'ceo' in role_dict:
-                        ceo.roles.append(role_dict['ceo'])
-                    session.add(ceo)
-                    
-                    # 财务经理
-                    finance = User(username='finance', email='finance@example.com', full_name='财务经理')
-                    finance.set_password('finance123')
-                    if 'finance_manager' in role_dict:
-                        finance.roles.append(role_dict['finance_manager'])
-                    session.add(finance)
-                    
-                    # 采购经理
-                    purchase = User(username='purchase', email='purchase@example.com', full_name='采购经理')
-                    purchase.set_password('purchase123')
-                    if 'purchase_manager' in role_dict:
-                        purchase.roles.append(role_dict['purchase_manager'])
-                    session.add(purchase)
-                
-                session.commit()
-                self.logger.info(f"✅ {self.scenario.name} 场景的测试用户创建完成")
-                
-        except Exception as e:
-            self.logger.error(f"❌ 测试用户创建失败: {e}")
-            raise
-    
-    def run_full_initialization(self, create_test_data=False, reset_if_exists=False):
-        """
-        执行完整的数据库初始化流程
-        """
-        try:
-            # 1. 创建引擎
-            self.create_engine_and_session()
-            
-            # 2. 重置数据库(如果需要)
-            if reset_if_exists:
-                self.logger.warning("⚠️  重置现有数据库...")
-                from sqlmodel import SQLModel
-                SQLModel.metadata.drop_all(bind=self.engine)
-                self.logger.info("✅ 数据库已重置")
-            
-            # 3. 创建所有表并导入模型
-            models = self.create_all_tables()
-            
-            # 4. 初始化默认角色和权限
-            self.init_default_roles_and_permissions(models)
-            
-            # 5. 初始化角色权限关系
-            self.init_role_permissions(models)
-            
-            # 6. 创建测试用户(如果需要)
-            if create_test_data:
-                self.init_test_users(models, create_test_data=True)
-            
-            self.logger.info("🎉 数据库初始化完成!")
-            
-        except Exception as e:
-            self.logger.error(f"❌ 数据库初始化失败: {e}")
-            raise
-
-
-def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(
-        description='数据库初始化脚本 - SQLModel 版本 (支持多场景)',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-场景说明:
-  default - 默认场景,适合通用Web应用
-  cms     - 内容管理系统场景,适合博客、新闻等
-  erp     - 企业资源计划场景,适合企业管理系统
-
-使用示例:
-  python scripts/init_database.py --scenario default --test-data
-  python scripts/init_database.py --scenario cms --reset --test-data
-  python scripts/init_database.py --scenario erp --verbose
-        """
-    )
-    
-    parser.add_argument('--test-data', action='store_true', help='创建测试用户数据')
-    parser.add_argument('--reset', action='store_true', help='重置现有数据库')
-    parser.add_argument('--verbose', action='store_true', help='详细输出')
-    parser.add_argument(
-        '--scenario', 
-        type=str, 
-        default='default', 
-        choices=['default', 'cms', 'erp'],
-        help='选择初始化场景 (默认: default)'
-    )
-    
-    args = parser.parse_args()
-    
-    # 设置日志
-    logger = setup_logging(args.verbose)
-    
-    logger.info("=" * 60)
-    logger.info("数据库初始化脚本 - SQLModel 版本")
-    logger.info("=" * 60)
-    
-    # 初始化数据库
-    initializer = DatabaseInitializer(logger, scenario=args.scenario)
-    
-    try:
-        initializer.run_full_initialization(
-            create_test_data=args.test_data,
-            reset_if_exists=args.reset
-        )
-        
-        print("\n" + "=" * 60)
-        print("✅ 数据库初始化成功!")
-        print("=" * 60)
-        print(f"\n🎯 场景: {initializer.scenario.name}")
-        print(f"📝 描述: {initializer.scenario.description}")
-        
-        if args.test_data:
-            print("\n🔐 测试账户已创建:")
-            print("   管理员: admin / admin123")
-            
-            if args.scenario == 'default':
-                print("   普通用户: user / user123")
-                print("   编辑者: editor / editor123")
-                print("   查看者: viewer / viewer123")
-            elif args.scenario == 'cms':
-                print("   主编: chief / chief123")
-                print("   作者: author / author123")
-                print("   投稿者: contributor / contributor123")
-            elif args.scenario == 'erp':
-                print("   CEO: ceo / ceo123")
-                print("   财务经理: finance / finance123")
-                print("   采购经理: purchase / purchase123")
-            
-            print("\n💡 提示: 使用这些账户登录测试系统")
-        
-    except Exception as e:
-        print("\n" + "=" * 60)
-        print(f"❌ 数据库初始化失败: {e}")
-        print("=" * 60)
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
 ```
